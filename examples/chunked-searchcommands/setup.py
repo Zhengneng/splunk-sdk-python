@@ -18,6 +18,30 @@ project_dir = os.path.dirname(os.path.abspath(__file__))
 
 # region Helper functions
 
+def _copy_debug_client(debug_client, app_source):
+    if not debug_client:
+        return
+    shutil.copy(debug_client, os.path.join(app_source, 'bin', '_pydebug.egg'))
+
+
+def _copy_lookups(app_source):
+    lookups_dir = os.path.join(app_source, 'lookups')
+
+    if not os.path.isdir(lookups_dir):
+        os.mkdir(lookups_dir)
+
+    random_data = os.path.join(lookups_dir, 'random_data.csv.gz')
+
+    if not os.path.isfile(random_data):
+        download = 'http://splk-newtest-data.s3.amazonaws.com/chunked_external_commands/lookups/random_data.csv.gz'
+        response = requests.get(download)
+        with open(random_data, 'wb') as output:
+            output.write(response.content)
+        pass
+
+    return
+
+
 def _make_archive(package_name, build_dir, base_dir):
     import tarfile
 
@@ -42,7 +66,7 @@ def _make_archive(package_name, build_dir, base_dir):
     return
 
 
-def _package_app(name, source, metadata, build_dir, package_name, debug_client=False):
+def _package_app(name, source, metadata, build_dir, package_name, debug_client=None):
     import stat
 
     temp_dir = os.path.join(build_dir, name)
@@ -89,6 +113,7 @@ def _splunk(*args):
 def _splunk_restart(uri, auth):
     _splunk('restart', "-uri", uri, "-auth", auth)
 
+
 # endregion
 
 # region Command definitions
@@ -100,7 +125,7 @@ class AnalyzeCommand(Command):
 
     """
     description = 'Create an HTML coverage report from running the full test suite.'
-    
+
     user_options = []
 
     def initialize_options(self):
@@ -124,6 +149,46 @@ class AnalyzeCommand(Command):
         c.html_report(directory='coverage_report')
 
 
+class LinkCommand(Command):
+    """
+    setup.py command to create a symbolic link to the app package at $SPLUNK_HOME/etc/apps.
+
+    """
+    description = 'Create a symbolic link to the app package at $SPLUNK_HOME/etc/apps.'
+
+    user_options = [
+        (b'debug-client=', None, 'Copies the specified debug client egg to package/_pydebug.egg'),
+        (b'splunk-home=', None, 'Overrides the value of SPLUNK_HOME.')]
+
+    def __init__(self, dist):
+        Command.__init__(self, dist)
+
+        self.debug_client = None
+        self.splunk_home = os.environ['SPLUNK_HOME']
+        self.app_name = self.distribution.metadata.name
+        self.app_source = os.path.join(project_dir, 'package')
+
+        return
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        return
+
+    def run(self):
+        target = os.path.join(self.splunk_home, 'etc', 'apps', self.app_name)
+        if os.path.islink(target):
+            os.remove(target)
+        elif os.path.exists(target):
+            message = 'Cannot create a link at "{0}" because a file by that name already exists.'.format(target)
+            raise SystemError(message)
+        _copy_debug_client(self.debug_client, self.app_source)
+        _copy_lookups(self.app_source)
+        os.symlink(self.app_source, target)
+        return
+
+
 class PackageCommand(Command):
     """ 
     setup.py command to create the application package file. 
@@ -132,8 +197,11 @@ class PackageCommand(Command):
     description = 'Package the app for distribution.'
 
     user_options = [
-        (b'build-number=', None, 'Build number (default: private)'),
-        (b'debug-client', None, 'Packages the PyCharm debug client egg with the app')]
+        (b'build-number=', None,
+         'Build number (default: private)'),
+        (b'debug-client=', None,
+         'Copies the file at the specified location to package/bin/_pydebug.egg and bundles it and _pydebug_conf.py '
+         'with the app')]
 
     def __init__(self, dist):
         Command.__init__(self, dist)
@@ -145,8 +213,7 @@ class PackageCommand(Command):
         self.app_package_name = '-'.join((self.app_name, self.app_version))
 
         self.build_number = 'private'
-        self.debug_client = False
-        self.target = 'app'
+        self.debug_client = None
 
         return
 
@@ -154,29 +221,13 @@ class PackageCommand(Command):
         pass
 
     def finalize_options(self):
-        self.target = {target.strip(' ') for target in self.target.split(',')}
-        diff = self.target.difference({'app', 'test-harness'})
-        if diff:
-            print('Unrecognized target: {0}'.format(','.join(diff)))
-            exit(1)
         return
 
     def run(self):
-
         package_name = '-'.join((self.app_package_name, unicode(self.build_number) + '.tgz'))
-        lookups_dir = os.path.join(self.app_source, 'lookups')
 
-        if not os.path.isdir(lookups_dir):
-            os.mkdir(lookups_dir)
-
-        random_data = os.path.join(lookups_dir, 'random_data.csv.gz')
-
-        if not os.path.isfile(random_data):
-            download = 'http://splk-newtest-data.s3.amazonaws.com/chunked_external_commands/lookups/random_data.csv.gz'
-            response = requests.get(download)
-            with open(random_data, 'wb') as output:
-                output.write(response.content)
-            pass
+        _copy_debug_client(self.debug_client, self.app_source)
+        _copy_lookups(self.app_source)
 
         _package_app(
             self.app_name, source=self.app_source, metadata=self.distribution.metadata, build_dir=project_dir,
@@ -191,7 +242,7 @@ class TestCommand(Command):
 
     """
     description = 'Run full test suite.'
-    
+
     user_options = [
         (b'commands=', None, 'Comma-separated list of commands under test or *, if all commands are under test'),
         (b'build-number=', None, 'Build number for the test harness'),
@@ -252,12 +303,12 @@ class TestCommand(Command):
 # endregion
 
 setup(
-    cmdclass={'analyze': AnalyzeCommand, 'package': PackageCommand, 'test': TestCommand},
-    description='Application for testing the Chunked External Search Commands feature',
-    name='chunked_external_commands',
+    cmdclass={'analyze': AnalyzeCommand, 'link': LinkCommand, 'package': PackageCommand, 'test': TestCommand},
+    description='Application for testing the Chunked Search Commands feature',
+    name='chunked_searchcommands',
     version='1.0.0',
     author='Splunk, Inc.',
-    author_email='dnoble@splunk.com',
+    author_email='dev@splunk.com',
     url='',
     license='',
     packages=[],
