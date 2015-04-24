@@ -277,7 +277,7 @@ class SearchCommandParser(object):
 
         for option in SearchCommandParser._options_re.finditer(command_args.group('options')):
             name, value = option.group(1), option.group(2)
-            if not name in command.options:
+            if name not in command.options:
                 raise ValueError('Unrecognized option: %s = %s' % (name, value))
             command.options[name].value = SearchCommandParser.unquote(value)
 

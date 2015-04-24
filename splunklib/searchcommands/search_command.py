@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 # Absolute imports
 
@@ -55,13 +55,13 @@ class SearchCommand(object):
         self.input_header = InputHeader()
         self.messages = MessagesHeader()
 
-        if u'SPLUNK_HOME' not in environ:
+        if 'SPLUNK_HOME' not in environ:
             self.logger.warning(
-                u'SPLUNK_HOME environment variable is undefined.\n'
-                u'If you are testing outside of Splunk, consider running under control of the Splunk CLI:\n'
-                u'    splunk cmd %s\n'
-                u'If you are running inside of Splunk, SPLUNK_HOME should be defined. Consider troubleshooting your '
-                u'installation.', self)
+                'SPLUNK_HOME environment variable is undefined.\n'
+                'If you are testing outside of Splunk, consider running under control of the Splunk CLI:\n'
+                '    splunk cmd %s\n'
+                'If you are running inside of Splunk, SPLUNK_HOME should be defined. Consider troubleshooting your '
+                'installation.', self)
 
         # Variables backing option/property values
 
@@ -84,7 +84,7 @@ class SearchCommand(object):
         text = ' '.join([value for value in values if len(value) > 0])
         return text
 
-    #region Options
+    # region Options
 
     @Option
     def logging_configuration(self):
@@ -139,9 +139,9 @@ class SearchCommand(object):
 
         ''', default=False, validate=Boolean())
 
-    # #endregion
+    # endregion
 
-    #region Properties
+    # region Properties
 
     @property
     def configuration(self):
@@ -275,9 +275,9 @@ class SearchCommand(object):
 
         return self._service
 
-    #endregion
+    # endregion
 
-    #region Methods
+    # region Methods
 
     def error_exit(self, error, message=None):
         self.logger.error('Abnormal exit: %s', error)
@@ -292,7 +292,7 @@ class SearchCommand(object):
         :param output_file: Pipeline output file
 
         """
-        self.logger.debug(u'%s arguments: %s', type(self).__name__, args)
+        self.logger.debug('%s arguments: %s', type(self).__name__, args)
         self._configuration = None
         self._output_file = output_file
 
@@ -324,15 +324,15 @@ class SearchCommand(object):
 
                 file_name = path.basename(args[0])
                 message = (
-                    u'Command {0} appears to be statically configured and static '
-                    u'configuration is unsupported by splunklib.searchcommands. '
-                    u'Please ensure that default/commands.conf contains this '
-                    u'stanza:\n'
-                    u'[{0}]\n'
-                    u'filename = {1}\n'
-                    u'supports_getinfo = true\n'
-                    u'supports_rawargs = true\n'
-                    u'outputheader = true'.format(type(self).name, file_name))
+                    'Command {0} appears to be statically configured and static '
+                    'configuration is unsupported by splunklib.searchcommands. '
+                    'Please ensure that default/commands.conf contains this '
+                    'stanza:\n'
+                    '[{0}]\n'
+                    'filename = {1}\n'
+                    'supports_getinfo = true\n'
+                    'supports_rawargs = true\n'
+                    'outputheader = true'.format(type(self).name, file_name))
                 raise NotImplementedError(message)
 
         except SystemExit:
@@ -369,25 +369,25 @@ class SearchCommand(object):
     # TODO: DVPL-5865 - Is it possible to support anything other than write_error? It does not seem so.
 
     def write_debug(self, message, *args):
-        self._write_message(u'DEBUG', message, *args)
+        self._write_message('DEBUG', message, *args)
         return
 
     def write_error(self, message, *args):
-        self._write_message(u'ERROR', message, *args)
+        self._write_message('ERROR', message, *args)
         return
 
     def write_info(self, message, *args):
-        self._write_message(u'INFO', message, *args)
+        self._write_message('INFO', message, *args)
         return
 
     def write_warning(self, message, *args):
-        self._write_message(u'WARN', message, *args)
+        self._write_message('WARN', message, *args)
 
     def _execute(self, operation, reader, writer):
-        raise NotImplementedError(u'SearchCommand._configure(self, argv)')
+        raise NotImplementedError('SearchCommand._configure(self, argv)')
 
     def _prepare(self, argv, input_file):
-        raise NotImplementedError(u'SearchCommand._configure(self, argv)')
+        raise NotImplementedError('SearchCommand._configure(self, argv)')
 
     def _write_message(self, message_type, message_text, *args):
         import csv
@@ -396,9 +396,9 @@ class SearchCommand(object):
         writer = csv.writer(self._output_file)
         writer.writerows([[], [message_type], [message_text]])
 
-    #endregion
+    # endregion
 
-    #region Types
+    # region Types
 
     class ConfigurationSettings(object):
         """ Represents the configuration settings common to all
@@ -422,7 +422,7 @@ class SearchCommand(object):
                 ['%s=%s' % (k, getattr(self, k)) for k in self.keys()])
             return text
 
-        #region Properties
+        # region Properties
 
         # Constant configuration settings
 
@@ -626,9 +626,9 @@ class SearchCommand(object):
             text = ','.join(fieldnames)
             return text
 
-        #endregion
+        # endregion
 
-        #region Methods
+        # region Methods
 
         @classmethod
         def configuration_settings(cls):
@@ -691,12 +691,12 @@ class SearchCommand(object):
             """
             return sorted(type(self).configuration_settings().keys())
 
-        #endregion
+        # endregion
 
-        #region Variables
+        # region Variables
 
         _settings = None
 
-        #endregion
+        # endregion
 
-        #endregion
+        # endregion

@@ -23,3 +23,5 @@ Test Results*.html
 tests/searchcommands/data/app/app.log
 examples/chunked-searchcommands/chunked_searchcommands-*.tgz
 _pydebug.egg
+tests/searchcommands/data/log
+tests/searchcommands/data/output
