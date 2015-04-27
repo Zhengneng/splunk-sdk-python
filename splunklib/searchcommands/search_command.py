@@ -27,6 +27,7 @@ from sys import argv, exit, stdin, stdout
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
+import csv
 import json
 
 # Relative imports
@@ -288,31 +289,53 @@ class SearchCommand(object):
 
         metadata, body = self._read_chunk(input_file)
 
+        self.fieldnames = []
+        self.options.reset()
         error_count = 0
 
         if 'args' in metadata and type(metadata['args']) == list:
             for arg in metadata['args']:
-                # TODO: validate arguments one at a time; keep going until all args are processed; write errors as we go
+                result = arg.split('=', 1)
+                if len(result) == 1:
+                    self.fieldnames.append(result[0])
+                else:
+                    name, value = result
+                    try:
+                        option = self.options[name]
+                    except KeyError:
+                        self.write_error('Unrecognized option: {0}'.format(result))
+                        error_count += 1
+                        continue
+                    try:
+                        option.value = value
+                    except ValueError:
+                        self.write_error('Illegal value: {0}'.format(option))
+                        error_count += 1
+                        continue
                 pass
+            pass
 
-        # TODO: Check for required arguments and complain, for any that are missing
+        missing = self.options.get_missing()
+
+        if missing is not None:
+            if len(missing) == 1:
+                self.write_error('A value for "{0}" is required'.format(missing[0]))
+            else:
+                self.write_error('Values for these options are required: {0}'.format(', '.join(missing)))
+            error_count += 1
 
         if error_count > 0:
             exit(1)
 
-        # TODO: Gather up capabilities defined by derived types and attributes added by consumers of those types
-        # See self._prepare(args, input_file=None)
+        # TODO: self._configuration must be redone to support the new set of protocol settings
+        # TODO: 'type' must be specified with self._configuration
 
-        capabilities = {
-            "type": "streaming",
-        }
-
-        self.write_chunk(output_file, capabilities, '')
+        self._configuration = type(self).ConfigurationSettings(self)
+        self.write_chunk(output_file, {'type': 'streaming'}, '')
         output_file.write('\n')
-
+        
         if self.show_configuration:
-            # TODO: write info message
-            pass
+            self.write_info('{0} command configuration settings: {1}'.format(self.name, self._configuration))
 
         while True:
             result = self._read_chunk(input_file)
@@ -324,6 +347,7 @@ class SearchCommand(object):
             output_buffer = StringIO()
             input_buffer = StringIO(body)
 
+            # TODO: Add support for multi-valued fields AND consider a lighter-weight alternative to splunk_csv
             reader = csv.reader(input_buffer, dialect='splunklib.searchcommands')
             writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
 

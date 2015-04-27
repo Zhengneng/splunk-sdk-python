@@ -61,9 +61,7 @@ class Configuration(object):
             o.ConfigurationSettings.fix_up(o)
             Option.fix_up(o)
         else:
-            raise TypeError(
-                'Incorrect usage: Configuration decorator applied to %s'
-                % (type(o), o.__name__))
+            raise TypeError('Incorrect usage: Configuration decorator applied to %s' % (type(o), o.__name__))
         return o
 
 
@@ -129,7 +127,7 @@ class Option(property):
     def __call__(self, function):
         return self.getter(function)
 
-    #region Methods
+    # region Methods
 
     @classmethod
     def fix_up(cls, command):
@@ -193,9 +191,9 @@ class Option(property):
         other.validate = self.validate
         return other
 
-    #endregion
+    # endregion
 
-    #region Types
+    # region Types
 
     class Encoder(JSONEncoder):
         def __init__(self, item):
@@ -227,7 +225,7 @@ class Option(property):
             text = '='.join([self.name, encoder.encode(value)])
             return text
 
-        #region Properties
+        # region Properties
 
         @property
         def is_required(self):
@@ -261,7 +259,7 @@ class Option(property):
             self._option.__set__(self._command, self._option.default)
             self._is_set = False
 
-        #endif
+        # endregion
 
     class View(object):
         """ Presents a view of the set of `Option` arguments to a search command.
@@ -286,23 +284,17 @@ class Option(property):
             return len(self._items)
 
         def __repr__(self):
-            text = ''.join([
-                'Option.View(',
-                ','.join([repr(item) for item in self.itervalues()]),
-                ')'])
+            text = ''.join(['Option.View(', ','.join([repr(item) for item in self.itervalues()]), ')'])
             return text
 
         def __str__(self):
-            text = ' '.join(
-                [str(item) for item in self.itervalues() if item.is_set])
+            text = ' '.join([str(item) for item in self.itervalues() if item.is_set])
             return text
 
-        #region Methods
+        # region Methods
 
         def get_missing(self):
-            missing = [
-                item.name for item in self._items.itervalues()
-                if item.is_required and not item.is_set]
+            missing = [item.name for item in self._items.itervalues() if item.is_required and not item.is_set]
             return missing if len(missing) > 0 else None
 
         def iteritems(self):
@@ -319,6 +311,6 @@ class Option(property):
                 value.reset()
             return
 
-        #endif
+        # endregion
 
-    #endif
+    # endregion
