@@ -18,17 +18,16 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from splunklib.client import Service
 
-try:
-    from collections import OrderedDict  # python 2.7
-except ImportError:
-    from ordereddict import OrderedDict  # python 2.6
-
-from logging import _levelNames, getLevelName
+from collections import OrderedDict
+from cStringIO import StringIO
 from inspect import getmembers
+from logging import _levelNames, getLevelName
 from os import environ, path
 from sys import argv, exit, stdin, stdout
 from urlparse import urlsplit
 from xml.etree import ElementTree
+
+import json
 
 # Relative imports
 
@@ -208,8 +207,7 @@ class SearchCommand(object):
 
             if field == 'countMap':
                 split = value.split(';')
-                value = dict((key, int(value))
-                             for key, value in zip(split[0::2], split[1::2]))
+                value = dict((key, int(value)) for key, value in zip(split[0::2], split[1::2]))
             elif field == 'vix_families':
                 value = ElementTree.fromstring(value)
             elif value == '':
@@ -284,6 +282,60 @@ class SearchCommand(object):
         self.write_error(error.message.capitalize() if message is None else message)
         exit(1)
 
+    def new_process(self, args=argv, input_file=stdin, output_file=stdout):
+
+        # getInfo exchange
+
+        metadata, body = self._read_chunk(input_file)
+
+        error_count = 0
+
+        if 'args' in metadata and type(metadata['args']) == list:
+            for arg in metadata['args']:
+                # TODO: validate arguments one at a time; keep going until all args are processed; write errors as we go
+                pass
+
+        # TODO: Check for required arguments and complain, for any that are missing
+
+        if error_count > 0:
+            exit(1)
+
+        # TODO: Gather up capabilities defined by derived types and attributes added by consumers of those types
+        # See self._prepare(args, input_file=None)
+
+        capabilities = {
+            "type": "streaming",
+        }
+
+        self.write_chunk(output_file, capabilities, '')
+        output_file.write('\n')
+
+        if self.show_configuration:
+            # TODO: write info message
+            pass
+
+        while True:
+            result = self._read_chunk(input_file)
+
+            if not result:
+                break
+
+            metadata, body = result
+            output_buffer = StringIO()
+            input_buffer = StringIO(body)
+
+            reader = csv.reader(input_buffer, dialect='splunklib.searchcommands')
+            writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
+
+            for line in reader:
+                # TODO: Call generator in _execute loop
+                writer.writerow(line)
+
+            self.write_chunk(output_file, metadata, output_buffer.getvalue())
+            pass
+
+        return
+
     def process(self, args=argv, input_file=stdin, output_file=stdout):
         """ Processes search results as specified by command arguments.
 
@@ -355,7 +407,6 @@ class SearchCommand(object):
             lineno = origin.tb_lineno
 
             self.write_error('%s at "%s", line %d : %s', error_type.__name__, filename, lineno, error_message)
-
             exit(1)
 
         return
@@ -396,6 +447,56 @@ class SearchCommand(object):
         writer = csv.writer(self._output_file)
         writer.writerows([[], [message_type], [message_text]])
 
+
+    @staticmethod
+    def _read_chunk(f):
+        try:
+            header = f.readline()
+        except:
+            return None
+
+        if not header or len(header) == 0:
+            return None
+
+        m = re.match('chunked\s+1.0\s*,\s*(?P<metadata_length>\d+)\s*,\s*(?P<body_length>\d+)\s*\n', header)
+        if m is None:
+            print >>sys.stderr, 'Failed to parse transport header: %s' % header
+            return None
+
+        try:
+            metadata_length = int(m.group('metadata_length'))
+            body_length = int(m.group('body_length'))
+        except:
+            print >>sys.stderr, 'Failed to parse metadata or body length'
+            return None
+
+        print >>sys.stderr, 'READING CHUNK %d %d' % (metadata_length, body_length)
+
+        try:
+            metadata_buf = f.read(metadata_length)
+            body = f.read(body_length)
+        except Exception as e:
+            print >>sys.stderr, 'Failed to read metadata or body: %s' % str(e)
+            return None
+
+        try:
+            metadata = json.loads(metadata_buf)
+        except:
+            print >>sys.stderr, 'Failed to parse metadata JSON'
+            return None
+
+        return [metadata, body]
+
+    @staticmethod
+    def write_chunk(f, metadata, body):
+        metadata_buf = None
+        if metadata:
+            metadata_buf = json.dumps(metadata)
+        f.write('chunked 1.0,%d,%d\n' % (len(metadata_buf) if metadata_buf else 0, len(body)))
+        f.write(metadata_buf)
+        f.write(body)
+        f.flush()
+
     # endregion
 
     # region Types
@@ -418,8 +519,7 @@ class SearchCommand(object):
             :return: String representation of this instance
 
             """
-            text = ', '.join(
-                ['%s=%s' % (k, getattr(self, k)) for k in self.keys()])
+            text = ', '.join(['%s=%s' % (k, getattr(self, k)) for k in self.keys()])
             return text
 
         # region Properties
@@ -699,4 +799,4 @@ class SearchCommand(object):
 
         # endregion
 
-        # endregion
+    # endregion
