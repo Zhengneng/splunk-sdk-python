@@ -27,6 +27,8 @@ from sys import argv, exit, stdin, stdout
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
+import sys
+import re
 import csv
 import json
 
@@ -283,84 +285,106 @@ class SearchCommand(object):
         self.write_error(error.message.capitalize() if message is None else message)
         exit(1)
 
-    def new_process(self, args=argv, input_file=stdin, output_file=stdout):
+    def process(self, args=argv, input_file=stdin, output_file=stdout):
 
-        # getInfo exchange
+        try:
+            # getInfo exchange
 
-        metadata, body = self._read_chunk(input_file)
+            metadata, body = self._read_chunk(input_file)
+            self.fieldnames = []
+            self.options.reset()
+            error_count = 0
 
-        self.fieldnames = []
-        self.options.reset()
-        error_count = 0
-
-        if 'args' in metadata and type(metadata['args']) == list:
-            for arg in metadata['args']:
-                result = arg.split('=', 1)
-                if len(result) == 1:
-                    self.fieldnames.append(result[0])
-                else:
-                    name, value = result
-                    try:
-                        option = self.options[name]
-                    except KeyError:
-                        self.write_error('Unrecognized option: {0}'.format(result))
-                        error_count += 1
-                        continue
-                    try:
-                        option.value = value
-                    except ValueError:
-                        self.write_error('Illegal value: {0}'.format(option))
-                        error_count += 1
-                        continue
+            if 'args' in metadata and type(metadata['args']) == list:
+                for arg in metadata['args']:
+                    result = arg.split('=', 1)
+                    if len(result) == 1:
+                        self.fieldnames.append(result[0])
+                    else:
+                        name, value = result
+                        try:
+                            option = self.options[name]
+                        except KeyError:
+                            self.write_error('Unrecognized option: {0}'.format(result))
+                            error_count += 1
+                            continue
+                        try:
+                            option.value = value
+                        except ValueError:
+                            self.write_error('Illegal value: {0}'.format(option))
+                            error_count += 1
+                            continue
+                    pass
                 pass
-            pass
 
-        missing = self.options.get_missing()
+            missing = self.options.get_missing()
 
-        if missing is not None:
-            if len(missing) == 1:
-                self.write_error('A value for "{0}" is required'.format(missing[0]))
-            else:
-                self.write_error('Values for these options are required: {0}'.format(', '.join(missing)))
-            error_count += 1
+            if missing is not None:
+                if len(missing) == 1:
+                    self.write_error('A value for "{0}" is required'.format(missing[0]))
+                else:
+                    self.write_error('Values for these options are required: {0}'.format(', '.join(missing)))
+                error_count += 1
 
-        if error_count > 0:
+            if error_count > 0:
+                exit(1)
+
+            # TODO: self._configuration must be redone to support the new set of protocol settings
+            # TODO: 'type' must be specified with self._configuration
+
+            self._configuration = type(self).ConfigurationSettings(self)
+            self._write_chunk(output_file, {'type': 'streaming'}, '')
+            output_file.write('\n')
+
+            if self.show_configuration:
+                self.write_info('{0} command configuration settings: {1}'.format(self.name, self._configuration))
+
+            while True:
+                result = self._read_chunk(input_file)
+
+                if not result:
+                    break
+
+                metadata, body = result
+                output_buffer = StringIO()
+                input_buffer = StringIO(body)
+
+                # TODO: Add support for multi-valued fields AND consider a lighter-weight alternative to splunk_csv
+                reader = csv.reader(input_buffer, dialect='splunklib.searchcommands')
+                writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
+
+                for line in reader:
+                    # TODO: Call generator in _execute loop
+                    writer.writerow(line)
+
+                self._write_chunk(output_file, metadata, output_buffer.getvalue())
+                pass
+
+        except SystemExit:
+            raise
+
+        except:
+
+            import traceback
+            import sys
+
+            error_type, error_message, error_traceback = sys.exc_info()
+            self.logger.error(traceback.format_exc(error_traceback))
+
+            origin = error_traceback
+
+            while origin.tb_next is not None:
+                origin = origin.tb_next
+
+            filename = origin.tb_frame.f_code.co_filename
+            lineno = origin.tb_lineno
+
+            self.write_error('%s at "%s", line %d : %s', error_type.__name__, filename, lineno, error_message)
             exit(1)
-
-        # TODO: self._configuration must be redone to support the new set of protocol settings
-        # TODO: 'type' must be specified with self._configuration
-
-        self._configuration = type(self).ConfigurationSettings(self)
-        self.write_chunk(output_file, {'type': 'streaming'}, '')
-        output_file.write('\n')
-        
-        if self.show_configuration:
-            self.write_info('{0} command configuration settings: {1}'.format(self.name, self._configuration))
-
-        while True:
-            result = self._read_chunk(input_file)
-
-            if not result:
-                break
-
-            metadata, body = result
-            output_buffer = StringIO()
-            input_buffer = StringIO(body)
-
-            # TODO: Add support for multi-valued fields AND consider a lighter-weight alternative to splunk_csv
-            reader = csv.reader(input_buffer, dialect='splunklib.searchcommands')
-            writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
-
-            for line in reader:
-                # TODO: Call generator in _execute loop
-                writer.writerow(line)
-
-            self.write_chunk(output_file, metadata, output_buffer.getvalue())
-            pass
 
         return
 
-    def process(self, args=argv, input_file=stdin, output_file=stdout):
+    def old_process(self, args=argv, input_file=stdin, output_file=stdout):
         """ Processes search results as specified by command arguments.
 
         :param args: Sequence of command arguments
@@ -471,7 +495,6 @@ class SearchCommand(object):
         writer = csv.writer(self._output_file)
         writer.writerows([[], [message_type], [message_text]])
 
-
     @staticmethod
     def _read_chunk(f):
         try:
@@ -512,12 +535,12 @@ class SearchCommand(object):
         return [metadata, body]
 
     @staticmethod
-    def write_chunk(f, metadata, body):
-        metadata_buf = None
+    def _write_chunk(f, metadata, body):
+        metadata_buffer = None
         if metadata:
-            metadata_buf = json.dumps(metadata)
-        f.write('chunked 1.0,%d,%d\n' % (len(metadata_buf) if metadata_buf else 0, len(body)))
-        f.write(metadata_buf)
+            metadata_buffer = json.dumps(metadata)
+        f.write('chunked 1.0,%d,%d\n' % (len(metadata_buffer) if metadata_buffer else 0, len(body)))
+        f.write(metadata_buffer)
         f.write(body)
         f.flush()
 
