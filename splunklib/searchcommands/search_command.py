@@ -350,13 +350,10 @@ class SearchCommand(object):
                 input_buffer = StringIO(body)
 
                 # TODO: Add support for multi-valued fields AND consider a lighter-weight alternative to splunk_csv
-                reader = csv.reader(input_buffer, dialect='splunklib.searchcommands')
+                reader = csv.DictReader(input_buffer, dialect='splunklib.searchcommands')
                 writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
 
-                for line in reader:
-                    # TODO: Call generator in _execute loop
-                    writer.writerow(line)
-
+                self._execute(self.stream, reader, writer)
                 self._write_chunk(output_file, metadata, output_buffer.getvalue())
                 pass
 
@@ -507,29 +504,29 @@ class SearchCommand(object):
 
         m = re.match('chunked\s+1.0\s*,\s*(?P<metadata_length>\d+)\s*,\s*(?P<body_length>\d+)\s*\n', header)
         if m is None:
-            print >>sys.stderr, 'Failed to parse transport header: %s' % header
+            print('Failed to parse transport header: {0}'.format(header), file=sys.stderr)
             return None
 
         try:
             metadata_length = int(m.group('metadata_length'))
             body_length = int(m.group('body_length'))
         except:
-            print >>sys.stderr, 'Failed to parse metadata or body length'
+            print('Failed to parse metadata or body length', file=sys.stderr)
             return None
 
-        print >>sys.stderr, 'READING CHUNK %d %d' % (metadata_length, body_length)
+        print('READING CHUNK {0} {1}'.format(metadata_length, body_length), file=sys.stderr)
 
         try:
-            metadata_buf = f.read(metadata_length)
+            metadata_buffer = f.read(metadata_length)
             body = f.read(body_length)
-        except Exception as e:
-            print >>sys.stderr, 'Failed to read metadata or body: %s' % str(e)
+        except Exception as error:
+            print('Failed to read metadata or body: {0}'.format(error), file=sys.stderr)
             return None
 
         try:
-            metadata = json.loads(metadata_buf)
+            metadata = json.loads(metadata_buffer)
         except:
-            print >>sys.stderr, 'Failed to parse metadata JSON'
+            print('Failed to parse metadata JSON', file=sys.stderr)
             return None
 
         return [metadata, body]
@@ -814,8 +811,7 @@ class SearchCommand(object):
             :param command_class: Command class targeted by this class
 
             """
-            raise NotImplementedError(
-                'SearchCommand.fix_up method must be overridden')
+            raise NotImplementedError('SearchCommand.fix_up method must be overridden')
 
         def items(self):
             """ Represents this instance as an :class:`OrderedDict`.

@@ -15,14 +15,15 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
+import __init__
+
 from splunklib.searchcommands import dispatch, StreamingCommand, Configuration, Option, validators
 import sys
 
 
 @Configuration()
 class CountMatchesCommand(StreamingCommand):
-    """ Counts the number of non-overlapping matches to a regular expression in
-    a set of fields.
+    """ Counts the number of non-overlapping matches to a regular expression in a set of fields.
 
     ##Syntax
 
@@ -31,21 +32,17 @@ class CountMatchesCommand(StreamingCommand):
 
     ##Description
 
-    A count of the number of non-overlapping matches to the regular expression
-    specified by `pattern` is computed for each record processed. The result
-    is stored in the field specified by `fieldname`. If `fieldname` exists,
-    its value is replaced. If `fieldname` does not exist, it is created.
-    Event records are otherwise passed through to the next pipeline processor
-    unmodified.
+    A count of the number of non-overlapping matches to the regular expression specified by `pattern` is computed for
+    each record processed. The result is stored in the field specified by `fieldname`. If `fieldname` exists, its value
+    is replaced. If `fieldname` does not exist, it is created. Event records are otherwise passed through to the next
+    pipeline processor unmodified.
 
     ##Example
 
-    Count the number of words in the `text` of each tweet in tweets.csv and
-    store the result in `word_count`.
+    Count the number of words in the `text` of each tweet in tweets.csv and store the result in `word_count`.
 
     .. code-block::
-        | inputcsv tweets.csv | countmatches fieldname=word_count
-        pattern="\\w+" text
+        | inputcsv tweets.csv | countmatches fieldname=word_count pattern="\\w+" text
 
     """
     fieldname = Option(
@@ -61,11 +58,11 @@ class CountMatchesCommand(StreamingCommand):
         require=True, validate=validators.RegularExpression())
 
     def stream(self, records):
-        self.logger.debug('CountMatchesCommand: %s' % self)  # logs command line
+        self.logger.debug('CountMatchesCommand: %s', self)  # logs command line
         for record in records:
-            count = 0.0
+            count = 0
             for fieldname in self.fieldnames:
-                matches = self.pattern.finditer(str(record[fieldname]))
+                matches = self.pattern.finditer(unicode(record[fieldname]))
                 count += len(list(matches))
             record[self.fieldname] = count
             yield record
