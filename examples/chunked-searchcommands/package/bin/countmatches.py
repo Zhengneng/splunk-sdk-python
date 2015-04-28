@@ -60,7 +60,7 @@ class CountMatchesCommand(StreamingCommand):
     def stream(self, records):
         self.logger.debug('CountMatchesCommand: %s', self)  # logs command line
         for record in records:
-            count = 0
+            count = 0L
             for fieldname in self.fieldnames:
                 matches = self.pattern.finditer(unicode(record[fieldname]))
                 count += len(list(matches))

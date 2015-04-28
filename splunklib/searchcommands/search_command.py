@@ -21,6 +21,7 @@ from splunklib.client import Service
 from collections import OrderedDict
 from cStringIO import StringIO
 from inspect import getmembers
+from itertools import izip
 from logging import _levelNames, getLevelName
 from os import environ, path
 from sys import argv, exit, stdin, stdout
@@ -349,8 +350,11 @@ class SearchCommand(object):
                 output_buffer = StringIO()
                 input_buffer = StringIO(body)
 
-                # TODO: Add support for multi-valued fields AND consider a lighter-weight alternative to splunk_csv
-                reader = csv.DictReader(input_buffer, dialect='splunklib.searchcommands')
+                # TODO: Develop a lighter-weight alternative to splunk_csv
+                # TODO: Ensure support for writing fields in order
+                # TODO: Ensure support for multi-valued fields
+
+                reader = csv.reader(input_buffer, dialect='splunklib.searchcommands')
                 writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
 
                 self._execute(self.stream, reader, writer)
@@ -458,8 +462,11 @@ class SearchCommand(object):
 
     @staticmethod
     def records(reader):
+        keys = reader.next()
+        record_count = 0L
         for record in reader:
-            yield record
+            record_count += 1L
+            yield OrderedDict(izip(keys, record))
         return
 
     # TODO: DVPL-5865 - Is it possible to support anything other than write_error? It does not seem so.

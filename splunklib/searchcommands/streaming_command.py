@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from . search_command import SearchCommand
 from . import splunk_csv
@@ -70,8 +70,15 @@ class StreamingCommand(SearchCommand):
         raise NotImplementedError('StreamingCommand.stream(self, records)')
 
     def _execute(self, operation, reader, writer):
+        record_count = 0L
+        keys = None
         for record in operation(SearchCommand.records(reader)):
-            writer.writerow(record)
+            if keys is None:
+                keys = record.keys()
+                writer.writerow(keys)
+            writer.writerow([record.get(key, '') for key in keys])
+            record_count += 1L
+        return
 
     def _prepare(self, argv, input_file):
         ConfigurationSettings = type(self).ConfigurationSettings
