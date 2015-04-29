@@ -86,7 +86,7 @@ class TestSearchCommand(unittest.TestCase):
 
         command = SearchCommand()
         result = StringIO()
-        command.process(['foo.py', '__GETINFO__'], output_file=result)
+        command.process(['foo.py', '__GETINFO__'], output_stream=result)
         result.reset()
         observed = result.read()
         self.assertEqual(expected, observed)
@@ -124,7 +124,7 @@ class TestSearchCommand(unittest.TestCase):
         try:
             command.process(
                 args=['foo.py', '__EXECUTE__', 'undefined_option=value'],
-                input_file=StringIO('\r\n'), output_file=result)
+                input_stream=StringIO('\r\n'), output_stream=result)
         except SystemExit as e:
             result.reset()
             observed = result.read()
@@ -152,8 +152,8 @@ class TestSearchCommand(unittest.TestCase):
 
         try:
             command.process(args=['foo.py', '__EXECUTE__'],
-                            input_file=None,
-                            output_file=result)
+                            input_stream=None,
+                            output_stream=result)
         except SystemExit as e:
             result.reset()
             observed = result.read()
@@ -178,8 +178,8 @@ class TestSearchCommand(unittest.TestCase):
                                  'input', 'externSearchResultsInfo.csv')
         input = StringIO(
             'infoPath:%s\n\nAction\r\naccess_search_results_info' % info_path)
-        command.process(args=['foo.py', '__EXECUTE__'], input_file=input,
-                        output_file=result)
+        command.process(args=['foo.py', '__EXECUTE__'], input_stream=input,
+                        output_stream=result)
 
         observed = re.sub('''vix_families=<Element '?root'? at [^>]+>''',
                           '''vix_families=<Element 'root' at 0x103a7e410>''',
@@ -208,8 +208,8 @@ class TestSearchCommand(unittest.TestCase):
 
         command = SearchCommand()
 
-        command.process(args=['foo.py', '__EXECUTE__'], input_file=StringIO(
-            '\nAction\r\naccess_search_results_info'), output_file=result)
+        command.process(args=['foo.py', '__EXECUTE__'], input_stream=StringIO(
+            '\nAction\r\naccess_search_results_info'), output_stream=result)
         self.assertEqual(command.search_results_info, None)
         self.assertEqual(command.service, None)
 

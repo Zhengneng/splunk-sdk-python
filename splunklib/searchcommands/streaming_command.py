@@ -74,9 +74,9 @@ class StreamingCommand(SearchCommand):
         keys = None
         for record in operation(SearchCommand.records(reader)):
             if keys is None:
-                keys = record.keys()
+                keys = tuple(key for key in record)
                 writer.writerow(keys)
-            writer.writerow([record.get(key, '') for key in keys])
+            writer.writerow(tuple(record.get(key, '') for key in keys))
             record_count += 1L
         return
 
@@ -92,62 +92,56 @@ class StreamingCommand(SearchCommand):
     # endregion
 
     class ConfigurationSettings(SearchCommand.ConfigurationSettings):
-        """ Represents the configuration settings that apply to a
-        :code:`StreamingCommand`.
+        """ Represents the configuration settings that apply to a :class:`StreamingCommand`.
 
         """
+        def __init__(self, command):
+            super(StreamingCommand.ConfigurationSettings, self).__init__(command)
+            self._required_fields = ('*',)
+
         # region Properties
 
         @property
-        def local(self):
-            """ Specifies whether this command should only be run on the search
-            head.
+        def maxinputs(self):
+            """ Specifies the maximum number of events desired in each chunk of data from splunkd.
 
-            Default: :const:`False`
-
-            """
-            return type(self)._local
-
-        _local = False
-
-        @property
-        def overrides_timeorder(self):
-            """ Specifies whether this command changes the time ordering of
-            event records.
-
-            Default: :const:`False`
+            Default: :const:`0`
 
             """
-            return type(self)._overrides_timeorder
+            return self._maxinputs
 
-        _overrides_timeorder = False
+        _maxinputs = 0
 
         @property
-        def retainsevents(self):
-            """ Specifies whether this command retains _raw events or transforms
-            them.
+        def required_fields(self):
+            """ List of required fields for this search (back-propagates to the generating search).
+
+            For streaming and stateful commands, setting this enables "selected fields mode" (defined below.)
+
+            Default: :const:`'*'`
+
+            """
+            return self._required_fields
+
+        @property
+        def run_in_preview(self):
+            """ Specifies whether to run this command when generating results for preview or wait for final output.
+
+            This may be important for commands that have side effects (e.g. outputlookup)
 
             Default: :const:`True`
 
             """
-            return type(self)._retainsevents
+            return type(self)._run_in_preview
 
-        _retainsevents = True
+        _run_in_preview = True
 
         @property
-        def streaming(self):
-            """ Signals that this command is streamable.
-
-            By default streamable commands may be run on the search head or one
-            or more indexers, depending on performance scheduling
-            considerations. This behavior may be overridden by setting
-            :code:`local=True`. This forces a streamable command to be run on the
-            search head.
-
-            Fixed: True.
+        def type(self):
+            """ Command type: :const:`'streaming'`
 
             """
-            return True
+            return 'streaming'
 
         # endregion
 

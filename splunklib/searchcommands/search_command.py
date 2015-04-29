@@ -21,7 +21,7 @@ from splunklib.client import Service
 from collections import OrderedDict
 from cStringIO import StringIO
 from inspect import getmembers
-from itertools import izip
+from itertools import imap, izip
 from logging import _levelNames, getLevelName
 from os import environ, path
 from sys import argv, exit, stdin, stdout
@@ -45,7 +45,6 @@ class SearchCommand(object):
     """ Represents a custom search command.
 
     """
-
     def __init__(self, app_root=None):
         """
         :param app_root: The root of the application directory, used primarily by tests.
@@ -69,13 +68,17 @@ class SearchCommand(object):
         # Variables backing option/property values
 
         self._app_root = app_root
-        self._default_logging_level = self.logger.level
         self._configuration = None
         self._fieldnames = None
         self._option_view = None
         self._output_file = None
         self._search_results_info = None
         self._service = None
+
+        # Internal variables
+
+        self._default_logging_level = self.logger.level
+        self._message_count = None
 
         self.parser = SearchCommandParser()
 
@@ -282,19 +285,26 @@ class SearchCommand(object):
     # region Methods
 
     def error_exit(self, error, message=None):
-        self.logger.error('Abnormal exit: %s', error)
         self.write_error(error.message.capitalize() if message is None else message)
+        self.logger.error('Abnormal exit: %s', error)
         exit(1)
 
-    def process(self, args=argv, input_file=stdin, output_file=stdout):
+    def process(self, args=argv, input_stream=stdin, output_stream=stdout):
+        """ Processes records on the `input stream optionally writing records to the output stream
 
+        :param args:
+        :param input_stream:
+        :param output_stream:
+        :return: :const:`None`
+
+        """
         try:
             # getInfo exchange
 
-            metadata, body = self._read_chunk(input_file)
+            metadata, body = self._read_chunk(input_stream)
             self.fieldnames = []
             self.options.reset()
-            error_count = 0
+            self._message_count = 0L
 
             if 'args' in metadata and type(metadata['args']) == list:
                 for arg in metadata['args']:
@@ -307,13 +317,11 @@ class SearchCommand(object):
                             option = self.options[name]
                         except KeyError:
                             self.write_error('Unrecognized option: {0}'.format(result))
-                            error_count += 1
                             continue
                         try:
                             option.value = value
                         except ValueError:
                             self.write_error('Illegal value: {0}'.format(option))
-                            error_count += 1
                             continue
                     pass
                 pass
@@ -325,23 +333,20 @@ class SearchCommand(object):
                     self.write_error('A value for "{0}" is required'.format(missing[0]))
                 else:
                     self.write_error('Values for these options are required: {0}'.format(', '.join(missing)))
-                error_count += 1
 
-            if error_count > 0:
+            if self._message_count > 0:
+                # TODO: Attempt to fail gracefully as per protocol
                 exit(1)
 
-            # TODO: self._configuration must be redone to support the new set of protocol settings
-            # TODO: 'type' must be specified with self._configuration
-
             self._configuration = type(self).ConfigurationSettings(self)
-            self._write_chunk(output_file, {'type': 'streaming'}, '')
-            output_file.write('\n')
+            self._write_chunk(output_stream, self._configuration.items(), '')
+            output_stream.write('\n')
 
             if self.show_configuration:
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self._configuration))
 
             while True:
-                result = self._read_chunk(input_file)
+                result = self._read_chunk(input_stream)
 
                 if not result:
                     break
@@ -358,7 +363,7 @@ class SearchCommand(object):
                 writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
 
                 self._execute(self.stream, reader, writer)
-                self._write_chunk(output_file, metadata, output_buffer.getvalue())
+                self._write_chunk(output_stream, metadata, output_buffer.getvalue())
                 pass
 
         except SystemExit:
@@ -479,6 +484,10 @@ class SearchCommand(object):
         self._write_message('ERROR', message, *args)
         return
 
+    def write_fatal(self, message, *args):
+        self._write_message('FATAL', message, *args)
+        return
+
     def write_info(self, message, *args):
         self._write_message('INFO', message, *args)
         return
@@ -493,11 +502,8 @@ class SearchCommand(object):
         raise NotImplementedError('SearchCommand._configure(self, argv)')
 
     def _write_message(self, message_type, message_text, *args):
-        import csv
-        if len(args) > 0:
-            message_text = message_text % args
-        writer = csv.writer(self._output_file)
-        writer.writerows([[], [message_type], [message_text]])
+        message_text = message_text.format(args)
+        self._configuration.inspector['message.{0}.{1}'.format(self._message_count, message_type)] = message_text
 
     @staticmethod
     def _read_chunk(f):
@@ -553,13 +559,13 @@ class SearchCommand(object):
     # region Types
 
     class ConfigurationSettings(object):
-        """ Represents the configuration settings common to all
-        :class:`SearchCommand` classes.
+        """ Represents the configuration settings common to all :class:`SearchCommand` classes.
 
         """
 
         def __init__(self, command):
             self.command = command
+            self._finished = False
 
         def __str__(self):
             """ Converts the value of this instance to its string representation.
@@ -578,146 +584,37 @@ class SearchCommand(object):
         # Constant configuration settings
 
         @property
-        def changes_colorder(self):
-            """ Specifies whether output should be used to change the column
-            ordering of fields.
+        def finished(self):
+            """ Signals that the search command is complete.
 
             Default: :const:`True`
 
             """
-            return type(self)._changes_colorder
-
-        _changes_colorder = True
+            return self._finished
 
         @property
-        def clear_required_fields(self):
-            """ Specifies whether `required_fields` are the only fields required
-            by subsequent commands.
+        def partial(self):
+            """ Specifies whether the search command returns its response in multiple chunks.
 
-            If :const:`True`, :attr:`required_fields` are the *only* fields
-            required by subsequent commands. If :const:`False`,
-            :attr:`required_fields` are additive to any fields that may be
-            required by subsequent commands. In most cases :const:`False` is
-            appropriate for streaming commands and :const:`True` is appropriate
-            for reporting commands.
+            There are two use-cases for this:
+
+            1. The result is very big and we'd like to emit partial chunks that fit in memory.
+            2. The field set changes dramatically and we don't want to emit a sparse record set.
+
+            If partial is :const:`True`, this chunk is part of a multi-part response. If partial is :const:`False`, this
+            chunk completes a multi-part response.
+
+            An alternative to this metadata field is to include a chunk identifier in each record. The complication of
+            using a chunk identifier is that splunkd won't know that a chunk is complete until it sees a chunk with a
+            new chunk identifier. The upside to having the partial field is that the common case of 1-to-1 chunks
+            requires nothing from the protocol.
 
             Default: :const:`False`
 
             """
-            return type(self)._clear_required_fields
+            return type(self)._partial
 
-        _clear_required_fields = False
-
-        @property
-        def enableheader(self):
-            """ Signals that this command expects header information.
-
-            Fixed: :const:`True`
-
-            """
-            return True
-
-        @property
-        def generating(self):
-            """ Signals that this command does not generate new events.
-
-            Fixed: :const:`False`
-
-            """
-            return False
-
-        @property
-        def maxinputs(self):
-            """ Specifies the maximum number of events that may be passed to an
-            invocation of this command.
-
-            This limit may not exceed the value of `maxresultrows` as defined in
-            limits.conf (default: 50,000). Use a value  of zero (0) to select a
-            limit of `maxresultrows`.
-
-            Default: :code:`0`
-
-            """
-            return type(self)._maxinputs
-
-        _maxinputs = 0
-
-        @property
-        def needs_empty_results(self):
-            """ Specifies whether or not this search command must be called with
-            intermediate empty search results.
-
-            Default: :const:`True`
-
-            """
-            return type(self)._needs_empty_results
-
-        _needs_empty_results = True
-
-
-        @property
-        def outputheader(self):
-            """ Signals that the output of this command is a messages header
-            followed by a blank line and splunk_csv search results.
-
-            Fixed: :const:`True`
-
-            """
-            return True
-
-        @property
-        def passauth(self):
-            """ Specifies whether or not this search command requires an
-            authentication token on the start of input.
-
-            Default: :const:`False`
-
-            """
-            return type(self)._passauth
-
-        _passauth = False
-
-
-        @property
-        def perf_warn_limit(self):
-            """ Tells Splunk to issue a performance warning message if more
-            than this many input events are passed to this search command.
-
-            A value of zero (0) disables performance warning messages.
-
-            Default: :code:`0`
-
-            """
-            return type(self)._perf_warn_limit
-
-        _perf_warn_limit = 0
-
-        @property
-        def requires_srinfo(self):
-            """ Specifies whether or not this command requires search results
-            information.
-
-            If :const:`True` the full path to a search results information file
-            is provided by :attr:`SearchCommand.input_header['infoPath']`.
-
-            Default: :const:`False`
-
-            """
-            return type(self)._requires_srinfo
-
-        _requires_srinfo = False
-
-        @property
-        def run_in_preview(self):
-            """ Tells Splunk whether to run this command when generating results
-            for preview rather than final output.
-
-            Default: :const:`True`
-
-            """
-            return type(self)._run_in_preview
-
-        _run_in_preview = True
+        _partial = False
 
         @property
         def stderr_dest(self):
@@ -728,9 +625,8 @@ class SearchCommand(object):
             ================== ========================================================
             Value              Meaning
             ================== ========================================================
-            :code:`'log'`      Write messages to the job's search.log file
-            :code:`'message'`  Write each line of each message as a search info message
-            :code:`'none'`     Discard all messages logged to stderr
+            :code:`'log'`      Write messages to the job's search.log file.
+            :code:`'none'`     Discard all messages logged to stderr.
             ================== ========================================================
 
             Default: :code:`'log'`
@@ -740,61 +636,20 @@ class SearchCommand(object):
 
         _stderr_dest = 'log'
 
-        @property
-        def supports_multivalues(self):
-            """ Signals that this search command supports multivalues.
-
-            Fixed: :const:`True`
-
-            """
-            return True
-
-        @property
-        def supports_rawargs(self):
-            """ Signals that this search command parses raw arguments.
-
-            Fixed: :const:`True`
-
-            """
-            return True
-
-        # Computed configuration settings
-
-        @property
-        def required_fields(self):
-            """ Specifies a comma-separated list of required field names.
-
-            This list is computed as the union of the set of fieldnames and
-            fieldname-valued options given as argument to this command.
-
-            """
-            fieldnames = set(self.command.fieldnames)
-            for name, option in self.command.options.iteritems():
-                if isinstance(option.validator, Fieldname):
-                    value = option.value
-                    if value is not None:
-                        fieldnames.add(value)
-            text = ','.join(fieldnames)
-            return text
-
         # endregion
 
         # region Methods
 
         @classmethod
         def configuration_settings(cls):
-            """ Represents this class as a dictionary of :class:`property`
-            instances and :code:`backing_field` names keyed by configuration
-            setting name.
+            """ Represents this class as a dictionary of :class:`property` instances and :code:`backing_field` names
+            keyed by configuration setting name.
 
-            This method is used by the :class:`ConfigurationSettingsType`
-            meta-class to construct new :class:`ConfigurationSettings` classes.
-            It is also used by instances of this class to retrieve configuration
-            setting names and their values. See :meth:`SearchCommand.keys` and
-            :meth:`SearchCommand.items`.
+            This method is used by the :class:`ConfigurationSettingsType` meta-class to construct new
+            :class:`ConfigurationSettings` classes.
 
             """
-            if cls._settings is None:
+            if not hasattr(cls, '_settings'):
                 is_property = lambda x: isinstance(x, property)
                 cls._settings = {}
                 for name, prop in getmembers(cls, is_property):
@@ -802,6 +657,7 @@ class SearchCommand(object):
                     if not hasattr(cls, backing_field):
                         backing_field = None
                     cls._settings[name] = (prop, backing_field)
+                cls._keys = sorted(cls._settings.iterkeys())
             return cls._settings
 
         @classmethod
@@ -823,15 +679,13 @@ class SearchCommand(object):
         def items(self):
             """ Represents this instance as an :class:`OrderedDict`.
 
-            This method is used by the SearchCommand.process method to report
-            configuration settings to Splunk during the :code:`__GETINFO__`
-            phase of a request to process a chunk of search results.
+            This method is used by the SearchCommand.process method to report configuration settings to splunkd during
+            the :code:`getInfo` exchange of the request to process search results.
 
-            :return: :class:`OrderedDict` containing setting values keyed by
-            name
+            :return: :class:`OrderedDict` containing setting values keyed by name.
 
             """
-            return OrderedDict([(k, getattr(self, k)) for k in self.keys()])
+            return OrderedDict(imap(lambda key: (key, getattr(self, key)), self.keys()))
 
         def keys(self):
             """ Gets the names of the settings represented by this instance.
@@ -839,13 +693,7 @@ class SearchCommand(object):
             :return: Sorted list of setting names.
 
             """
-            return sorted(type(self).configuration_settings().keys())
-
-        # endregion
-
-        # region Variables
-
-        _settings = None
+            return type(self)._keys
 
         # endregion
 
