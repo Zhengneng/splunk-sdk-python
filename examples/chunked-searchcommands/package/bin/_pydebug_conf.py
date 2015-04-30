@@ -1,9 +1,10 @@
-#!/usr/bin/env python
 # coding=utf-8
 #
-# Copyright © 2014 Splunk, Inc. All Rights Reserved
+# Copyright © Splunk, Inc. All Rights Reserved
 
-host = u'python-debug-server'
+from __future__ import unicode_literals
+
+host = 'python-debug-server'
 port = 52001
 suspend = False
 is_enabled = True

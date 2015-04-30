@@ -19,7 +19,7 @@ try:
 except ImportError:
     import unittest
 
-from splunklib.searchcommands.search_command_internals import SearchCommandParser
+from splunklib.searchcommands.internals import SearchCommandParser
 from splunklib.searchcommands import Configuration, StreamingCommand
 
 import logging

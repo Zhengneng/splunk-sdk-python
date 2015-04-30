@@ -1,4 +1,6 @@
-# Copyright 2011-2015 Splunk, Inc.
+# coding=utf-8
+#
+# Copyright © 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -11,6 +13,8 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+
+# TODO: Examine all uses of str() and all checks for type(str)
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
@@ -34,7 +38,7 @@ import json
 
 # Relative imports
 
-from . import logging
+from .internals import configure_logging
 from .decorators import Option
 from .validators import Boolean
 
@@ -54,7 +58,7 @@ class SearchCommand(object):
 
         # Variables that may be used, but not altered by derived classes
 
-        self.logger, self._logging_configuration = logging.configure(type(self).__name__, app_root=app_root)
+        self.logger, self._logging_configuration = configure_logging(type(self).__name__, app_root=app_root)
 
         if 'SPLUNK_HOME' not in environ:
             self.logger.warning(
@@ -104,17 +108,15 @@ class SearchCommand(object):
 
     @logging_configuration.setter
     def logging_configuration(self, value):
-        self.logger, self._logging_configuration = logging.configure(
-            type(self).__name__, value, app_root=self._app_root)
+        self.logger, self._logging_configuration = configure_logging(type(self).__name__, value, app_root=self._app_root)
         return
 
     @Option
     def logging_level(self):
         """ **Syntax:** logging_level=[CRITICAL|ERROR|WARNING|INFO|DEBUG|NOTSET]
 
-        **Description:** Sets the threshold for the logger of this command
-        invocation. Logging messages less severe than `logging_level` will be
-        ignored.
+        **Description:** Sets the threshold for the logger of this command invocation. Logging messages less severe than
+        `logging_level` will be ignored.
 
         """
         return getLevelName(self.logger.getEffectiveLevel())
@@ -123,7 +125,7 @@ class SearchCommand(object):
     def logging_level(self, value):
         if value is None:
             value = self._default_logging_level
-        if type(value) is str:
+        if isinstance(value, basestring):
             try:
                 level = _levelNames[value.upper()]
             except KeyError:
@@ -306,18 +308,22 @@ class SearchCommand(object):
         :return: :const:`None`
 
         """
+        # noinspection PyBroadException
         try:
-            # getInfo exchange
-
-            # TODO: Expose metadata object to SearchCommand and utilize it in SearchCommand.search_results_info
-
             metadata, body = self._read_chunk(ifile)
+            assert metadata['action'] == 'getinfo'
             self.fieldnames = []
             self.options.reset()
             self._message_count = 0L
 
-            if 'args' in metadata and type(metadata['args']) == list:
-                for arg in metadata['args']:
+            # TODO: Expose searchinfo object to SearchCommand and utilize it in SearchCommand.search_results_info
+
+            searchinfo = metadata['searchinfo']
+            args = searchinfo.get('args')
+            error_count = 0L
+
+            if args and type(args) == list:
+                for arg in args:
                     result = arg.split('=', 1)
                     if len(result) == 1:
                         self.fieldnames.append(result[0])
@@ -326,12 +332,14 @@ class SearchCommand(object):
                         try:
                             option = self.options[name]
                         except KeyError:
-                            self.write_error('Unrecognized option: {0}'.format(result))
+                            self.write_error('Unrecognized option: {0}={1}'.format(name, value))
+                            error_count += 1
                             continue
                         try:
                             option.value = value
                         except ValueError:
                             self.write_error('Illegal value: {0}'.format(option))
+                            error_count += 1
                             continue
                     pass
                 pass
@@ -342,9 +350,10 @@ class SearchCommand(object):
                 if len(missing) == 1:
                     self.write_error('A value for "{0}" is required'.format(missing[0]))
                 else:
-                    self.write_error('Values for these options are required: {0}'.format(', '.join(missing)))
+                    self.write_error('Values for these required options are missing: {0}'.format(', '.join(missing)))
+                error_count += 1
 
-            if self._message_count > 0:
+            if error_count > 0:
                 exit(1)
 
             self._configuration = type(self).ConfigurationSettings(self)
@@ -363,11 +372,13 @@ class SearchCommand(object):
             self._execute(ifile, ofile)
             pass
 
-        except SystemExit:
-            # TODO: Fail gracefully as per protocol
+        except SystemExit as systemExit:
+            # TODO: Fail or succeed gracefully as per protocol (non-zero codes--of course--indicate an abnormal end)
             raise
 
         except:
+
+            # Unexpected command/searchcommands package error
 
             import traceback
             import sys
@@ -591,8 +602,8 @@ class SearchCommand(object):
         f.flush()
 
     def _write_message(self, message_type, message_text, *args):
-        message_text = message_text.format(args)
-        self._inspector['message.{0}.{1}'.format(self._message_count, message_type)] = message_text
+        self._inspector['message.{0}.{1}'.format(self._message_count, message_type)] = message_text.format(args)
+        self._message_count += 1
 
     # endregion
 

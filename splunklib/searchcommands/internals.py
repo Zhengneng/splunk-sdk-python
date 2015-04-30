@@ -1,4 +1,6 @@
-# Copyright 2011-2014 Splunk, Inc.
+# coding=utf-8
+#
+# Copyright © 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -12,19 +14,21 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import
-
-from logging.config import fileConfig
+from __future__ import absolute_import, division, print_function, unicode_literals
 from logging import getLogger, root, StreamHandler
+from logging.config import fileConfig
+
+import csv
 import os
 import sys
+
 
 def get_app_directory(probing_path):
     return os.path.dirname(os.path.abspath(os.path.dirname(probing_path)))
 
-def configure(name, probing_path=None, app_root=None):
-    """ Configure logging and return a logger and the location of its logging
-    configuration file.
+
+def configure_logging(name, probing_path=None, app_root=None):
+    """ Configure logging and return a logger and the location of its logging configuration file.
 
     This function expects:
 
@@ -75,7 +79,6 @@ def configure(name, probing_path=None, app_root=None):
     .. _ConfigParser format: http://goo.gl/K6edZ8
 
     """
-
     app_directory = get_app_directory(sys.argv[0]) if app_root is None else app_root
 
     if probing_path is None:
@@ -122,3 +125,58 @@ def configure(name, probing_path=None, app_root=None):
 
     logger = getLogger(name)
     return logger, probing_path
+
+
+class ConfigurationSettingsType(type):
+    """ Metaclass for constructing ConfigurationSettings classes.
+
+    Instances of :class:`ConfigurationSettingsType` construct :class:`ConfigurationSettings` classes from classes from
+    a base :class:`ConfigurationSettings` class and a dictionary of configuration settings. The settings in the
+    dictionary are validated against the settings in the base class. You cannot add settings, you can only change their
+    backing-field values and you cannot modify settings without backing-field values. These are considered fixed
+    configuration setting values.
+
+    This is an internal class used in two places:
+
+    + :method:`decorators.Configuration.__call__`
+
+      Adds a ConfigurationSettings attribute to a :class:`SearchCommand` class.
+
+    + :method:`reporting_command.ReportingCommand.fix_up`
+
+      Adds a ConfigurationSettings attribute to a :method:`ReportingCommand.map` method, if there is one.
+
+    """
+    def __new__(mcs, module, name, bases, settings):
+        mcs = super(ConfigurationSettingsType, mcs).__new__(mcs, name, bases, {})
+        return mcs
+
+    def __init__(cls, module, name, bases, settings):
+
+        super(ConfigurationSettingsType, cls).__init__(name, bases, None)
+        configuration_settings = cls.configuration_settings()
+
+        for name, value in settings.iteritems():
+            try:
+                prop, backing_field = configuration_settings[name]
+            except KeyError:
+                raise AttributeError('{0} has no {1} configuration setting'.format(cls, name))
+            if backing_field is None:
+                raise AttributeError('The value of configuration setting {0} is managed'.format(name))
+            setattr(cls, backing_field, value)
+
+        cls.__module__ = module
+        return
+
+
+class CsvDialect(csv.Dialect):
+    """ Describes the properties of Splunk CSV streams. """
+    delimiter = ','
+    quotechar = '"'
+    doublequote = True
+    skipinitialspace = False
+    lineterminator = '\r\n'
+    quoting = csv.QUOTE_MINIMAL
+
+csv.register_dialect('splunklib.searchcommands', CsvDialect)
+csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. See SPL-12117 for background on this issue

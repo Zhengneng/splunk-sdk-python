@@ -99,7 +99,7 @@ class TestSearchCommand(unittest.TestCase):
             'ERROR\r\n' \
             '"ValueError at ""' + \
             os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                         "../../splunklib/searchcommands/search_command_internals.py")) + \
+                                         "../../splunklib/searchcommands/internals.py")) + \
             '"", line \d\d\d : ' \
             'Unrecognized option: undefined_option = value"\r\n'
         )
@@ -144,7 +144,7 @@ class TestSearchCommand(unittest.TestCase):
             os.path.abspath(
                 os.path.join(
                     os.path.dirname(__file__),
-                    '../../splunklib/searchcommands/search_command_internals.py')) +
+                    '../../splunklib/searchcommands/internals.py')) +
             '"", line \d+ : \'NoneType\' object is not iterable"\r\n')
 
         command = SearchCommand()

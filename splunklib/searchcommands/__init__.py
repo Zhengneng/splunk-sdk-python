@@ -1,4 +1,6 @@
-# Copyright 2011-2014 Splunk, Inc.
+# coding=utf-8
+#
+# Copyright © 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -150,6 +152,8 @@ from .reporting_command import ReportingCommand
 from .streaming_command import StreamingCommand
 from .search_command import SearchMetric
 
+import sys
+
 if sys.platform == 'win32':
     # Work around the fact that on Windows '\n' is mapped to '\r\n'
     # The typical solution is to simply open files in binary mode, but stdout
@@ -159,8 +163,7 @@ if sys.platform == 'win32':
     msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
 
 
-def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=
-             sys.stdout, module_name=None):
+def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys.stdout, module_name=None):
     """ Instantiates and executes a search command class
 
     This function implements a `conditional script stanza <http://goo.gl/OFaox6>`_

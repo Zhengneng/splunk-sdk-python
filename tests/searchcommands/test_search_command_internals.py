@@ -20,7 +20,7 @@ except ImportError:
     import unittest
 
 from splunklib.searchcommands import Configuration, Option, ReportingCommand, StreamingCommand, validators
-from splunklib.searchcommands import search_command_internals
+from splunklib.searchcommands import internals
 from cStringIO import StringIO
 from contextlib import closing
 from itertools import izip
@@ -148,7 +148,7 @@ class TestSearchCommandInternals(unittest.TestCase):
 
     def test_command_parser(self):
 
-        parser = search_command_internals.SearchCommandParser()
+        parser = internals.SearchCommandParser()
         encoder = JSONEncoder()
         file_path = os.path.abspath(
             os.path.join(TestSearchCommandInternals._package_path, 'data',
@@ -218,7 +218,7 @@ class TestSearchCommandInternals(unittest.TestCase):
         return
 
     def test_command_parser_unquote(self):
-        parser = search_command_internals.SearchCommandParser()
+        parser = internals.SearchCommandParser()
 
         options = [
             'foo',
@@ -256,7 +256,7 @@ class TestSearchCommandInternals(unittest.TestCase):
 
         # No items
 
-        input_header = search_command_internals.InputHeader()
+        input_header = internals.InputHeader()
 
         with closing(StringIO('\r\n')) as input_file:
             input_header.read(input_file)
@@ -265,7 +265,7 @@ class TestSearchCommandInternals(unittest.TestCase):
 
         # One unnamed single-line item (same as no items)
 
-        input_header = search_command_internals.InputHeader()
+        input_header = internals.InputHeader()
 
         with closing(StringIO(
                 'this%20is%20an%20unnamed%20single-line%20item\n\n')) as input_file:
@@ -273,7 +273,7 @@ class TestSearchCommandInternals(unittest.TestCase):
 
         self.assertEquals(len(input_header), 0)
 
-        input_header = search_command_internals.InputHeader()
+        input_header = internals.InputHeader()
 
         with closing(StringIO(
                 'this%20is%20an%20unnamed\nmulti-\nline%20item\n\n')) as input_file:
@@ -283,7 +283,7 @@ class TestSearchCommandInternals(unittest.TestCase):
 
         # One named single-line item
 
-        input_header = search_command_internals.InputHeader()
+        input_header = internals.InputHeader()
 
         with closing(StringIO(
                 'Foo:this%20is%20a%20single-line%20item\n\n')) as input_file:
@@ -292,7 +292,7 @@ class TestSearchCommandInternals(unittest.TestCase):
         self.assertEquals(len(input_header), 1)
         self.assertEquals(input_header['Foo'], 'this is a single-line item')
 
-        input_header = search_command_internals.InputHeader()
+        input_header = internals.InputHeader()
 
         with closing(
                 StringIO('Bar:this is a\nmulti-\nline item\n\n')) as input_file:
@@ -303,7 +303,7 @@ class TestSearchCommandInternals(unittest.TestCase):
 
         # The infoPath item (which is the path to a file that we open for reads)
 
-        input_header = search_command_internals.InputHeader()
+        input_header = internals.InputHeader()
 
         with closing(
                 StringIO('infoPath:data/input/_empty.csv\n\n')) as input_file:
@@ -321,7 +321,7 @@ class TestSearchCommandInternals(unittest.TestCase):
             'word_3': '!',
             'sentence': 'hello world!'}
 
-        input_header = search_command_internals.InputHeader()
+        input_header = internals.InputHeader()
         text = reduce(
             lambda value, item: value + '%s:%s\n' % (item[0], item[1]),
             collection.iteritems(), '') + '\n'
@@ -354,7 +354,7 @@ class TestSearchCommandInternals(unittest.TestCase):
 
     def test_messages_header(self):
 
-        messages_header = search_command_internals.MessagesHeader()
+        messages_header = internals.MessagesHeader()
         self.assertEqual(len(messages_header), 0)
 
         messages = [

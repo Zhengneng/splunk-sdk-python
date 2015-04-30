@@ -42,6 +42,16 @@ def _copy_lookups(app_source):
     return
 
 
+def _link_packages(app_source):
+    path = os.path.join(app_source, 'bin', 'packages')
+    if not os.path.isdir(path):
+        os.mkdir(path)
+    path = os.path.join(path, 'splunklib')
+    if not os.path.islink(path):
+        os.symlink(os.path.realpath(os.path.join(project_dir, '..', '..', 'splunklib')), path)
+    return
+
+
 def _make_archive(package_name, build_dir, base_dir):
     import tarfile
 
@@ -81,6 +91,8 @@ def _package_app(name, source, metadata, build_dir, package_name, debug_client=N
 
     shutil.copytree(source, temp_dir, ignore=shutil.ignore_patterns(*ignore_patterns))
     default_dir = os.path.join(temp_dir, 'default')
+
+    # Expand .conf files in default_dir in place
 
     for filename in os.listdir(default_dir):
         if filename.endswith('.conf'):
@@ -185,6 +197,7 @@ class LinkCommand(Command):
             raise SystemError(message)
         _copy_debug_client(self.debug_client, self.app_source)
         _copy_lookups(self.app_source)
+        _link_packages(self.app_source)
         os.symlink(self.app_source, target)
         return
 
@@ -228,6 +241,7 @@ class PackageCommand(Command):
 
         _copy_debug_client(self.debug_client, self.app_source)
         _copy_lookups(self.app_source)
+        _link_packages(self.app_source)
 
         _package_app(
             self.app_name, source=self.app_source, metadata=self.distribution.metadata, build_dir=project_dir,
