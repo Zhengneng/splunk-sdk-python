@@ -1,4 +1,4 @@
-# Copyright 2011-2014 Splunk, Inc.
+# Copyright 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -12,9 +12,11 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import
-
+from __future__ import absolute_import, division, print_function, unicode_literals
 from . search_command import SearchCommand
+from cStringIO import StringIO
+
+import csv
 
 
 class GeneratingCommand(SearchCommand):
@@ -65,7 +67,7 @@ class GeneratingCommand(SearchCommand):
         messages header associated with this command invocation.
 
     """
-    #region Methods
+    # region Methods
 
     def generate(self):
         """ A generator that yields records to the Splunk processing pipeline
@@ -75,94 +77,57 @@ class GeneratingCommand(SearchCommand):
         """
         raise NotImplementedError('GeneratingCommand.generate(self)')
 
-    def _execute(self, operation, reader, writer):
-        for record in operation():
-            writer.writerow(record)
-        return
+    def _execute(self, ifile, ofile):
+        """ Execution loop
 
-    def _prepare(self, argv, input_file):
-        ConfigurationSettings = type(self).ConfigurationSettings
-        argv = argv[2:]
-        return ConfigurationSettings, self.generate, argv, 'ANY'
+        :param ifile: Input file object. Unused.
+        :type ifile: file
 
-    #endregion
+        :param ofile: Output file object.
+        :type ofile: file
 
-    #region Types
+        :return: `None`.
+
+        """
+        while True:
+            output_buffer = StringIO()
+
+            # TODO: Ensure support for multi-valued fields
+
+            writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
+            record_count = 0L
+
+            for record in self.generate():
+                writer.writerow(record)
+                record_count += 1L
+
+            # TODO: Write metadata produced by the command, not the metadata read by the command
+            self._write_chunk(ofile, None, output_buffer.getvalue())
+            pass
+
+    # endregion
+
+    # region Types
 
     class ConfigurationSettings(SearchCommand.ConfigurationSettings):
         """ Represents the configuration settings for a
         :code:`GeneratingCommand` class
 
         """
-        #region Properties
+        # region Properties
 
         @property
-        def generating(self):
-            """ Signals that this command generates new events.
+        def type(self):
+            """ Command type.
 
-            Fixed: :const:`True`
+            Fixed: :const:`'generating'`
 
             """
             return True
 
-        @property
-        def generates_timeorder(self):
-            """ Specifies whether this command generates events in descending
-            time order.
+        # endregion
 
-            Default: :const:`False`
-
-            """
-            return type(self)._generates_timeorder
-
-        _generates_timeorder = False
-
-        @property
-        def local(self):
-            """ Specifies whether this command should only be run on the search
-            head.
-
-            This setting is used to override Splunk's default policy for running
-            streamable search commands. See the `streaming` configuration
-            setting.
-
-            Default: :const:`False`
-
-            """
-            return type(self)._local
-
-        _local = False
-
-        @property
-        def retainsevents(self):
-            """ Specifies whether this command retains _raw events or transforms
-            them.
-
-            Default: :const:`False`
-
-            """
-            return type(self)._retainsevents
-
-        _retainsevents = True
-
-        @property
-        def streaming(self):
-            """ Specifies that this command is streamable.
-
-            By default streamable search commands may be run on the search head
-            or one or more indexers, depending on performance and scheduling
-            considerations. This behavior may be overridden by setting
-            :code:`local=True`. This forces a streamable command to be run on the
-            search head.
-
-            Fixed: :const:`True`
-
-            """
-            return True
-
-        #endregion
-
-        #region Methods
+        # region Methods
 
         @classmethod
         def fix_up(cls, command):
@@ -173,6 +138,6 @@ class GeneratingCommand(SearchCommand):
                 raise AttributeError('No GeneratingCommand.generate override')
             return
 
-        #endregion
+        # endregion
 
-    #endregion
+    # endregion

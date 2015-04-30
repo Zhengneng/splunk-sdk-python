@@ -13,9 +13,10 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-
 from . search_command import SearchCommand
-from . import splunk_csv
+from cStringIO import StringIO
+
+import csv
 
 
 class StreamingCommand(SearchCommand):
@@ -69,25 +70,47 @@ class StreamingCommand(SearchCommand):
         """
         raise NotImplementedError('StreamingCommand.stream(self, records)')
 
-    def _execute(self, operation, reader, writer):
-        record_count = 0L
-        keys = None
-        for record in operation(SearchCommand.records(reader)):
-            if keys is None:
-                keys = tuple(key for key in record)
-                writer.writerow(keys)
-            writer.writerow(tuple(record.get(key, '') for key in keys))
-            record_count += 1L
-        return
+    def _execute(self, ifile, ofile):
+        """ Execution loop
 
-    def _prepare(self, argv, input_file):
-        ConfigurationSettings = type(self).ConfigurationSettings
-        argv = argv[2:]
-        if input_file is None:
-            reader = None
-        else:
-            reader = splunk_csv.DictReader(input_file)
-        return ConfigurationSettings, self.stream, argv, reader
+        :param ifile: Input file object.
+        :type ifile: file
+
+        :param ofile: Output file object.
+        :type ofile: file
+
+        :return: `None`.
+
+        """
+        while True:
+            result = self._read_chunk(ifile)
+
+            if not result:
+                break
+
+            metadata, body = result
+            output_buffer = StringIO()
+            input_buffer = StringIO(body)
+
+            # TODO: Ensure support for multi-valued fields
+
+            reader = csv.reader(input_buffer, dialect='splunklib.searchcommands')
+            writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
+
+            # TODO: Write metadata produced by the command, not the metadata read by the command
+
+            record_count = 0L
+            keys = None
+
+            for record in self.stream(self._records(reader)):
+                if keys is None:
+                    keys = tuple(key for key in record)
+                    writer.writerow(keys)
+                writer.writerow(tuple(record.get(key, '') for key in keys))
+                record_count += 1L
+
+            self._write_chunk(ofile, metadata, output_buffer.getvalue())
+            pass
 
     # endregion
 
@@ -138,7 +161,9 @@ class StreamingCommand(SearchCommand):
 
         @property
         def type(self):
-            """ Command type: :const:`'streaming'`
+            """ Command type
+
+            Fixed: :const:`'streaming'`
 
             """
             return 'streaming'

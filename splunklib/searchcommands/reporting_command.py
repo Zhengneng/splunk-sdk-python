@@ -72,7 +72,7 @@ class ReportingCommand(SearchCommand):
         raise NotImplementedError('reduce(self, records)')
 
     def _execute(self, operation, reader, writer):
-        for record in operation(SearchCommand.records(reader)):
+        for record in operation(SearchCommand._records(reader)):
             writer.writerow(record)
         return
 

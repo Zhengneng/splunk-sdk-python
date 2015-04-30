@@ -1,4 +1,4 @@
-# Copyright 2011-2014 Splunk, Inc.
+# Copyright 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -12,14 +12,13 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+from collections import OrderedDict  # must be python 2.7
 from inspect import getmembers, isclass, isfunction
 from types import FunctionType, MethodType
 from json import JSONEncoder
-
-try:
-    from collections import OrderedDict  # must be python 2.7
-except ImportError:
-    from ordereddict import OrderedDict  # must be python 2.6
+from itertools import imap
 
 from .search_command_internals import ConfigurationSettingsType
 from .validators import OptionName
@@ -49,19 +48,19 @@ class Configuration(object):
             o._settings = self.settings
         elif isclass(o):
             name = o.__name__
-            if name.endswith('Command'):
-                name = name[:-len('Command')]
+            if name.endswith(b'Command'):
+                name = name[:-len(b'Command')]
             o.name = name.lower()
             if self.settings is not None:
                 o.ConfigurationSettings = ConfigurationSettingsType(
-                    module='.'.join((o.__module__, o.__name__)),
-                    name='ConfigurationSettings',
+                    module=b'.'.join((o.__module__, o.__name__)),
+                    name=b'ConfigurationSettings',
                     bases=(o.ConfigurationSettings,),
                     settings=self.settings)
             o.ConfigurationSettings.fix_up(o)
             Option.fix_up(o)
         else:
-            raise TypeError('Incorrect usage: Configuration decorator applied to %s' % (type(o), o.__name__))
+            raise TypeError('Incorrect usage: Configuration decorator applied to {0}'.format(type(o), o.__name__))
         return o
 
 
@@ -116,8 +115,7 @@ class Option(property):
             self._logging_configuration = None
 
     """
-    def __init__(self, fget=None, fset=None, fdel=None, doc=None, name=None,
-                 default=None, require=None, validate=None):
+    def __init__(self, fget=None, fset=None, fdel=None, doc=None, name=None, default=None, require=None, validate=None):
         super(Option, self).__init__(fget, fset, fdel, doc)
         self.name = None if name is None else OptionName()(name)
         self.default = default
@@ -284,7 +282,7 @@ class Option(property):
             return len(self._items)
 
         def __repr__(self):
-            text = ''.join(['Option.View(', ','.join([repr(item) for item in self.itervalues()]), ')'])
+            text = ''.join(('Option.View(', ','.join(imap(lambda item: repr(item), self.itervalues())), ')'))
             return text
 
         def __str__(self):

@@ -1,4 +1,4 @@
-# Copyright 2011-2014 Splunk, Inc.
+# Copyright 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -18,33 +18,34 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from splunklib.client import Service
 
-from collections import OrderedDict
-from cStringIO import StringIO
+from collections import OrderedDict, namedtuple
 from inspect import getmembers
-from itertools import imap, izip
+from itertools import chain, imap, izip
 from logging import _levelNames, getLevelName
-from os import environ, path
+from os import environ
 from sys import argv, exit, stdin, stdout
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
 import sys
 import re
-import csv
 import json
 
 # Relative imports
 
-from . import logging, splunk_csv
+from . import logging
 from .decorators import Option
-from .validators import Boolean, Fieldname
-from .search_command_internals import InputHeader, MessagesHeader, SearchCommandParser
+from .validators import Boolean
+
+
+SearchCommandMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
 
 
 class SearchCommand(object):
     """ Represents a custom search command.
 
     """
+
     def __init__(self, app_root=None):
         """
         :param app_root: The root of the application directory, used primarily by tests.
@@ -54,8 +55,6 @@ class SearchCommand(object):
         # Variables that may be used, but not altered by derived classes
 
         self.logger, self._logging_configuration = logging.configure(type(self).__name__, app_root=app_root)
-        self.input_header = InputHeader()
-        self.messages = MessagesHeader()
 
         if 'SPLUNK_HOME' not in environ:
             self.logger.warning(
@@ -70,6 +69,8 @@ class SearchCommand(object):
         self._app_root = app_root
         self._configuration = None
         self._fieldnames = None
+        self._inspector = OrderedDict()
+        self._metadata = None
         self._option_view = None
         self._output_file = None
         self._search_results_info = None
@@ -79,8 +80,6 @@ class SearchCommand(object):
 
         self._default_logging_level = self.logger.level
         self._message_count = None
-
-        self.parser = SearchCommandParser()
 
     def __repr__(self):
         return str(self)
@@ -168,6 +167,10 @@ class SearchCommand(object):
         self._fieldnames = value
 
     @property
+    def metadata(self):
+        return self._metadata
+
+    @property
     def options(self):
         """ Returns the options specified as argument to this command.
 
@@ -203,7 +206,7 @@ class SearchCommand(object):
             return self._search_results_info
 
         try:
-            info_path = self.input_header['infoPath']
+            info_path = self.metadata['infoPath']
         except KeyError:
             return None
 
@@ -289,19 +292,26 @@ class SearchCommand(object):
         self.logger.error('Abnormal exit: %s', error)
         exit(1)
 
-    def process(self, args=argv, input_stream=stdin, output_stream=stdout):
-        """ Processes records on the `input stream optionally writing records to the output stream
+    def process(self, args=argv, ifile=stdin, ofile=stdout):
+        """ Processes records on the `input stream optionally writing records to the output stream.
 
-        :param args:
-        :param input_stream:
-        :param output_stream:
+        :param args: Unused.
+
+        :param ifile: Input file object.
+        :type ifile: file
+
+        :param ofile: Output file object.
+        :type ofile: file
+
         :return: :const:`None`
 
         """
         try:
             # getInfo exchange
 
-            metadata, body = self._read_chunk(input_stream)
+            # TODO: Expose metadata object to SearchCommand and utilize it in SearchCommand.search_results_info
+
+            metadata, body = self._read_chunk(ifile)
             self.fieldnames = []
             self.options.reset()
             self._message_count = 0L
@@ -335,38 +345,26 @@ class SearchCommand(object):
                     self.write_error('Values for these options are required: {0}'.format(', '.join(missing)))
 
             if self._message_count > 0:
-                # TODO: Attempt to fail gracefully as per protocol
                 exit(1)
 
             self._configuration = type(self).ConfigurationSettings(self)
-            self._write_chunk(output_stream, self._configuration.items(), '')
-            output_stream.write('\n')
+            self._metadata = metadata
+
+            self.prepare()
 
             if self.show_configuration:
-                self.write_info('{0} command configuration settings: {1}'.format(self.name, self._configuration))
+                self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
-            while True:
-                result = self._read_chunk(input_stream)
+            metadata = OrderedDict(chain(self.configuration.iteritems(), (('inspector', self._inspector),)))
+            self._write_chunk(ofile, metadata, '')
+            self._inspector.clear()
+            ofile.write('\n')
 
-                if not result:
-                    break
-
-                metadata, body = result
-                output_buffer = StringIO()
-                input_buffer = StringIO(body)
-
-                # TODO: Develop a lighter-weight alternative to splunk_csv
-                # TODO: Ensure support for writing fields in order
-                # TODO: Ensure support for multi-valued fields
-
-                reader = csv.reader(input_buffer, dialect='splunklib.searchcommands')
-                writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
-
-                self._execute(self.stream, reader, writer)
-                self._write_chunk(output_stream, metadata, output_buffer.getvalue())
-                pass
+            self._execute(ifile, ofile)
+            pass
 
         except SystemExit:
+            # TODO: Fail gracefully as per protocol
             raise
 
         except:
@@ -386,95 +384,23 @@ class SearchCommand(object):
             lineno = origin.tb_lineno
 
             self.write_error('%s at "%s", line %d : %s', error_type.__name__, filename, lineno, error_message)
+
+            # TODO: Fail gracefully as per protocol
             exit(1)
 
         return
 
-    def old_process(self, args=argv, input_file=stdin, output_file=stdout):
-        """ Processes search results as specified by command arguments.
+    def prepare(self):
+        """ Prepare for execution.
 
-        :param args: Sequence of command arguments
-        :param input_file: Pipeline input file
-        :param output_file: Pipeline output file
+        This method should be overridden in search command classes that wish to examine, and update their configuration
+        settings prior to execution. It is called during the getInfo exchange before command metadata is sent to
+        splunkd.
+
+        :return: :const:`None`
 
         """
-        self.logger.debug('%s arguments: %s', type(self).__name__, args)
-        self._configuration = None
-        self._output_file = output_file
-
-        try:
-            if len(args) >= 2 and args[1] == '__GETINFO__':
-
-                ConfigurationSettings, operation, args, reader = self._prepare(args, input_file=None)
-                self.parser.parse(args, self)
-                self._configuration = ConfigurationSettings(self)
-                writer = splunk_csv.DictWriter(output_file, self, self.configuration.keys(), mv_delimiter=',')
-                writer.writerow(self.configuration.items())
-
-            elif len(args) >= 2 and args[1] == '__EXECUTE__':
-
-                self.input_header.read(input_file)
-                ConfigurationSettings, operation, args, reader = self._prepare(args, input_file)
-                self.parser.parse(args, self)
-                self._configuration = ConfigurationSettings(self)
-
-                if self.show_configuration:
-                    self.messages.append(
-                        'info_message', '%s command configuration settings: %s'
-                        % (self.name, self._configuration))
-
-                writer = splunk_csv.DictWriter(output_file, self)
-                self._execute(operation, reader, writer)
-
-            else:
-
-                file_name = path.basename(args[0])
-                message = (
-                    'Command {0} appears to be statically configured and static '
-                    'configuration is unsupported by splunklib.searchcommands. '
-                    'Please ensure that default/commands.conf contains this '
-                    'stanza:\n'
-                    '[{0}]\n'
-                    'filename = {1}\n'
-                    'supports_getinfo = true\n'
-                    'supports_rawargs = true\n'
-                    'outputheader = true'.format(type(self).name, file_name))
-                raise NotImplementedError(message)
-
-        except SystemExit:
-            raise
-
-        except:
-
-            import traceback
-            import sys
-
-            error_type, error_message, error_traceback = sys.exc_info()
-            self.logger.error(traceback.format_exc(error_traceback))
-
-            origin = error_traceback
-
-            while origin.tb_next is not None:
-                origin = origin.tb_next
-
-            filename = origin.tb_frame.f_code.co_filename
-            lineno = origin.tb_lineno
-
-            self.write_error('%s at "%s", line %d : %s', error_type.__name__, filename, lineno, error_message)
-            exit(1)
-
-        return
-
-    @staticmethod
-    def records(reader):
-        keys = reader.next()
-        record_count = 0L
-        for record in reader:
-            record_count += 1L
-            yield OrderedDict(izip(keys, record))
-        return
-
-    # TODO: DVPL-5865 - Is it possible to support anything other than write_error? It does not seem so.
+        pass
 
     def write_debug(self, message, *args):
         self._write_message('DEBUG', message, *args)
@@ -495,15 +421,51 @@ class SearchCommand(object):
     def write_warning(self, message, *args):
         self._write_message('WARN', message, *args)
 
-    def _execute(self, operation, reader, writer):
-        raise NotImplementedError('SearchCommand._configure(self, argv)')
+    def write_metric(self, name, value):
+        """ Writes a metric that will be added to the search inspector.
 
-    def _prepare(self, argv, input_file):
-        raise NotImplementedError('SearchCommand._configure(self, argv)')
+        :param name: Name of the metric.
+        :type name: basestring
 
-    def _write_message(self, message_type, message_text, *args):
-        message_text = message_text.format(args)
-        self._configuration.inspector['message.{0}.{1}'.format(self._message_count, message_type)] = message_text
+        :param value: A 4-tuple containing the value of metric :param:`name` where
+
+            value[0] = Elapsed seconds or :const:`None`.
+            value[1] = Number of invocations or :const:`None`.
+            value[2] = Input count or :const:`None`.
+            value[3] = Output count or :const:`None`.
+
+        The :data:`SearchCommandMetric` type provides a convenient encapsulation of :param:`value`.
+
+        :return: :const:`None`.
+
+        """
+        self._inspector['metric.{0}'.format(name)] = value
+        return
+
+    # TODO: Support custom inspector values
+
+    def _execute(self, ifile, ofile):
+        """ Execution loop.
+
+        :param ifile: Input file object.
+        :type ifile: file
+
+        :param ofile: Output file object.
+        :type ofile: file
+
+        :return: `None`.
+
+        """
+        raise NotImplementedError('SearchCommand._execute(self)')
+
+    @staticmethod
+    def _records(reader):
+        keys = reader.next()
+        record_count = 0L
+        for record in reader:
+            record_count += 1L
+            yield OrderedDict(izip(keys, record))
+        return
 
     @staticmethod
     def _read_chunk(f):
@@ -554,6 +516,10 @@ class SearchCommand(object):
         f.write(body)
         f.flush()
 
+    def _write_message(self, message_type, message_text, *args):
+        message_text = message_text.format(args)
+        self._inspector['message.{0}.{1}'.format(self._message_count, message_type)] = message_text
+
     # endregion
 
     # region Types
@@ -562,7 +528,6 @@ class SearchCommand(object):
         """ Represents the configuration settings common to all :class:`SearchCommand` classes.
 
         """
-
         def __init__(self, command):
             self.command = command
             self._finished = False
@@ -576,7 +541,7 @@ class SearchCommand(object):
             :return: String representation of this instance
 
             """
-            text = ', '.join(['%s=%s' % (k, getattr(self, k)) for k in self.keys()])
+            text = ', '.join(imap(lambda key: '{0}={1}'.format(key, repr(getattr(self, key))), type(self)._keys))
             return text
 
         # region Properties
@@ -591,6 +556,12 @@ class SearchCommand(object):
 
             """
             return self._finished
+
+        @finished.setter
+        def finished(self, value):
+            if not type(value) is bool:
+                raise ValueError('Illegal value for partial: {0}.'.format(repr(value)))
+            self._finished = value
 
         @property
         def partial(self):
@@ -612,7 +583,13 @@ class SearchCommand(object):
             Default: :const:`False`
 
             """
-            return type(self)._partial
+            return getattr(self, '_partial', type(self)._partial)
+
+        @partial.setter
+        def partial(self, value):
+            if not type(value) is bool:
+                raise ValueError('Illegal value for partial: {0}.'.format(repr(value)))
+            setattr(self, '_stderr_dest', value)
 
         _partial = False
 
@@ -632,13 +609,30 @@ class SearchCommand(object):
             Default: :code:`'log'`
 
             """
-            return type(self)._stderr_dest
+            return getattr(self, '_stderr_dest', type(self)._stderr_dest)
+
+        @stderr_dest.setter
+        def stderr_dest(self, value):
+            if value not in ('log', 'none'):
+                raise ValueError('Illegal value for stderr_dest: {0}'.format(repr(value)))
+            setattr(self, '_stderr_dest', value)
 
         _stderr_dest = 'log'
 
         # endregion
 
         # region Methods
+
+        def iteritems(self):
+            """ Represents this instance as an iterable over the ordered set of configuration items in this object.
+
+            This method is used by the SearchCommand.process method to report configuration settings to splunkd during
+            the :code:`getInfo` exchange of the request to process search results.
+
+            :return: :class:`OrderedDict` containing setting values keyed by name.
+
+            """
+            return imap(lambda key: (key, getattr(self, key)), type(self)._keys)
 
         @classmethod
         def configuration_settings(cls):
@@ -675,25 +669,6 @@ class SearchCommand(object):
 
             """
             raise NotImplementedError('SearchCommand.fix_up method must be overridden')
-
-        def items(self):
-            """ Represents this instance as an :class:`OrderedDict`.
-
-            This method is used by the SearchCommand.process method to report configuration settings to splunkd during
-            the :code:`getInfo` exchange of the request to process search results.
-
-            :return: :class:`OrderedDict` containing setting values keyed by name.
-
-            """
-            return OrderedDict(imap(lambda key: (key, getattr(self, key)), self.keys()))
-
-        def keys(self):
-            """ Gets the names of the settings represented by this instance.
-
-            :return: Sorted list of setting names.
-
-            """
-            return type(self)._keys
 
         # endregion
 
