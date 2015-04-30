@@ -148,6 +148,7 @@ from .validators import *
 from .generating_command import GeneratingCommand
 from .reporting_command import ReportingCommand
 from .streaming_command import StreamingCommand
+from .search_command import SearchMetric
 
 if sys.platform == 'win32':
     # Work around the fact that on Windows '\n' is mapped to '\r\n'

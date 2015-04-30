@@ -22,6 +22,7 @@ from collections import OrderedDict, namedtuple
 from inspect import getmembers
 from itertools import chain, imap, izip
 from logging import _levelNames, getLevelName
+from numbers import Number
 from os import environ
 from sys import argv, exit, stdin, stdout
 from urlparse import urlsplit
@@ -37,8 +38,7 @@ from . import logging
 from .decorators import Option
 from .validators import Boolean
 
-
-SearchCommandMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
+SearchMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
 
 
 class SearchCommand(object):
@@ -434,7 +434,8 @@ class SearchCommand(object):
             value[2] = Input count or :const:`None`.
             value[3] = Output count or :const:`None`.
 
-        The :data:`SearchCommandMetric` type provides a convenient encapsulation of :param:`value`.
+        The :data:`SearchMetric` type provides a convenient encapsulation of :param:`value`.
+        The :data:`SearchMetric` type provides a convenient encapsulation of :param:`value`.
 
         :return: :const:`None`.
 
@@ -443,6 +444,55 @@ class SearchCommand(object):
         return
 
     # TODO: Support custom inspector values
+
+    @staticmethod
+    def _decode_list(mv):
+        if len(mv) == 0:
+            return None
+        in_value = False
+        value = ''
+        i = 0
+        l = []
+        while i < len(mv):
+            if not in_value:
+                if mv[i] == '$':
+                    in_value = True
+                elif mv[i] != ';':
+                    return None
+            else:
+                if mv[i] == '$' and i + 1 < len(mv) and mv[i + 1] == '$':
+                    value += '$'
+                    i += 1
+                elif mv[i] == '$':
+                    in_value = False
+                    l.append(value)
+                    value = ''
+                else:
+                    value += mv[i]
+            i += 1
+        return l
+
+    @staticmethod
+    def _encode_list(value):
+
+        def to_string(item):
+            if isinstance(item, bool):
+                return 't' if item else 'f'
+            if isinstance(item, (basestring, Number)):
+                return unicode(item)
+            return repr(item)
+
+        if len(value) == 0:
+            return None, None
+
+        if len(value) == 1:
+            return to_string(value[0]), None
+
+        # TODO: Bug fix: If a list item contains newlines, value cannot be interpreted correctly
+
+        value = imap(lambda item: (item, item.replace('$', '$$')), imap(lambda item: to_string(item), value))
+
+        return '\n'.join(imap(lambda item: item[0], value)), '$' + '$;$'.join(imap(lambda item: item[1], value)) + '$'
 
     def _execute(self, ifile, ofile):
         """ Execution loop.
@@ -458,13 +508,37 @@ class SearchCommand(object):
         """
         raise NotImplementedError('SearchCommand._execute(self)')
 
-    @staticmethod
-    def _records(reader):
-        keys = reader.next()
+    def _records(self, reader):
         record_count = 0L
-        for record in reader:
-            record_count += 1L
-            yield OrderedDict(izip(keys, record))
+
+        try:
+            fieldnames = reader.next()
+        except StopIteration:
+            return
+
+        mv_fieldnames = set()
+
+        for fieldname in fieldnames:
+            if fieldname.startswith('__mv_'):
+                mv_fieldnames.add(fieldname[len('__mv_')])
+            pass
+
+        if len(mv_fieldnames):
+            for values in reader:
+                record = OrderedDict()
+                for fieldname, value in izip(fieldnames, record):
+                    if fieldname.startswith('__mv_'):
+                        values[fieldname[len('__mv_'):]] = self._decode_list(value)
+                    elif fieldname not in mv_fieldnames:
+                        values[fieldname] = value
+                record_count += 1L
+                yield record
+        else:
+            for values in reader:
+                record = OrderedDict(izip(fieldnames, values))
+                record_count += 1
+                yield record
+
         return
 
     @staticmethod
@@ -626,7 +700,7 @@ class SearchCommand(object):
         def iteritems(self):
             """ Represents this instance as an iterable over the ordered set of configuration items in this object.
 
-            This method is used by the SearchCommand.process method to report configuration settings to splunkd during
+            This method is used by :method:`SearchCommand.process` to report configuration settings to splunkd during
             the :code:`getInfo` exchange of the request to process search results.
 
             :return: :class:`OrderedDict` containing setting values keyed by name.
@@ -658,12 +732,9 @@ class SearchCommand(object):
         def fix_up(cls, command_class):
             """ Adjusts and checks this class and its search command class.
 
-            Derived classes must override this method. It is used by the
-            :decorator:`Configuration` decorator to fix up the
-            :class:`SearchCommand` classes it adorns. This method is overridden
-            by :class:`GeneratingCommand`, :class:`ReportingCommand`, and
-            :class:`StreamingCommand`, the base types for all other search
-            commands.
+            Derived classes must override this method. It is used by the :decorator:`Configuration` decorator to fix up
+            the :class:`SearchCommand` classes it adorns. This method is overridden by :class:`GeneratingCommand`,
+            :class:`ReportingCommand`, and :class:`StreamingCommand`, the base types for all other search commands.
 
             :param command_class: Command class targeted by this class
 
