@@ -24,7 +24,7 @@ from splunklib.client import Service
 
 from collections import OrderedDict, namedtuple
 from inspect import getmembers
-from itertools import chain, imap, izip
+from itertools import chain, ifilter, imap, izip
 from logging import _levelNames, getLevelName
 from numbers import Number
 from os import environ
@@ -34,11 +34,12 @@ from xml.etree import ElementTree
 
 import sys
 import re
+import csv
 import json
 
 # Relative imports
 
-from .internals import configure_logging
+from .internals import configure_logging, CsvDialect
 from .decorators import Option
 from .validators import Boolean
 
@@ -73,6 +74,7 @@ class SearchCommand(object):
         self._app_root = app_root
         self._configuration = None
         self._fieldnames = None
+        self._finished = None
         self._inspector = OrderedDict()
         self._metadata = None
         self._option_view = None
@@ -169,6 +171,17 @@ class SearchCommand(object):
         self._fieldnames = value
 
     @property
+    def finished(self):
+        return self._finished
+
+    @finished.setter
+    def finished(self, value):
+        if value is None or value is bool:
+            self._finished = value
+            return
+        raise ValueError('Expected boolean value or None, not {0}'.format(repr(value)))
+
+    @property
     def metadata(self):
         return self._metadata
 
@@ -236,8 +249,7 @@ class SearchCommand(object):
 
         with open(info_path, 'rb') as f:
             from collections import namedtuple
-            import csv
-            reader = csv.reader(f, dialect='splunklib.searchcommands')
+            reader = csv.reader(f, dialect=CsvDialect)
             fields = [convert_field(x) for x in reader.next()]
             values = [convert_value(f, v) for f, v in zip(fields, reader.next())]
 
@@ -364,7 +376,7 @@ class SearchCommand(object):
             if self.show_configuration:
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
-            metadata = OrderedDict(chain(self.configuration.iteritems(), (('inspector', self._inspector),)))
+            metadata = OrderedDict(self.configuration.iteritems())  # TODO: Make sure we get the ability to write inspector messages: chain(self.configuration.iteritems(), (('inspector', self._inspector),)))
             self._write_chunk(ofile, metadata, '')
             self._inspector.clear()
             ofile.write('\n')
@@ -394,7 +406,8 @@ class SearchCommand(object):
             filename = origin.tb_frame.f_code.co_filename
             lineno = origin.tb_lineno
 
-            self.write_error('%s at "%s", line %d : %s', error_type.__name__, filename, lineno, error_message)
+            message = '{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error_message)
+            self.write_error(message)
 
             # TODO: Fail gracefully as per protocol
             exit(1)
@@ -484,14 +497,15 @@ class SearchCommand(object):
         return l
 
     @staticmethod
-    def _encode_list(value):
+    def _encode_value(value):
 
         def to_string(item):
-            if isinstance(item, bool):
-                return 't' if item else 'f'
             if isinstance(item, (basestring, Number)):
                 return unicode(item)
             return repr(item)
+
+        if not isinstance(value, (list, tuple)):
+            return to_string(value), None
 
         if len(value) == 0:
             return None, None
@@ -500,6 +514,8 @@ class SearchCommand(object):
             return to_string(value[0]), None
 
         # TODO: Bug fix: If a list item contains newlines, value cannot be interpreted correctly
+        # Question: Must we return a value? Is it good enough to return (None, <encoded-list>)?
+        # See what other splunk commands do.
 
         value = imap(lambda item: (item, item.replace('$', '$$')), imap(lambda item: to_string(item), value))
 
@@ -531,17 +547,19 @@ class SearchCommand(object):
 
         for fieldname in fieldnames:
             if fieldname.startswith('__mv_'):
-                mv_fieldnames.add(fieldname[len('__mv_')])
+                mv_fieldnames.add(fieldname[len('__mv_'):])
             pass
 
-        if len(mv_fieldnames):
+        if len(mv_fieldnames) > 0:
             for values in reader:
                 record = OrderedDict()
-                for fieldname, value in izip(fieldnames, record):
+                for fieldname, value in izip(fieldnames, values):
                     if fieldname.startswith('__mv_'):
-                        values[fieldname[len('__mv_'):]] = self._decode_list(value)
-                    elif fieldname not in mv_fieldnames:
-                        values[fieldname] = value
+                        if value:
+                            record[fieldname[len('__mv_'):]] = self._decode_list(value)
+                        pass
+                    elif fieldname not in record:
+                        record[fieldname] = value
                 record_count += 1L
                 yield record
         else:
@@ -589,20 +607,23 @@ class SearchCommand(object):
             print('Failed to parse metadata JSON', file=sys.stderr)
             return None
 
-        return [metadata, body]
+        return metadata, body
 
     @staticmethod
-    def _write_chunk(f, metadata, body):
-        metadata_buffer = None
+    def _write_chunk(ofile, metadata, body):
         if metadata:
-            metadata_buffer = json.dumps(metadata)
-        f.write('chunked 1.0,%d,%d\n' % (len(metadata_buffer) if metadata_buffer else 0, len(body)))
-        f.write(metadata_buffer)
-        f.write(body)
-        f.flush()
+            metadata = OrderedDict(ifilter(lambda x: x[1] is not None, metadata.iteritems()))
+            metadata = json.dumps(metadata, separators=(',', ':'))
+        else:
+            metadata = ''
+        ofile.write('chunked 1.0,{0:d},{1:d}\n'.format(len(metadata), len(body)))
+        ofile.write(metadata)
+        ofile.write(body)
+        ofile.flush()
+        return
 
     def _write_message(self, message_type, message_text, *args):
-        self._inspector['message.{0}.{1}'.format(self._message_count, message_type)] = message_text.format(args)
+        self._inspector['message.{0:d}.{1}'.format(self._message_count, message_type)] = message_text.format(args)
         self._message_count += 1
 
     # endregion
@@ -615,7 +636,7 @@ class SearchCommand(object):
         """
         def __init__(self, command):
             self.command = command
-            self._finished = False
+            self._finished = None
 
         def __str__(self):
             """ Converts the value of this instance to its string representation.
@@ -631,22 +652,7 @@ class SearchCommand(object):
 
         # region Properties
 
-        # Constant configuration settings
-
-        @property
-        def finished(self):
-            """ Signals that the search command is complete.
-
-            Default: :const:`True`
-
-            """
-            return self._finished
-
-        @finished.setter
-        def finished(self, value):
-            if not type(value) is bool:
-                raise ValueError('Illegal value for partial: {0}.'.format(repr(value)))
-            self._finished = value
+        # Configuration settings
 
         @property
         def partial(self):
@@ -676,7 +682,7 @@ class SearchCommand(object):
                 raise ValueError('Illegal value for partial: {0}.'.format(repr(value)))
             setattr(self, '_stderr_dest', value)
 
-        _partial = False
+        _partial = None
 
         @property
         def stderr_dest(self):
@@ -702,7 +708,7 @@ class SearchCommand(object):
                 raise ValueError('Illegal value for stderr_dest: {0}'.format(repr(value)))
             setattr(self, '_stderr_dest', value)
 
-        _stderr_dest = 'log'
+        _stderr_dest = None
 
         # endregion
 

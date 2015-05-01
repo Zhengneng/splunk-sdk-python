@@ -14,12 +14,11 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from . internals import ConfigurationSettingsType
 from . streaming_command import StreamingCommand
 from . search_command import SearchCommand
-from . import splunk_csv
 
 
 class ReportingCommand(SearchCommand):

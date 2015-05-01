@@ -171,12 +171,11 @@ class ConfigurationSettingsType(type):
 
 class CsvDialect(csv.Dialect):
     """ Describes the properties of Splunk CSV streams. """
-    delimiter = ','
-    quotechar = '"'
+    delimiter = b','
+    quotechar = b'"'
     doublequote = True
     skipinitialspace = False
-    lineterminator = '\r\n'
+    lineterminator = b'\r\n'
     quoting = csv.QUOTE_MINIMAL
 
-csv.register_dialect('splunklib.searchcommands', CsvDialect)
 csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. See SPL-12117 for background on this issue

@@ -16,6 +16,7 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 from . search_command import SearchCommand
+from . internals import CsvDialect
 from cStringIO import StringIO
 
 import csv
@@ -96,7 +97,7 @@ class GeneratingCommand(SearchCommand):
 
             # TODO: Ensure support for multi-valued fields
 
-            writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
+            writer = csv.writer(output_buffer, dialect=CsvDialect)
             record_count = 0L
 
             for record in self.generate():

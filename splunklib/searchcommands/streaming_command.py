@@ -1,6 +1,6 @@
 # coding=utf-8
 #
-# Copyright © 2011-2015 Splunk, Inc.
+#  Copyright 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -16,10 +16,12 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 from . search_command import SearchCommand
+from . internals import CsvDialect
 from cStringIO import StringIO
+from itertools import chain, imap
 
 import csv
-
+import json
 
 class StreamingCommand(SearchCommand):
     """ Applies a transformation to search results as they travel through the processing pipeline.
@@ -94,10 +96,8 @@ class StreamingCommand(SearchCommand):
             output_buffer = StringIO()
             input_buffer = StringIO(body)
 
-            # TODO: Ensure support for multi-valued fields
-
-            reader = csv.reader(input_buffer, dialect='splunklib.searchcommands')
-            writer = csv.writer(output_buffer, dialect='splunklib.searchcommands')
+            reader = csv.reader(input_buffer, dialect=CsvDialect)
+            writer = csv.writer(output_buffer, dialect=CsvDialect)
 
             # TODO: Write metadata produced by the command, not the metadata read by the command
 
@@ -106,12 +106,14 @@ class StreamingCommand(SearchCommand):
 
             for record in self.stream(self._records(reader)):
                 if keys is None:
-                    keys = tuple(key for key in record)
+                    keys = tuple(chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record)))
                     writer.writerow(keys)
-                writer.writerow(tuple(record.get(key, '') for key in keys))
+                values = tuple(chain.from_iterable(
+                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record))))
+                writer.writerow(values)
                 record_count += 1L
 
-            self._write_chunk(ofile, metadata, output_buffer.getvalue())
+            self._write_chunk(ofile, {'finished': self.finished} if self.finished else None, output_buffer.getvalue())
             pass
 
     # endregion
@@ -122,7 +124,7 @@ class StreamingCommand(SearchCommand):
         """
         def __init__(self, command):
             super(StreamingCommand.ConfigurationSettings, self).__init__(command)
-            self._required_fields = ('*',)
+            self._required_fields = None
 
         # region Properties
 
@@ -135,7 +137,7 @@ class StreamingCommand(SearchCommand):
             """
             return self._maxinputs
 
-        _maxinputs = 0
+        _maxinputs = None
 
         @property
         def required_fields(self):
@@ -143,7 +145,7 @@ class StreamingCommand(SearchCommand):
 
             For streaming and stateful commands, setting this enables "selected fields mode" (defined below.)
 
-            Default: :const:`'*'`
+            Default: :const:`['*']`
 
             """
             return self._required_fields
@@ -159,7 +161,7 @@ class StreamingCommand(SearchCommand):
             """
             return type(self)._run_in_preview
 
-        _run_in_preview = True
+        _run_in_preview = None
 
         @property
         def type(self):

@@ -14,8 +14,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import
-
+from __future__ import absolute_import, division, print_function, unicode_literals
 from cStringIO import StringIO
 import csv
 import os
@@ -55,9 +54,9 @@ class Boolean(Validator):
 
     def __call__(self, value):
         if not (value is None or isinstance(value, bool)):
-            value = str(value).lower()
+            value = unicode(value).lower()
             if value not in Boolean.truth_values:
-                raise ValueError('Unrecognized truth value: %s' % value)
+                raise ValueError('Unrecognized truth value: {0}'.format(value))
             value = Boolean.truth_values[value]
         return value
 
@@ -72,9 +71,9 @@ class Fieldname(Validator):
     pattern = re.compile(r'''[_.a-zA-Z-][_.a-zA-Z0-9-]*$''')
 
     def __call__(self, value):
-        value = str(value)
+        value = unicode(value)
         if Fieldname.pattern.match(value) is None:
-            raise ValueError('Illegal characters in fieldname: %s' % value)
+            raise ValueError('Illegal characters in fieldname: {0}'.format(value))
         return value
 
     def format(self, value):
@@ -90,16 +89,21 @@ class File(Validator):
         self.buffering = buffering
 
     def __call__(self, value):
-        if value is not None:
-            try:
-                path = str(value)
-                if not os.path.isabs(path):
-                    path = os.path.join(File._var_run_splunk, path)
-                value = open(path, self.mode, self.buffering)
-            except IOError as e:
-                raise ValueError(
-                    'Cannot open %s with mode=%s and buffering=%s: %s'
-                    % (value, self.mode, self.buffering, e))
+
+        if value is None:
+            return value
+
+        path = unicode(value)
+
+        if not os.path.isabs(path):
+            path = os.path.join(File._var_run_splunk, path)
+
+        try:
+            value = open(path, self.mode, self.buffering)
+        except IOError as e:
+            raise ValueError('Cannot open {0} with mode={1} and buffering={2}: {3}'.format(
+                value, self.mode, self.buffering, e))
+
         return value
 
     def format(self, value):
@@ -117,17 +121,17 @@ class Integer(Validator):
         if minimum is not None and maximum is not None:
             def check_range(value):
                 if not (minimum <= value <= maximum):
-                    raise ValueError('Expected integer in the range [%d,%d]: %d' % (minimum, maximum, value))
+                    raise ValueError('Expected integer in the range [{0},{1}]: {2}'.format(minimum, maximum, value))
                 return
         elif minimum is not None:
             def check_range(value):
                 if value < minimum:
-                    raise ValueError('Expected integer in the range [%d,+∞]: %d' % (minimum, value))
+                    raise ValueError('Expected integer in the range [{0},+∞]: {1}'.format(minimum, value))
                 return
         elif maximum is not None:
             def check_range(value):
                 if value > maximum:
-                    raise ValueError('Expected integer in the range [-∞,%d]: %d' % (maximum, value))
+                    raise ValueError('Expected integer in the range [-∞,{0}]: {1}'.format(maximum, value))
                 return
         else:
             def check_range(value):
@@ -155,10 +159,12 @@ class Duration(Validator):
         if value is None:
             return None
 
+        p = value.split(':', 2)
+        result = None
+        _60 = Duration._60
+        _unsigned = Duration._unsigned
+
         try:
-            p = value.split(':', 2)
-            _60 = Duration._60
-            _unsigned = Duration._unsigned
             if len(p) == 1:
                 result = _unsigned(p[0])
             if len(p) == 2:
@@ -166,7 +172,7 @@ class Duration(Validator):
             if len(p) == 3:
                 result = 3600 * _unsigned(p[0]) + 60 * _60(p[1]) + _60(p[2])
         except ValueError:
-            raise ValueError('Invalid duration value: %s', value)
+            raise ValueError('Invalid duration value: {0}'.format(value))
 
         return result
 
@@ -222,9 +228,9 @@ class Map(Validator):
 
     def __call__(self, value):
         if value is not None:
-            value = str(value)
+            value = unicode(value)
             if value not in self.membership:
-                raise ValueError('Unrecognized value: %s' % value)
+                raise ValueError('Unrecognized value: {0}'.format(value))
         return self.membership[value]
 
     def format(self, value):
@@ -240,7 +246,7 @@ class OptionName(Validator):
     def __call__(self, value):
         value = str(value)
         if OptionName.pattern.match(value) is None:
-            raise ValueError('Illegal characters in option name: %s' % value)
+            raise ValueError('Illegal characters in option name: {0}'.format(value))
         return value
 
     def format(self, value):
@@ -252,11 +258,11 @@ class RegularExpression(Validator):
 
     """
     def __call__(self, value):
-        value = str(value)
+        value = unicode(value)
         try:
             value = re.compile(value)
         except re.error as e:
-            raise ValueError('%s: %s' % (str(e).capitalize(), value))
+            raise ValueError('{0}: {1}'.format(unicode(e).capitalize(), value))
         return value
 
     def format(self, value):
@@ -274,7 +280,7 @@ class Set(Validator):
         if value is not None:
             value = str(value)
             if value not in self.membership:
-                raise ValueError('Unrecognized value: %s' % value)
+                raise ValueError('Unrecognized value: {0}'.format(value))
         return value
 
     def format(self, value):
