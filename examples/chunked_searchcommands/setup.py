@@ -11,12 +11,13 @@ import sys
 
 from subprocess import CalledProcessError, check_call, STDOUT
 from distutils.core import setup, Command
+from glob import glob
 from itertools import chain
 
 project_dir = os.path.dirname(os.path.abspath(__file__))
 
-
 # region Helper functions
+
 
 def _copy_debug_client(debug_client, app_source):
     if not debug_client:
@@ -50,71 +51,6 @@ def _link_packages(app_source):
     if not os.path.islink(path):
         os.symlink(os.path.realpath(os.path.join(project_dir, '..', '..', 'splunklib')), path)
     return
-
-
-def _make_archive(package_name, build_dir, base_dir):
-    import tarfile
-
-    basename, extension = os.path.splitext(package_name)
-    archive_name = basename + '.tar'
-    current_dir = os.getcwd()
-    os.chdir(build_dir)
-
-    try:
-        # We must convert the archive_name and base_dir from unicode to utf-8 due to a bug in the version of tarfile
-        # that ships with Python 2.7.2, the version of Python used by the app team's build system as of this date:
-        # 12 Sep 2014.
-        tar = tarfile.open(str(archive_name), b'w|gz')
-        try:
-            tar.add(str(base_dir))
-        finally:
-            tar.close()
-        os.rename(archive_name, package_name)
-    finally:
-        os.chdir(current_dir)
-
-    return
-
-
-def _package_app(name, source, metadata, build_dir, package_name, debug_client=None):
-    import stat
-
-    temp_dir = os.path.join(build_dir, name)
-
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-
-    ignore_patterns = ['.*', '*.pyc', '*.swp', 'local', 'local.meta']
-
-    if not debug_client:
-        ignore_patterns.extend(('_debug_conf.py', 'pydebug.egg'))
-
-    shutil.copytree(source, temp_dir, ignore=shutil.ignore_patterns(*ignore_patterns))
-    default_dir = os.path.join(temp_dir, 'default')
-
-    # Expand .conf files in default_dir in place
-
-    for filename in os.listdir(default_dir):
-        if filename.endswith('.conf'):
-            path = os.path.join(default_dir, filename)
-            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-            with open(path, 'r+b') as f:
-                format_spec = ''.join(f.readlines())
-                text = format_spec.format(**vars(metadata))
-                f.seek(0)
-                f.truncate()
-                f.writelines((text.encode('utf-8'),))
-            pass
-
-    package_path = os.path.join(build_dir, package_name)
-
-    if os.path.exists(package_path):
-        os.remove(package_path)
-
-    _make_archive(package_name, build_dir, base_dir=name)
-    shutil.rmtree(temp_dir)
-
-    return os.path.join(build_dir, package_name)
 
 
 def _splunk(*args):
@@ -214,38 +150,100 @@ class PackageCommand(Command):
          'Build number (default: private)'),
         (b'debug-client=', None,
          'Copies the file at the specified location to package/bin/_pydebug.egg and bundles it and _pydebug_conf.py '
-         'with the app')]
+         'with the app'),
+        (b'force', b'f',
+         'Forcibly build everything')]
 
     def __init__(self, dist):
+
         Command.__init__(self, dist)
 
-        self.app_version = self.distribution.metadata.version
-
-        self.app_name = self.distribution.metadata.name
-        self.app_source = os.path.join(project_dir, 'package')
-        self.app_package_name = '-'.join((self.app_name, self.app_version))
-
+        self.package_name = '-'.join((self.distribution.metadata.name, self.distribution.metadata.version))
         self.build_number = 'private'
         self.debug_client = None
+        self.build_base = None
+        self.build_dir = None
+        self.build_lib = None
+        self.force = None
 
         return
 
     def initialize_options(self):
-        pass
+        return
 
     def finalize_options(self):
+
+        self.distribution.command_obj['build'] = self  # so that we control these build_py options: build_lib and force
+        self.package_name = '-'.join((self.package_name, unicode(self.build_number) + '.tgz'))
+        self.build_base = os.path.join(project_dir, 'build')
+        self.build_dir = os.path.join(self.build_base, self.distribution.metadata.name)
+        self.build_lib = self.build_dir
+
         return
 
     def run(self):
-        package_name = '-'.join((self.app_package_name, unicode(self.build_number) + '.tgz'))
 
-        _copy_debug_client(self.debug_client, self.app_source)
-        _copy_lookups(self.app_source)
-        _link_packages(self.app_source)
+        if self.debug_client is not None:
+            shutil.copy(self.debug_client, self.distribution.package_dir[b'bin'])
 
-        _package_app(
-            self.app_name, source=self.app_source, metadata=self.distribution.metadata, build_dir=project_dir,
-            package_name=package_name, debug_client=self.debug_client)
+        if self.force and os.path.isdir(self.build_dir):
+            shutil.rmtree(self.build_dir)
+
+        self.run_command('build_py')
+        self._copy_package_data()
+        self._copy_data_files()
+        self._make_archive()
+
+        return
+
+    def _copy_data_files(self):
+        for directory, path_list in self.distribution.data_files:
+            target = os.path.join(self.build_dir, directory)
+            if not os.path.isdir(target):
+                os.makedirs(target)
+            for path in path_list:
+                for source in glob(path):
+                    if os.path.isfile(source):
+                        shutil.copy(source, target)
+                    pass
+                pass
+            pass
+        return
+
+    def _copy_package_data(self):
+        for directory, path_list in self.distribution.package_data.iteritems():
+            target = os.path.join(self.build_dir, directory)
+            if not os.path.isdir(target):
+                os.makedirs(target)
+            for path in path_list:
+                for source in glob(path):
+                    if os.path.isfile(source):
+                        shutil.copy(source, target)
+                    pass
+                pass
+            pass
+        return
+
+    def _make_archive(self):
+        import tarfile
+
+        basename, extension = os.path.splitext(self.package_name)
+        archive_name = basename + '.tar'
+        current_dir = os.getcwd()
+        os.chdir(self.build_base)
+
+        try:
+            # We must convert the archive_name and base_dir from unicode to utf-8 due to a bug in the version of tarfile
+            # that ships with Python 2.7.2, the version of Python used by the app team's build system as of this date:
+            # 12 Sep 2014.
+            tar = tarfile.open(str(archive_name), b'w|gz')
+            try:
+                tar.add(str(self.build_dir))
+            finally:
+                tar.close()
+            os.rename(archive_name, self.package_name)
+        finally:
+            os.chdir(current_dir)
 
         return
 
@@ -319,15 +317,12 @@ class TestCommand(Command):
 setup(
     cmdclass={'analyze': AnalyzeCommand, 'link': LinkCommand, 'package': PackageCommand, 'test': TestCommand},
     description='Application for testing the Chunked Search Commands feature',
-    name='chunked_searchcommands',
+    name=os.path.basename(project_dir),
     version='1.0.0',
     author='Splunk, Inc.',
-    author_email='dev@splunk.com',
-    url='',
-    license='',
-    packages=[],
-    package_dir={'': 'bin/packages'},
-
+    author_email='devinfo@splunk.com',
+    url='http://github.com/splunk/splunk-sdk-python',
+    license='http://www.apache.org/licenses/LICENSE-2.0',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Environment :: Other Environment',
@@ -336,4 +331,21 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Topic :: System :: Logging',
-        'Topic :: System :: Monitoring'])
+        'Topic :: System :: Monitoring'],
+    packages=[
+        b'', b'bin', b'bin.packages.splunklib', b'bin.packages.splunklib.searchcommands'
+    ],
+    package_dir={
+        b'': 'package',
+        b'bin': 'package/bin',
+        b'bin.packages.splunklib': '../../splunklib',
+        b'bin.packages.splunklib.searchcommands': '../../splunklib/searchcommands',
+    },
+    package_data={
+        b'bin': ['package/bin/_pydebug.egg']
+    },
+    data_files=[
+        (b'default', ['package/default/*.conf']),
+        (b'lookups', ['package/lookups/*.csv.gz']),
+        (b'metadata', ['package/metadata/default.meta'])
+    ])
