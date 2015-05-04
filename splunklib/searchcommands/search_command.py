@@ -56,6 +56,7 @@ class SearchCommand(object):
         """
         :param app_root: The root of the application directory, used primarily by tests.
         :type app_root: str or NoneType
+
         """
 
         # Variables that may be used, but not altered by derived classes
@@ -88,6 +89,8 @@ class SearchCommand(object):
         self._output_buffer = StringIO()
         self._inspector = OrderedDict()
         self._message_count = None
+
+        return
 
     def __repr__(self):
         return str(self)
@@ -635,12 +638,15 @@ class SearchCommand(object):
 
         # TODO: Write self._inspector: (('finished', self.finished)), ('inspector', self._inspector))
 
-        if self._output_buffer.tell() == 0 or len(self._inspector) == 0:
+        if self._output_buffer.tell() == 0 and len(self._inspector) == 0:
             return
+
         metadata = {'finished': self.finished} if self.finished else None
         self._write_chunk(ofile, metadata, self._output_buffer.getvalue())
         self._output_buffer.reset()
         self._inspector.clear()
+
+        return
 
     # endregion
 

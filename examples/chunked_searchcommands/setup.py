@@ -11,46 +11,13 @@ import sys
 
 from subprocess import CalledProcessError, check_call, STDOUT
 from distutils.core import setup, Command
+from collections import OrderedDict
 from glob import glob
 from itertools import chain
 
 project_dir = os.path.dirname(os.path.abspath(__file__))
 
 # region Helper functions
-
-
-def _copy_debug_client(debug_client, app_source):
-    if not debug_client:
-        return
-    shutil.copy(debug_client, os.path.join(app_source, 'bin', '_pydebug.egg'))
-
-
-def _copy_lookups(app_source):
-    lookups_dir = os.path.join(app_source, 'lookups')
-
-    if not os.path.isdir(lookups_dir):
-        os.mkdir(lookups_dir)
-
-    random_data = os.path.join(lookups_dir, 'random_data.csv.gz')
-
-    if not os.path.isfile(random_data):
-        download = 'http://splk-newtest-data.s3.amazonaws.com/chunked_external_commands/lookups/random_data.csv.gz'
-        response = requests.get(download)
-        with open(random_data, 'wb') as output:
-            output.write(response.content)
-        pass
-
-    return
-
-
-def _link_packages(app_source):
-    path = os.path.join(app_source, 'bin', 'packages')
-    if not os.path.isdir(path):
-        os.mkdir(path)
-    path = os.path.join(path, 'splunklib')
-    if not os.path.islink(path):
-        os.symlink(os.path.realpath(os.path.join(project_dir, '..', '..', 'splunklib')), path)
-    return
 
 
 def _splunk(*args):
@@ -97,50 +64,9 @@ class AnalyzeCommand(Command):
         c.html_report(directory='coverage_report')
 
 
-class LinkCommand(Command):
+class BuildCommand(Command):
     """
-    setup.py command to create a symbolic link to the app package at $SPLUNK_HOME/etc/apps.
-
-    """
-    description = 'Create a symbolic link to the app package at $SPLUNK_HOME/etc/apps.'
-
-    user_options = [
-        (b'debug-client=', None, 'Copies the specified debug client egg to package/_pydebug.egg'),
-        (b'splunk-home=', None, 'Overrides the value of SPLUNK_HOME.')]
-
-    def __init__(self, dist):
-        Command.__init__(self, dist)
-
-        self.debug_client = None
-        self.splunk_home = os.environ['SPLUNK_HOME']
-        self.app_name = self.distribution.metadata.name
-        self.app_source = os.path.join(project_dir, 'package')
-
-        return
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        return
-
-    def run(self):
-        target = os.path.join(self.splunk_home, 'etc', 'apps', self.app_name)
-        if os.path.islink(target):
-            os.remove(target)
-        elif os.path.exists(target):
-            message = 'Cannot create a link at "{0}" because a file by that name already exists.'.format(target)
-            raise SystemError(message)
-        _copy_debug_client(self.debug_client, self.app_source)
-        _copy_lookups(self.app_source)
-        _link_packages(self.app_source)
-        os.symlink(self.app_source, target)
-        return
-
-
-class PackageCommand(Command):
-    """ 
-    setup.py command to create the application package file. 
+    setup.py command to create the application package file.
 
     """
     description = 'Package the app for distribution.'
@@ -173,7 +99,6 @@ class PackageCommand(Command):
 
     def finalize_options(self):
 
-        self.distribution.command_obj['build'] = self  # so that we control these build_py options: build_lib and force
         self.package_name = '-'.join((self.package_name, unicode(self.build_number) + '.tgz'))
         self.build_base = os.path.join(project_dir, 'build')
         self.build_dir = os.path.join(self.build_base, self.distribution.metadata.name)
@@ -248,6 +173,81 @@ class PackageCommand(Command):
         return
 
 
+class LinkCommand(Command):
+    """
+    setup.py command to create a symbolic link to the app package at $SPLUNK_HOME/etc/apps.
+
+    """
+    description = 'Create a symbolic link to the app package at $SPLUNK_HOME/etc/apps.'
+
+    user_options = [
+        (b'debug-client=', None, 'Copies the specified debug client egg to package/_pydebug.egg'),
+        (b'splunk-home=', None, 'Overrides the value of SPLUNK_HOME.')]
+
+    def __init__(self, dist):
+        Command.__init__(self, dist)
+
+        self.debug_client = None
+        self.splunk_home = os.environ['SPLUNK_HOME']
+        self.app_name = self.distribution.metadata.name
+        self.app_source = os.path.join(project_dir, 'package')
+
+        return
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        return
+
+    def run(self):
+        target = os.path.join(self.splunk_home, 'etc', 'apps', self.app_name)
+
+        if os.path.islink(target):
+            os.remove(target)
+        elif os.path.exists(target):
+            message = 'Cannot create a link at "{0}" because a file by that name already exists.'.format(target)
+            raise SystemError(message)
+
+        self._copy_debug_client()
+        self._copy_lookups()
+        self._link_packages()
+
+        os.symlink(self.app_source, target)
+        return
+
+    def _copy_debug_client(self):
+        if not self.debug_client:
+            return
+        shutil.copy(self.debug_client, os.path.join(self.app_source, 'bin', '_pydebug.egg'))
+
+    def _copy_lookups(self):
+        lookups_dir = os.path.join(self.app_source, 'lookups')
+
+        if not os.path.isdir(lookups_dir):
+            os.mkdir(lookups_dir)
+
+        random_data = os.path.join(lookups_dir, 'random_data.csv.gz')
+
+        if not os.path.isfile(random_data):
+            download = 'http://splk-newtest-data.s3.amazonaws.com/chunked_external_commands/lookups/random_data.csv.gz'
+            response = requests.get(download)
+            with open(random_data, 'wb') as output:
+                output.write(response.content)
+            pass
+
+        return
+
+    def _link_packages(self):
+        path = os.path.join(self.app_source, 'bin', 'packages')
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        path = os.path.join(path, 'splunklib')
+        if not os.path.islink(path):
+            os.symlink(os.path.realpath(os.path.join(project_dir, '..', '..', 'splunklib')), path)
+        return
+
+
 class TestCommand(Command):
     """ 
     setup.py command to run the whole test suite. 
@@ -315,7 +315,6 @@ class TestCommand(Command):
 # endregion
 
 setup(
-    cmdclass={'analyze': AnalyzeCommand, 'link': LinkCommand, 'package': PackageCommand, 'test': TestCommand},
     description='Application for testing the Chunked Search Commands feature',
     name=os.path.basename(project_dir),
     version='1.0.0',
@@ -348,4 +347,9 @@ setup(
         (b'default', ['package/default/*.conf']),
         (b'lookups', ['package/lookups/*.csv.gz']),
         (b'metadata', ['package/metadata/default.meta'])
-    ])
+    ],
+    cmdclass=OrderedDict([
+        ('analyze', AnalyzeCommand),
+        ('build', BuildCommand),
+        ('link', LinkCommand),
+        ('test', TestCommand)]))
