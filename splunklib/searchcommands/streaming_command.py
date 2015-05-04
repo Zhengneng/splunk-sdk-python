@@ -21,7 +21,7 @@ from cStringIO import StringIO
 from itertools import chain, imap
 
 import csv
-import json
+
 
 class StreamingCommand(SearchCommand):
     """ Applies a transformation to search results as they travel through the processing pipeline.
@@ -93,11 +93,11 @@ class StreamingCommand(SearchCommand):
                 break
 
             metadata, body = result
-            output_buffer = StringIO()
             input_buffer = StringIO(body)
-
             reader = csv.reader(input_buffer, dialect=CsvDialect)
-            writer = csv.writer(output_buffer, dialect=CsvDialect)
+
+            self._output_buffer = StringIO()
+            writer = csv.writer(self._output_buffer, dialect=CsvDialect)
 
             # TODO: Write metadata produced by the command, not the metadata read by the command
 
@@ -113,7 +113,9 @@ class StreamingCommand(SearchCommand):
                 writer.writerow(values)
                 record_count += 1L
 
-            self._write_chunk(ofile, {'finished': self.finished} if self.finished else None, output_buffer.getvalue())
+            # TODO: Write self._inspector: (('finished', self.finished)), ('inspector', self._inspector))
+            metadata = {'finished': self.finished} if self.finished else None
+            self._write_chunk(ofile, metadata, self._output_buffer.getvalue())
             pass
 
     # endregion
@@ -122,11 +124,39 @@ class StreamingCommand(SearchCommand):
         """ Represents the configuration settings that apply to a :class:`StreamingCommand`.
 
         """
-        def __init__(self, command):
-            super(StreamingCommand.ConfigurationSettings, self).__init__(command)
-            self._required_fields = None
-
         # region Properties
+
+        @property
+        def distributed(self):
+            """ True, if this command should be distributed to indexers
+
+            Default: :const:`True`
+
+            """
+            return getattr(self, '_distributed', type(self)._distributed)
+
+        @distributed.setter
+        def distributed(self, value):
+            setattr(self, '_distributed', value)
+
+        _distributed = False
+
+        @property
+        def generating(self):
+            """ True, if this command generates events, but does not process inputs.
+
+            Generating commands must appear at the front of the search pipeline.
+
+            Default: :const:`False`
+
+            """
+            return getattr(self, '_generating', type(self)._generating)
+
+        @generating.setter
+        def generating(self, value):
+            setattr(self, '_generating', value)
+
+        _generating = False
 
         @property
         def maxinputs(self):
@@ -135,7 +165,11 @@ class StreamingCommand(SearchCommand):
             Default: :const:`0`
 
             """
-            return self._maxinputs
+            return getattr(self, '_maxinputs', type(self)._maxinputs)
+
+        @maxinputs.setter
+        def maxinputs(self, value):
+            setattr(self, '_maxinputs', value)
 
         _maxinputs = None
 
@@ -143,12 +177,18 @@ class StreamingCommand(SearchCommand):
         def required_fields(self):
             """ List of required fields for this search (back-propagates to the generating search).
 
-            For streaming and stateful commands, setting this enables "selected fields mode" (defined below.)
+            Setting this value enables selected fields mode.
 
             Default: :const:`['*']`
 
             """
-            return self._required_fields
+            return getattr(self, '_required_fields', type(self)._required_fields)
+
+        @required_fields.setter
+        def required_fields(self, value):
+            setattr(self, '_required_fields', value)
+
+        _required_fields = None
 
         @property
         def run_in_preview(self):
@@ -159,7 +199,11 @@ class StreamingCommand(SearchCommand):
             Default: :const:`True`
 
             """
-            return type(self)._run_in_preview
+            return getattr(self, '_run_in_preview', type(self)._run_in_preview)
+
+        @run_in_preview.setter
+        def run_in_preview(self, value):
+            setattr(self, '_run_in_preview', value)
 
         _run_in_preview = None
 

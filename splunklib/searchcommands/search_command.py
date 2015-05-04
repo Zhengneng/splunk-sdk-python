@@ -78,6 +78,7 @@ class SearchCommand(object):
         self._inspector = OrderedDict()
         self._metadata = None
         self._option_view = None
+        self._output_buffer = None
         self._output_file = None
         self._search_results_info = None
         self._service = None
@@ -376,7 +377,7 @@ class SearchCommand(object):
             if self.show_configuration:
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
-            metadata = OrderedDict(self.configuration.iteritems())  # TODO: Make sure we get the ability to write inspector messages: chain(self.configuration.iteritems(), (('inspector', self._inspector),)))
+            metadata = OrderedDict(self.configuration.iteritems())  # TODO: Write self._inspector: chain(self.configuration.iteritems(), (('inspector', self._inspector),)))
             self._write_chunk(ofile, metadata, '')
             self._inspector.clear()
             ofile.write('\n')
