@@ -92,14 +92,11 @@ class StreamingCommand(SearchCommand):
             if not result:
                 break
 
+            # TODO: understand all metadata received and store any metadata that's useful to a command
             metadata, body = result
             input_buffer = StringIO(body)
             reader = csv.reader(input_buffer, dialect=CsvDialect)
-
-            self._output_buffer = StringIO()
             writer = csv.writer(self._output_buffer, dialect=CsvDialect)
-
-            # TODO: Write metadata produced by the command, not the metadata read by the command
 
             record_count = 0L
             keys = None
@@ -113,9 +110,7 @@ class StreamingCommand(SearchCommand):
                 writer.writerow(values)
                 record_count += 1L
 
-            # TODO: Write self._inspector: (('finished', self.finished)), ('inspector', self._inspector))
-            metadata = {'finished': self.finished} if self.finished else None
-            self._write_chunk(ofile, metadata, self._output_buffer.getvalue())
+            self._write_records(ofile)
             pass
 
     # endregion

@@ -23,6 +23,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from splunklib.client import Service
 
 from collections import OrderedDict, namedtuple
+from cStringIO import StringIO
 from inspect import getmembers
 from itertools import chain, ifilter, imap, izip
 from logging import _levelNames, getLevelName
@@ -75,10 +76,8 @@ class SearchCommand(object):
         self._configuration = None
         self._fieldnames = None
         self._finished = None
-        self._inspector = OrderedDict()
         self._metadata = None
         self._option_view = None
-        self._output_buffer = None
         self._output_file = None
         self._search_results_info = None
         self._service = None
@@ -86,6 +85,8 @@ class SearchCommand(object):
         # Internal variables
 
         self._default_logging_level = self.logger.level
+        self._output_buffer = StringIO()
+        self._inspector = OrderedDict()
         self._message_count = None
 
     def __repr__(self):
@@ -307,6 +308,18 @@ class SearchCommand(object):
         self.logger.error('Abnormal exit: %s', error)
         exit(1)
 
+    def prepare(self):
+        """ Prepare for execution.
+
+        This method should be overridden in search command classes that wish to examine and update their configuration
+        or option settings prior to execution. It is called during the getInfo exchange before command metadata is sent
+        to splunkd.
+
+        :return: :const:`None`
+
+        """
+        return
+
     def process(self, args=argv, ifile=stdin, ofile=stdout):
         """ Processes records on the `input stream optionally writing records to the output stream.
 
@@ -377,7 +390,8 @@ class SearchCommand(object):
             if self.show_configuration:
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
-            metadata = OrderedDict(self.configuration.iteritems())  # TODO: Write self._inspector: chain(self.configuration.iteritems(), (('inspector', self._inspector),)))
+            # TODO: Write self._inspector: chain(self.configuration.iteritems(), (('inspector', self._inspector),)))
+            metadata = OrderedDict(self.configuration.iteritems())
             self._write_chunk(ofile, metadata, '')
             self._inspector.clear()
             ofile.write('\n')
@@ -385,8 +399,7 @@ class SearchCommand(object):
             self._execute(ifile, ofile)
             pass
 
-        except SystemExit as systemExit:
-            # TODO: Fail or succeed gracefully as per protocol (non-zero codes--of course--indicate an abnormal end)
+        except SystemExit:
             raise
 
         except:
@@ -410,22 +423,13 @@ class SearchCommand(object):
             message = '{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error_message)
             self.write_error(message)
 
-            # TODO: Fail gracefully as per protocol
             exit(1)
 
+        finally:
+            self._write_records(ofile)
+            pass
+
         return
-
-    def prepare(self):
-        """ Prepare for execution.
-
-        This method should be overridden in search command classes that wish to examine, and update their configuration
-        settings prior to execution. It is called during the getInfo exchange before command metadata is sent to
-        splunkd.
-
-        :return: :const:`None`
-
-        """
-        pass
 
     def write_debug(self, message, *args):
         self._write_message('DEBUG', message, *args)
@@ -536,41 +540,6 @@ class SearchCommand(object):
         """
         raise NotImplementedError('SearchCommand._execute(self)')
 
-    def _records(self, reader):
-        record_count = 0L
-
-        try:
-            fieldnames = reader.next()
-        except StopIteration:
-            return
-
-        mv_fieldnames = set()
-
-        for fieldname in fieldnames:
-            if fieldname.startswith('__mv_'):
-                mv_fieldnames.add(fieldname[len('__mv_'):])
-            pass
-
-        if len(mv_fieldnames) > 0:
-            for values in reader:
-                record = OrderedDict()
-                for fieldname, value in izip(fieldnames, values):
-                    if fieldname.startswith('__mv_'):
-                        if value:
-                            record[fieldname[len('__mv_'):]] = self._decode_list(value)
-                        pass
-                    elif fieldname not in record:
-                        record[fieldname] = value
-                record_count += 1L
-                yield record
-        else:
-            for values in reader:
-                record = OrderedDict(izip(fieldnames, values))
-                record_count += 1
-                yield record
-
-        return
-
     @staticmethod
     def _read_chunk(f):
         try:
@@ -610,6 +579,41 @@ class SearchCommand(object):
 
         return metadata, body
 
+    def _records(self, reader):
+        record_count = 0L
+
+        try:
+            fieldnames = reader.next()
+        except StopIteration:
+            return
+
+        mv_fieldnames = set()
+
+        for fieldname in fieldnames:
+            if fieldname.startswith('__mv_'):
+                mv_fieldnames.add(fieldname[len('__mv_'):])
+            pass
+
+        if len(mv_fieldnames) > 0:
+            for values in reader:
+                record = OrderedDict()
+                for fieldname, value in izip(fieldnames, values):
+                    if fieldname.startswith('__mv_'):
+                        if value:
+                            record[fieldname[len('__mv_'):]] = self._decode_list(value)
+                        pass
+                    elif fieldname not in record:
+                        record[fieldname] = value
+                record_count += 1L
+                yield record
+        else:
+            for values in reader:
+                record = OrderedDict(izip(fieldnames, values))
+                record_count += 1
+                yield record
+
+        return
+
     @staticmethod
     def _write_chunk(ofile, metadata, body):
         if metadata:
@@ -626,6 +630,17 @@ class SearchCommand(object):
     def _write_message(self, message_type, message_text, *args):
         self._inspector['message.{0:d}.{1}'.format(self._message_count, message_type)] = message_text.format(args)
         self._message_count += 1
+
+    def _write_records(self, ofile):
+
+        # TODO: Write self._inspector: (('finished', self.finished)), ('inspector', self._inspector))
+
+        if self._output_buffer.tell() == 0 or len(self._inspector) == 0:
+            return
+        metadata = {'finished': self.finished} if self.finished else None
+        self._write_chunk(ofile, metadata, self._output_buffer.getvalue())
+        self._output_buffer.reset()
+        self._inspector.clear()
 
     # endregion
 
