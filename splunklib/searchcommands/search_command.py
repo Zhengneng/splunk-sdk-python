@@ -24,7 +24,6 @@ from splunklib.client import Service
 
 from collections import OrderedDict, namedtuple
 from cStringIO import StringIO
-from inspect import getmembers
 from itertools import chain, ifilter, imap, izip
 from logging import _levelNames, getLevelName
 from numbers import Number
@@ -337,13 +336,19 @@ class SearchCommand(object):
         :return: :const:`None`
 
         """
+
         # noinspection PyBroadException
         try:
             metadata, body = self._read_chunk(ifile)
             assert metadata['action'] == 'getinfo'
+            assert len(body) == 0
+
+            self._configuration = type(self).ConfigurationSettings(self)
+            self._metadata = metadata
+            self._message_count = 0L
+
             self.fieldnames = []
             self.options.reset()
-            self._message_count = 0L
 
             # TODO: Expose searchinfo object to SearchCommand and utilize it in SearchCommand.search_results_info
 
@@ -385,52 +390,32 @@ class SearchCommand(object):
             if error_count > 0:
                 exit(1)
 
-            self._configuration = type(self).ConfigurationSettings(self)
-            self._metadata = metadata
-
             self.prepare()
 
             if self.show_configuration:
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
-            # TODO: Write self._inspector: chain(self.configuration.iteritems(), (('inspector', self._inspector),)))
-            metadata = OrderedDict(self.configuration.iteritems())
-            self._write_chunk(ofile, metadata, '')
-            self._inspector.clear()
-            ofile.write('\n')
-
-            self._execute(ifile, ofile)
+            self._write_metadata(ofile)
             pass
 
         except SystemExit:
+            self._write_metadata(ofile, finished=True)
             raise
-
         except:
-
-            # Unexpected command/searchcommands package error
-
-            import traceback
-            import sys
-
-            error_type, error_message, error_traceback = sys.exc_info()
-            self.logger.error(traceback.format_exc(error_traceback))
-
-            origin = error_traceback
-
-            while origin.tb_next is not None:
-                origin = origin.tb_next
-
-            filename = origin.tb_frame.f_code.co_filename
-            lineno = origin.tb_lineno
-
-            message = '{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error_message)
-            self.write_error(message)
-
+            self._report_unexpected_exception()
+            self._write_metadata(ofile, finished=True)
             exit(1)
 
-        finally:
-            self._write_records(ofile)
-            pass
+        # noinspection PyBroadException
+        try:
+            self._execute(ifile, ofile)
+        except SystemExit:
+            self._write_records(ofile, finished=True)
+            raise
+        except:
+            self._report_unexpected_exception()
+            self._write_records(ofile, finished=True)
+            exit(1)
 
         return
 
@@ -545,6 +530,8 @@ class SearchCommand(object):
 
     @staticmethod
     def _read_chunk(f):
+
+        # noinspection PyBroadException
         try:
             header = f.readline()
         except:
@@ -574,6 +561,7 @@ class SearchCommand(object):
             print('Failed to read metadata or body: {0}'.format(error), file=sys.stderr)
             return None
 
+        # noinspection PyBroadException
         try:
             metadata = json.loads(metadata_buffer)
         except:
@@ -617,31 +605,69 @@ class SearchCommand(object):
 
         return
 
+    def _report_unexpected_exception(self):
+        import traceback
+        import sys
+
+        error_type, error_message, error_traceback = sys.exc_info()
+        self.logger.error(traceback.format_exc(error_traceback))
+        origin = error_traceback
+
+        while origin.tb_next is not None:
+            origin = origin.tb_next
+
+        filename = origin.tb_frame.f_code.co_filename
+        lineno = origin.tb_lineno
+
+        self.write_error('{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error_message))
+        return
+
     @staticmethod
     def _write_chunk(ofile, metadata, body):
+
         if metadata:
             metadata = OrderedDict(ifilter(lambda x: x[1] is not None, metadata.iteritems()))
             metadata = json.dumps(metadata, separators=(',', ':'))
         else:
             metadata = ''
-        ofile.write('chunked 1.0,{0:d},{1:d}\n'.format(len(metadata), len(body)))
+
+        if not (metadata or body):
+            return
+
+        start_line = 'chunked 1.0,{0:d},{1:d}\n'.format(len(metadata), len(body))
+        ofile.write(start_line)
         ofile.write(metadata)
         ofile.write(body)
         ofile.flush()
+
         return
 
     def _write_message(self, message_type, message_text, *args):
         self._inspector['message.{0:d}.{1}'.format(self._message_count, message_type)] = message_text.format(args)
         self._message_count += 1
 
-    def _write_records(self, ofile):
+    def _write_metadata(self, ofile, finished=None):
 
-        # TODO: Write self._inspector: (('finished', self.finished)), ('inspector', self._inspector))
+        if finished is None:
+            finished = self.finished
 
-        if self._output_buffer.tell() == 0 and len(self._inspector) == 0:
+        # TODO: Write chain(self.configuration.iteritems(), (('inspector', self._inspector), ('finished', finished)))
+        # We must wait until inspector is supported
+
+        metadata = OrderedDict(chain(self.configuration.iteritems(), (('finished', finished),)))
+        self._write_chunk(ofile, metadata, '')
+        self._inspector.clear()
+        ofile.write('\n')
+
+    def _write_records(self, ofile, finished=None):
+
+        if self._output_buffer.tell() == 0 and len(self._inspector) == 0 and finished is None:
             return
 
-        metadata = {'finished': self.finished} if self.finished else None
+        # TODO: Write OrderedDict((('inspector', self._inspector), ('finished', self.finished)))
+        # We must wait until inspector is supported
+
+        metadata = {'finished': self.finished if finished is None else finished}
         self._write_chunk(ofile, metadata, self._output_buffer.getvalue())
         self._output_buffer.reset()
         self._inspector.clear()
@@ -658,7 +684,6 @@ class SearchCommand(object):
         """
         def __init__(self, command):
             self.command = command
-            self._finished = None
 
         def __str__(self):
             """ Converts the value of this instance to its string representation.
@@ -669,12 +694,30 @@ class SearchCommand(object):
             :return: String representation of this instance
 
             """
-            text = ', '.join(imap(lambda key: '{0}={1}'.format(key, repr(getattr(self, key))), type(self)._keys))
+            text = ', '.join(
+                imap(lambda key: '{0}={1}'.format(key, repr(getattr(self, key))), type(self).configuration_settings()))
             return text
 
         # region Properties
 
         # Configuration settings
+
+        @property
+        def generating(self):
+            """ True, if this command generates events, but does not process inputs.
+
+            Generating commands must appear at the front of the search pipeline.
+
+            Default: :const:`False`
+
+            """
+            return getattr(self, '_generating', type(self)._generating)
+
+        @generating.setter
+        def generating(self, value):
+            setattr(self, '_generating', value)
+
+        _generating = None
 
         @property
         def partial(self):
@@ -745,7 +788,7 @@ class SearchCommand(object):
             :return: :class:`OrderedDict` containing setting values keyed by name.
 
             """
-            return imap(lambda key: (key, getattr(self, key)), type(self)._keys)
+            return imap(lambda key: (key, getattr(self, key)), type(self).configuration_settings())
 
         @classmethod
         def configuration_settings(cls):
@@ -757,14 +800,15 @@ class SearchCommand(object):
 
             """
             if not hasattr(cls, '_settings'):
-                is_property = lambda x: isinstance(x, property)
-                cls._settings = {}
-                for name, prop in getmembers(cls, is_property):
-                    backing_field = '_' + name
-                    if not hasattr(cls, backing_field):
-                        backing_field = None
-                    cls._settings[name] = (prop, backing_field)
-                cls._keys = sorted(cls._settings.iterkeys())
+                # TODO: Do we really need an OrderedDict? Can't we use a list instead?
+                # TODO: cls._settings validation on backing fields
+                def map_attribute(name):
+                    attr = getattr(cls, name)
+                    if isinstance(attr, property):
+                        backing_field = '_' + name
+                        return name, (attr, backing_field if hasattr(cls, backing_field) else None)
+                    return None
+                cls._settings = OrderedDict(ifilter(None, imap(map_attribute, dir(cls))))
             return cls._settings
 
         @classmethod

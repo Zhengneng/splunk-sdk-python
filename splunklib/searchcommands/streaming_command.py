@@ -132,41 +132,11 @@ class StreamingCommand(SearchCommand):
 
         @distributed.setter
         def distributed(self, value):
+            if not (value is None or isinstance(value, bool)):
+                raise ValueError('Expected True, False, or None, not {0}.'.format(repr(value)))
             setattr(self, '_distributed', value)
 
-        _distributed = False
-
-        @property
-        def generating(self):
-            """ True, if this command generates events, but does not process inputs.
-
-            Generating commands must appear at the front of the search pipeline.
-
-            Default: :const:`False`
-
-            """
-            return getattr(self, '_generating', type(self)._generating)
-
-        @generating.setter
-        def generating(self, value):
-            setattr(self, '_generating', value)
-
-        _generating = False
-
-        @property
-        def maxinputs(self):
-            """ Specifies the maximum number of events desired in each chunk of data from splunkd.
-
-            Default: :const:`0`
-
-            """
-            return getattr(self, '_maxinputs', type(self)._maxinputs)
-
-        @maxinputs.setter
-        def maxinputs(self, value):
-            setattr(self, '_maxinputs', value)
-
-        _maxinputs = None
+        _distributed = None
 
         @property
         def required_fields(self):
@@ -181,35 +151,21 @@ class StreamingCommand(SearchCommand):
 
         @required_fields.setter
         def required_fields(self, value):
+            if not (value is None or isinstance(value, (list, tuple))):
+                raise ValueError('Expected a list or tuple of field names or None, not {0}.'.format(repr(value)))
             setattr(self, '_required_fields', value)
 
         _required_fields = None
 
         @property
-        def run_in_preview(self):
-            """ Specifies whether to run this command when generating results for preview or wait for final output.
-
-            This may be important for commands that have side effects (e.g. outputlookup)
-
-            Default: :const:`True`
-
-            """
-            return getattr(self, '_run_in_preview', type(self)._run_in_preview)
-
-        @run_in_preview.setter
-        def run_in_preview(self, value):
-            setattr(self, '_run_in_preview', value)
-
-        _run_in_preview = None
-
-        @property
         def type(self):
             """ Command type
 
-            Fixed: :const:`'streaming'`
+            Computed: :const:`'streaming'`, if :code:`distributed` is :const:`False`; otherwise, if :code:`generating`
+            is :const:`True`, :const:`'stateful'`.
 
             """
-            return 'streaming'
+            return 'stateful' if self._distributed is False else 'streaming'
 
         # endregion
 
