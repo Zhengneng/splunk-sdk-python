@@ -18,7 +18,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from . search_command import SearchCommand
 from . internals import CsvDialect
 from cStringIO import StringIO
-from itertools import chain, imap
+from itertools import chain, ifilterfalse, imap
 
 import csv
 
@@ -165,7 +165,7 @@ class StreamingCommand(SearchCommand):
             is :const:`True`, :const:`'stateful'`.
 
             """
-            return 'stateful' if self._distributed is False else 'streaming'
+            return 'streaming'
 
         # endregion
 
@@ -179,5 +179,15 @@ class StreamingCommand(SearchCommand):
             if command.stream == StreamingCommand.stream:
                 raise AttributeError('No StreamingCommand.stream override')
             return
+
+        def render(self):
+
+            sequence = ifilterfalse(
+                lambda item: item[0] == 'distributed', super(StreamingCommand.ConfigurationSettings, self).render())
+
+            if self.distributed:
+                return sequence
+
+            return imap(lambda item: item if item[0] != 'type' else (item[0], 'stateful'), sequence)
 
         # endregion

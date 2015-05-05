@@ -654,7 +654,7 @@ class SearchCommand(object):
         # TODO: Write chain(self.configuration.iteritems(), (('inspector', self._inspector), ('finished', finished)))
         # We must wait until inspector is supported
 
-        metadata = OrderedDict(chain(self.configuration.iteritems(), (('finished', finished),)))
+        metadata = OrderedDict(chain(self.configuration.render(), (('finished', finished),)))
         self._write_chunk(ofile, metadata, '')
         self._inspector.clear()
         ofile.write('\n')
@@ -823,6 +823,16 @@ class SearchCommand(object):
 
             """
             raise NotImplementedError('SearchCommand.fix_up method must be overridden')
+
+        def render(self):
+            """ Renders settings for presentation to splunkd.
+
+            Only items with values that have been set are rendered.
+
+            :return: Sequence of settings for presentation to splunkd.
+
+            """
+            return ifilter(lambda item: item[1] is not None, self.iteritems())
 
         # endregion
 
