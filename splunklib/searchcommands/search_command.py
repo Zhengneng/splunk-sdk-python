@@ -14,8 +14,6 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-# TODO: Examine all uses of str() and all checks for type(str)
-
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 # Absolute imports
@@ -314,7 +312,7 @@ class SearchCommand(object):
         """ Prepare for execution.
 
         This method should be overridden in search command classes that wish to examine and update their configuration
-        or option settings prior to execution. It is called during the getInfo exchange before command metadata is sent
+        or option settings prior to execution. It is called during the getinfo exchange before command metadata is sent
         to splunkd.
 
         :return: :const:`None`
@@ -464,30 +462,9 @@ class SearchCommand(object):
 
     @staticmethod
     def _decode_list(mv):
-        if len(mv) == 0:
-            return None
-        in_value = False
-        value = ''
-        i = 0
-        l = []
-        while i < len(mv):
-            if not in_value:
-                if mv[i] == '$':
-                    in_value = True
-                elif mv[i] != ';':
-                    return None
-            else:
-                if mv[i] == '$' and i + 1 < len(mv) and mv[i + 1] == '$':
-                    value += '$'
-                    i += 1
-                elif mv[i] == '$':
-                    in_value = False
-                    l.append(value)
-                    value = ''
-                else:
-                    value += mv[i]
-            i += 1
-        return l
+        return [match.group('item').replace('$$', '$') for match in SearchCommand.encoded_value.finditer(mv)]
+
+    encoded_value = re.compile(r'\$(?P<item>(?:\$\$|[^$])*)\$(;|$)')  # matches a single value in an encoded list
 
     @staticmethod
     def _encode_value(value):
