@@ -89,12 +89,8 @@ class SearchCommand(object):
 
         return
 
-    def __repr__(self):
-        return str(self)
-
     def __str__(self):
-        values = [type(self).name, str(self.options)] + self.fieldnames
-        text = ' '.join([value for value in values if len(value) > 0])
+        text = type(self).name + ' ' + str(self.options) + ' ' + ' '.join(self.fieldnames)
         return text
 
     # region Options
