@@ -77,6 +77,7 @@ class SearchCommand(object):
         self._metadata = None
         self._option_view = None
         self._output_file = None
+        self._partial = None
         self._search_results_info = None
         self._service = None
 
@@ -174,6 +175,9 @@ class SearchCommand(object):
 
     @property
     def finished(self):
+        """ Signals that the search command is ready to stop processing data.
+
+        """
         return self._finished
 
     @finished.setter
@@ -186,6 +190,35 @@ class SearchCommand(object):
     @property
     def metadata(self):
         return self._metadata
+
+    @property
+    def partial(self):
+            """ Signals that the search command is ready to send a partial response for the current record set.
+
+            There are two use-cases for this:
+
+            1. The result is very big and we'd like to emit partial chunks that fit in memory.
+            2. The field set changes dramatically and we don't want to emit a sparse record set.
+
+            If partial is :const:`True`, this chunk is part of a multi-part response. If partial is :const:`False`, this
+            chunk completes a multi-part response.
+
+            An alternative to this metadata field is to include a chunk identifier in each record. The complication of
+            using a chunk identifier is that splunkd won't know that a chunk is complete until it sees a chunk with a
+            new chunk identifier. The upside to having the partial field is that the common case of 1-to-1 chunks
+            requires nothing from the protocol.
+
+            Default: :const:`False`
+
+            """
+            return self._partial
+
+    @partial.setter
+    def partial(self, value):
+        if value is None or value is bool:
+            self._partial = value
+            return
+        raise ValueError('Expected boolean value or None, not {0}'.format(repr(value)))
 
     @property
     def options(self):
@@ -462,9 +495,9 @@ class SearchCommand(object):
 
     @staticmethod
     def _decode_list(mv):
-        return [match.group('item').replace('$$', '$') for match in SearchCommand.encoded_value.finditer(mv)]
+        return [match.replace('$$', '$') for match in SearchCommand._encoded_value.findall(mv)]
 
-    encoded_value = re.compile(r'\$(?P<item>(?:\$\$|[^$])*)\$(;|$)')  # matches a single value in an encoded list
+    _encoded_value = re.compile(r'\$(?P<item>(?:\$\$|[^$])*)\$(?:;|$)')  # matches a single value in an encoded list
 
     @staticmethod
     def _encode_value(value):
@@ -522,6 +555,7 @@ class SearchCommand(object):
             print('Failed to parse transport header: {0}'.format(header), file=sys.stderr)
             return None
 
+        # noinspection PyBroadException
         try:
             metadata_length = int(m.group('metadata_length'))
             body_length = int(m.group('body_length'))
@@ -671,8 +705,7 @@ class SearchCommand(object):
             :return: String representation of this instance
 
             """
-            text = ', '.join(
-                imap(lambda key: '{0}={1}'.format(key, repr(getattr(self, key))), type(self).configuration_settings()))
+            text = ', '.join(imap(lambda key: key + '=' + repr(getattr(self, key)), type(self).configuration_settings()))
             return text
 
         # region Properties
@@ -695,62 +728,6 @@ class SearchCommand(object):
             setattr(self, '_generating', value)
 
         _generating = None
-
-        @property
-        def partial(self):
-            """ Specifies whether the search command returns its response in multiple chunks.
-
-            There are two use-cases for this:
-
-            1. The result is very big and we'd like to emit partial chunks that fit in memory.
-            2. The field set changes dramatically and we don't want to emit a sparse record set.
-
-            If partial is :const:`True`, this chunk is part of a multi-part response. If partial is :const:`False`, this
-            chunk completes a multi-part response.
-
-            An alternative to this metadata field is to include a chunk identifier in each record. The complication of
-            using a chunk identifier is that splunkd won't know that a chunk is complete until it sees a chunk with a
-            new chunk identifier. The upside to having the partial field is that the common case of 1-to-1 chunks
-            requires nothing from the protocol.
-
-            Default: :const:`False`
-
-            """
-            return getattr(self, '_partial', type(self)._partial)
-
-        @partial.setter
-        def partial(self, value):
-            if not type(value) is bool:
-                raise ValueError('Illegal value for partial: {0}.'.format(repr(value)))
-            setattr(self, '_stderr_dest', value)
-
-        _partial = None
-
-        @property
-        def stderr_dest(self):
-            """ Tells Splunk what to do with messages logged to `stderr`.
-
-            Specify one of these string values:
-
-            ================== ========================================================
-            Value              Meaning
-            ================== ========================================================
-            :code:`'log'`      Write messages to the job's search.log file.
-            :code:`'none'`     Discard all messages logged to stderr.
-            ================== ========================================================
-
-            Default: :code:`'log'`
-
-            """
-            return getattr(self, '_stderr_dest', type(self)._stderr_dest)
-
-        @stderr_dest.setter
-        def stderr_dest(self, value):
-            if value not in ('log', 'none'):
-                raise ValueError('Illegal value for stderr_dest: {0}'.format(repr(value)))
-            setattr(self, '_stderr_dest', value)
-
-        _stderr_dest = None
 
         # endregion
 
