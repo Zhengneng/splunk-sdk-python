@@ -109,9 +109,10 @@ class StreamingCommand(SearchCommand):
                     imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record))))
                 writer.writerow(values)
                 record_count += 1L
+                if self.partial:
+                    self._write_records(ofile)
 
             self._write_records(ofile)
-            pass
 
     # endregion
 

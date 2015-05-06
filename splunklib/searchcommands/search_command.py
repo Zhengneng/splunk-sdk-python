@@ -76,7 +76,6 @@ class SearchCommand(object):
         self._finished = None
         self._metadata = None
         self._option_view = None
-        self._output_file = None
         self._partial = None
         self._search_results_info = None
         self._service = None
@@ -430,11 +429,11 @@ class SearchCommand(object):
             pass
 
         except SystemExit:
-            self._write_metadata(ofile, finished=True)
+            self._write_metadata(ofile)
             raise
         except:
-            self._report_unexpected_exception()
-            self._write_metadata(ofile, finished=True)
+            self._report_unexpected_error()
+            self._write_metadata(ofile)
             exit(1)
 
         # noinspection PyBroadException
@@ -444,7 +443,7 @@ class SearchCommand(object):
             self._write_records(ofile, finished=True)
             raise
         except:
-            self._report_unexpected_exception()
+            self._report_unexpected_error()
             self._write_records(ofile, finished=True)
             exit(1)
 
@@ -616,7 +615,7 @@ class SearchCommand(object):
 
         return
 
-    def _report_unexpected_exception(self):
+    def _report_unexpected_error(self):
         import traceback
         import sys
 
@@ -657,16 +656,12 @@ class SearchCommand(object):
         self._inspector['message.{0:d}.{1}'.format(self._message_count, message_type)] = message_text.format(args)
         self._message_count += 1
 
-    def _write_metadata(self, ofile, finished=None):
+    def _write_metadata(self, ofile):
 
-        if finished is None:
-            finished = self.finished
-
-        # TODO: Write chain(self.configuration.iteritems(), (('inspector', self._inspector), ('finished', finished)))
+        # TODO: Write dict(chain(self.configuration.render(), (('inspector', self._inspector))))
         # We must wait until inspector is supported
 
-        metadata = OrderedDict(chain(self.configuration.render(), (('finished', finished),)))
-        self._write_chunk(ofile, metadata, '')
+        self._write_chunk(ofile, dict(self.configuration.render()), '')
         self._inspector.clear()
         ofile.write('\n')
 
@@ -675,13 +670,14 @@ class SearchCommand(object):
         if self._output_buffer.tell() == 0 and len(self._inspector) == 0 and finished is None:
             return
 
-        # TODO: Write OrderedDict((('inspector', self._inspector), ('finished', self.finished)))
+        # TODO: Write dict((('inspector', self._inspector), ('finished', self.finished)), ('partial', self.partial)))
         # We must wait until inspector is supported
 
-        metadata = {'finished': self.finished if finished is None else finished}
+        metadata = {'finished': self.finished if finished is None else finished, 'partial': self.partial}
         self._write_chunk(ofile, metadata, self._output_buffer.getvalue())
         self._output_buffer.reset()
         self._inspector.clear()
+        self.partial = None
 
         return
 
