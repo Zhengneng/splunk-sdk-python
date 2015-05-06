@@ -178,8 +178,9 @@ class GeneratingCommand(SearchCommand):
 
         def render(self):
 
-            sequence = ifilterfalse(
-                lambda item: item[0] == 'distributed', super(GeneratingCommand.ConfigurationSettings, self).render())
+            sequence = chain(ifilterfalse(
+                lambda item: item[0] == 'distributed', super(GeneratingCommand.ConfigurationSettings, self).render()),
+                (('generating', True),))
 
             if not (self.distributed and self.type == 'streaming'):
                 return sequence
