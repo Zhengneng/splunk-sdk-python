@@ -138,13 +138,13 @@ class ConfigurationSettingsType(type):
 
     This is an internal class used in two places:
 
-    + :method:`decorators.Configuration.__call__`
+    + :meth:`decorators.Configuration.__call__`
 
       Adds a ConfigurationSettings attribute to a :class:`SearchCommand` class.
 
-    + :method:`reporting_command.ReportingCommand.fix_up`
+    + :meth:`reporting_command.ReportingCommand.fix_up`
 
-      Adds a ConfigurationSettings attribute to a :method:`ReportingCommand.map` method, if there is one.
+      Adds a ConfigurationSettings attribute to a :meth:`ReportingCommand.map` method, if there is one.
 
     """
     def __new__(mcs, module, name, bases, settings):

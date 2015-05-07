@@ -121,7 +121,7 @@ class GeneratingCommand(SearchCommand):
         def distributed(self):
             """ True, if this command should be distributed to indexers.
 
-            This value is ignored unless :method:`type` is equal to :const:`streaming`. It is only these command types
+            This value is ignored unless :meth:`type` is equal to :const:`streaming`. It is only these command types
             that may be distributed.
 
             Default: :const:`False`

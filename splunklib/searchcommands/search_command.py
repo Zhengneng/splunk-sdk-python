@@ -728,7 +728,7 @@ class SearchCommand(object):
         def iteritems(self):
             """ Represents this instance as an iterable over the ordered set of configuration items in this object.
 
-            This method is used by :method:`SearchCommand.process` to report configuration settings to splunkd during
+            This method is used by :meth:`SearchCommand.process` to report configuration settings to splunkd during
             the :code:`getInfo` exchange of the request to process search results.
 
             :return: :class:`OrderedDict` containing setting values keyed by name.
