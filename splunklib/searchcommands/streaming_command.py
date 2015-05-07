@@ -103,10 +103,10 @@ class StreamingCommand(SearchCommand):
 
             for record in self.stream(self._records(reader)):
                 if keys is None:
-                    keys = tuple(chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record)))
+                    keys = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
                     writer.writerow(keys)
-                values = tuple(chain.from_iterable(
-                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record))))
+                values = [chain.from_iterable(
+                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record)))]
                 writer.writerow(values)
                 record_count += 1L
                 if self.partial:
