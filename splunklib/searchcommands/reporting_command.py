@@ -55,21 +55,6 @@ class ReportingCommand(SearchCommand):
     """
     # region Methods
 
-    def prepare(self, argv, input_file):
-        if len(argv) >= 3 and argv[2] == '__map__':
-            ConfigurationSettings = type(self).map.ConfigurationSettings
-            operation = self.map
-            argv = argv[3:]
-        else:
-            ConfigurationSettings = type(self).ConfigurationSettings
-            operation = self.reduce
-            argv = argv[2:]
-        if input_file is None:
-            reader = None
-        else:
-            reader = splunk_csv.DictReader(input_file)
-        return ConfigurationSettings, operation, argv, reader
-
     def map(self, records):
         """ Override this method to compute partial results.
 
@@ -201,9 +186,9 @@ class ReportingCommand(SearchCommand):
                 return
 
             f = vars(command)['map']   # Function backing the map method
-                # There is no way to add custom attributes to methods. See
-                # [Why does setattr fail on a method](http://goo.gl/aiOsqh)
-                # for an explanation.
+
+            # EXPLANATION: There is no way to add custom attributes to methods. See [Why does setattr fail on a method]
+            # (http://goo.gl/aiOsqh) for an explanation.
 
             try:
                 settings = f._settings
