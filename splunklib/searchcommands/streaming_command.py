@@ -26,50 +26,29 @@ import csv
 
 
 class StreamingCommand(SearchCommand):
-    """ Applies a transformation to search results as they travel through the processing pipeline.
+    """ Applies a transformation to search results as they travel through the stream pipeline.
 
-    Streaming commands typically filter, sort, modify, or combine search
-    results. Splunk will send search results in batches of up to 50,000 records.
-    Hence, a search command must be prepared to be invoked many times during the
-    course of pipeline processing. Each invocation should produce a set of
-    results independently usable by downstream processors.
+    Streaming commands typically filter, augment, or update, search result records. Splunk will send them in batches of
+    up to 50,000 records. Hence, a search command must be prepared to be invoked many times during the course of
+    pipeline processing. Each invocation should produce a set of results independently usable by downstream processors.
 
-    By default Splunk may choose to run a streaming command locally on a search
-    head and/or remotely on one or more indexers concurrently. The size and
-    frequency of the search result batches sent to the command will vary based
-    on scheduling considerations. Streaming commands are typically invoked many
-    times during the course of pipeline processing.
+    By default Splunk may choose to run a streaming command locally on a search head and/or remotely on one or more
+    indexers concurrently. The size and frequency of the search result batches sent to the command will vary based
+    on scheduling considerations.
 
-    You can tell Splunk to run your streaming command locally on a search head,
-    never remotely on indexers.
+    You can tell Splunk to run your streaming command locally on a search head, never remotely on indexers.
 
     .. code-block:: python
 
-        @Configuration(local=False)
-        class SomeStreamingCommand(StreamingCommand):
+        @Configuration(distributed=False)
+        class CentralizedStreamingCommand(StreamingCommand):
             ...
-
-    If your streaming command modifies the time order of event records you must
-    tell Splunk to ensure correct behavior.
-
-    .. code-block:: python
-
-        @Configuration(overrides_timeorder=True)
-        class SomeStreamingCommand(StreamingCommand):
-            ...
-
-    :ivar input_header: :class:`InputHeader`:  Collection representing the input
-        header associated with this command invocation.
-
-    :ivar messages: :class:`MessagesHeader`: Collection representing the output
-        messages header associated with this command invocation.
 
     """
     # region Methods
 
     def stream(self, records):
-        """ Generator function that processes and yields event records to the
-        Splunk processing pipeline.
+        """ Generator function that processes and yields event records to the Splunk stream pipeline.
 
         You must override this method.
 

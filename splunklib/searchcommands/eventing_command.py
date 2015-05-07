@@ -28,10 +28,9 @@ import csv
 class EventingCommand(SearchCommand):
     """ Applies a transformation to search results as they travel through the events pipeline.
 
-    Eventing commands typically sort, modify, or combine search result records. Splunk will send them in batches of up
-    to 50,000 records. Hence, an eventing search command must be prepared to be invoked many times during the course of
-    events pipeline processing. Each invocation should produce a set of results independently usable by downstream
-    processors.
+    Eventing commands typically modify, order, or combine search result records. Splunk will send them in batches of up
+    to 50,000. Hence, an eventing search command must be prepared to be invoked many times during the course of events
+    pipeline processing. Each invocation should produce a set of results independently usable by downstream processors.
 
     """
     # region Methods

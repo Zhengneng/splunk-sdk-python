@@ -16,45 +16,69 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from . internals import ConfigurationSettingsType
-from . streaming_command import StreamingCommand
-from . search_command import SearchCommand
+from .internals import ConfigurationSettingsType, CsvDialect
+from .streaming_command import StreamingCommand
+from .search_command import SearchCommand
+from .decorators import Option
+
+from itertools import chain, imap
+from cStringIO import StringIO
+
+import csv
 
 # TODO: Edit StreamingCommand class documentation
 
 
 class ReportingCommand(SearchCommand):
-    """ Processes search results and generates a reporting data structure.
+    """ Processes search result records and generates a reporting data structure.
 
-    Reporting search commands run as either reduce or map/reduce operations. The
-    reduce part runs on a search head and is responsible for processing a single
-    chunk of search results to produce the command's reporting data structure.
-    The map part is called a streaming preop. It feeds the reduce part with
-    partial results and by default runs on the search head and/or one or more
-    indexers.
+    Reporting search commands run as either reduce or map/reduce operations. The reduce part runs on a search head and
+    is responsible for processing a single chunk of search results to produce the command's reporting data structure.
+    The map part is called a streaming preop. It feeds the reduce part with partial results and by default runs on the
+    search head and/or one or more indexers.
 
-    You must implement a :meth:`reduce` method as a generator function that
-    iterates over a set of event records and yields a reporting data structure.
-    You may implement a :meth:`map` method as a generator function that iterates
-    over a set of event records and yields :class:`dict` or :class:`list(dict)`
-    instances.
+    You must implement a :meth:`reduce` method as a generator function that iterates over a set of event records and
+    yields a reporting data structure. You may implement a :meth:`map` method as a generator function that iterates
+    over a set of event records and yields :class:`dict` or :class:`list(dict)` instances.
 
     **ReportingCommand configuration**
 
-    Configure the :meth:`map` operation using a Configuration decorator on your
-    :meth:`map` method. Configure it like you would a :class:`StreamingCommand`.
-
-    Configure the :meth:`reduce` operation using a Configuration decorator on
+    Configure the :meth:`map` operation using a Configuration decorator on your :meth:`map` method. Configure it like
+    you would a :class:`StreamingCommand`. Configure the :meth:`reduce` operation using a Configuration decorator on
     your :meth:`ReportingCommand` class.
 
-
-    :ivar input_header: :class:`InputHeader`:  Collection representing the input
-        header associated with this command invocation.
-
-    :ivar messages: :class:`MessagesHeader`: Collection representing the output
-        messages header associated with this command invocation.
-
     """
+    # region Special methods
+
+    def __init__(self, app_root=None):
+        super(ReportingCommand, self).__init__(app_root)
+        self._operational_phase = self.reduce
+
+    # endregion
+
+    # region Options
+
+    @Option
+    def operational_phase(self):
+        """ **Syntax:** phase=[map|reduce]
+
+        **Description:** Identifies the phase of the current map-reduce operation.
+
+        """
+        return self._operational_phase
+
+    @operational_phase.setter
+    def operational_phase(self, value):
+        if value == 'map':
+            self._operational_phase = self.map
+        elif value == 'reduce':
+            self._operational_phase = self.reduce
+        else:
+            raise ValueError('Expected a value of "map" or "reduce", not {0}'.format(repr(value)))
+        return
+
+    # endregion
+
     # region Methods
 
     def map(self, records):
@@ -74,9 +98,44 @@ class ReportingCommand(SearchCommand):
         raise NotImplementedError('reduce(self, records)')
 
     def _execute(self, ifile, ofile):
-        for record in operation(SearchCommand._records(reader)):
-            writer.writerow(record)
-        return
+        """ Execution loop
+
+        :param ifile: Input file object.
+        :type ifile: file
+
+        :param ofile: Output file object.
+        :type ofile: file
+
+        :return: `None`.
+
+        """
+        while True:
+            result = self._read_chunk(ifile)
+
+            if not result:
+                break
+
+            # TODO: understand all metadata received and store any metadata that's useful to a command
+            metadata, body = result
+            input_buffer = StringIO(body)
+            reader = csv.reader(input_buffer, dialect=CsvDialect)
+            writer = csv.writer(self._output_buffer, dialect=CsvDialect)
+
+            record_count = 0L
+            keys = None
+
+            for record in self._operational_phase(self._records(reader)):
+                if keys is None:
+                    keys = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
+                    writer.writerow(keys)
+                values = [chain.from_iterable(
+                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record)))]
+                writer.writerow(values)
+                record_count += 1L
+                if self.partial:
+                    self._write_records(ofile)
+
+            self._write_records(ofile)
 
     # endregion
 
@@ -134,16 +193,7 @@ class ReportingCommand(SearchCommand):
             Computed.
 
             """
-            command = type(self.command)
-
-            if command.map == ReportingCommand.map:
-                return ""
-
-            command_line = str(self.command)
-            command_name = type(self.command).name
-            text = ' '.join([
-                command_name, '__map__', command_line[len(command_name) + 1:]])
-
+            text = str(self.command) + ' operational_phase=map'
             return text
 
         @property
@@ -178,7 +228,7 @@ class ReportingCommand(SearchCommand):
 
             """
             if not issubclass(command, ReportingCommand):
-                raise TypeError('%s is not a ReportingCommand' % command)
+                raise TypeError('{0} is not a ReportingCommand'.format( command))
 
             if command.reduce == ReportingCommand.reduce:
                 raise AttributeError('No ReportingCommand.reduce override')
@@ -189,8 +239,8 @@ class ReportingCommand(SearchCommand):
 
             f = vars(command)['map']   # Function backing the map method
 
-            # EXPLANATION: There is no way to add custom attributes to methods. See [Why does setattr fail on a method]
-            # (http://goo.gl/aiOsqh) for an explanation.
+            # EXPLANATION OF PREVIOUS STATEMENT: There is no way to add custom attributes to methods. See [Why does
+            # setattr fail on a method](http://goo.gl/aiOsqh) for a discussion of this issue.
 
             try:
                 settings = f._settings
@@ -198,14 +248,13 @@ class ReportingCommand(SearchCommand):
                 f.ConfigurationSettings = StreamingCommand.ConfigurationSettings
                 return
 
-            # Create new `StreamingCommand.ConfigurationSettings` class
+            # Create new StreamingCommand.ConfigurationSettings class
 
-            module = '.'.join([command.__module__, command.__name__, 'map'])
+            module = command.__module__ + '.' + command.__name__ + '.map'
             name = 'ConfigurationSettings'
             bases = (StreamingCommand.ConfigurationSettings,)
 
-            f.ConfigurationSettings = ConfigurationSettingsType(
-                module, name, bases, settings)
+            f.ConfigurationSettings = ConfigurationSettingsType(module, name, bases, settings)
             del f._settings
             return
 
