@@ -27,9 +27,8 @@ from .search_command import SearchMetric
 import sys
 
 if sys.platform == 'win32':
-    # Work around the fact that on Windows '\n' is mapped to '\r\n'
-    # The typical solution is to simply open files in binary mode, but stdout
-    # is already open, thus this hack
+    # Work around the fact that on Windows '\n' is mapped to '\r\n'. The typical solution is to simply open files in
+    # binary mode, but stdout is already open, thus this hack.
     import msvcrt
     import os
     msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
@@ -38,17 +37,15 @@ if sys.platform == 'win32':
 def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys.stdout, module_name=None):
     """ Instantiates and executes a search command class
 
-    This function implements a `conditional script stanza <http://goo.gl/OFaox6>`_
-    based on the value of :code:`module_name`::
+    This function implements a `conditional script stanza <http://goo.gl/OFaox6>`_ based on the value of
+    :code:`module_name`::
 
         if module_name is None or module_name == '__main__':
             # execute command
 
-    Call this function at module scope with :code:`module_name=__name__`, if you
-    would like your module to act as either a reusable module or a standalone
-    program. Otherwise, if you wish this function to unconditionally instantiate
-    and execute :code:`command_class`, pass :const:`None` as the value of
-    :code:`module_name`.
+    Call this function at module scope with :code:`module_name=__name__`, if you would like your module to act as either
+    a reusable module or a standalone program. Otherwise, if you wish this function to unconditionally instantiate and
+    execute :code:`command_class`, pass :const:`None` as the value of :code:`module_name`.
 
     :param command_class: Class to instantiate and execute.
     :type command_class: :code:`SearchCommand`
@@ -78,7 +75,6 @@ def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys
 
     Dispatches the :code:`SomeStreamingCommand`, if and only if
     :code:`__name__` is equal to :code:`'__main__'`.
-
 
     **Example**
 
