@@ -28,52 +28,21 @@ import csv
 class EventingCommand(SearchCommand):
     """ Applies a transformation to search results as they travel through the events pipeline.
 
-    Eventing commands typically filter, sort, modify, or combine search
-    results. Splunk will send search results in batches of up to 50,000 records.
-    Hence, a search command must be prepared to be invoked many times during the
-    course of pipeline processing. Each invocation should produce a set of
-    results independently usable by downstream processors.
-
-    By default Splunk may choose to run a streaming command locally on a search
-    head and/or remotely on one or more indexers concurrently. The size and
-    frequency of the search result batches sent to the command will vary based
-    on scheduling considerations. Streaming commands are typically invoked many
-    times during the course of pipeline processing.
-
-    You can tell Splunk to run your streaming command locally on a search head,
-    never remotely on indexers.
-
-    .. code-block:: python
-
-        @Configuration(local=False)
-        class SomeStreamingCommand(StreamingCommand):
-            ...
-
-    If your streaming command modifies the time order of event records you must
-    tell Splunk to ensure correct behavior.
-
-    .. code-block:: python
-
-        @Configuration(overrides_timeorder=True)
-        class SomeStreamingCommand(StreamingCommand):
-            ...
-
-    :ivar input_header: :class:`InputHeader`:  Collection representing the input
-        header associated with this command invocation.
-
-    :ivar messages: :class:`MessagesHeader`: Collection representing the output
-        messages header associated with this command invocation.
+    Eventing commands typically sort, modify, or combine search result records. Splunk will send them in batches of up
+    to 50,000 records. Hence, an eventing search command must be prepared to be invoked many times during the course of
+    events pipeline processing. Each invocation should produce a set of results independently usable by downstream
+    processors.
 
     """
     # region Methods
 
-    def stream(self, records):
+    def transform(self, records):
         """ Generator function that processes and yields records to the Splunk events pipeline.
 
         You must override this method.
 
         """
-        raise NotImplementedError('StreamingCommand.stream(self, records)')
+        raise NotImplementedError('EventingCommand.transform(self, records)')
 
     def _execute(self, ifile, ofile):
         """ Execution loop
@@ -102,7 +71,7 @@ class EventingCommand(SearchCommand):
             record_count = 0L
             keys = None
 
-            for record in self.stream(self._records(reader)):
+            for record in self.transform(self._records(reader)):
                 if keys is None:
                     keys = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
                     writer.writerow(keys)
@@ -118,7 +87,7 @@ class EventingCommand(SearchCommand):
     # endregion
 
     class ConfigurationSettings(SearchCommand.ConfigurationSettings):
-        """ Represents the configuration settings that apply to a :class:`StreamingCommand`.
+        """ Represents the configuration settings that apply to a :class:`EventingCommand`.
 
         """
         # region Properties
@@ -146,8 +115,7 @@ class EventingCommand(SearchCommand):
         def type(self):
             """ Command type
 
-            Computed: :const:`'streaming'`, if :code:`distributed` is :const:`False`; otherwise, if :code:`generating`
-            is :const:`True`, :const:`'stateful'`.
+            Fixed: :const:`'eventing'`.
 
             """
             return 'eventing'
@@ -161,8 +129,8 @@ class EventingCommand(SearchCommand):
             """ Verifies :code:`command` class structure.
 
             """
-            if command.stream == EventingCommand.stream:
-                raise AttributeError('No EventingCommand.stream override')
+            if command.transform == EventingCommand.transform:
+                raise AttributeError('No EventingCommand.transform override')
             return
 
         # endregion
