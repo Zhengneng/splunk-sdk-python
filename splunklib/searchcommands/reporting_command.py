@@ -53,7 +53,7 @@ class ReportingCommand(SearchCommand):
         messages header associated with this command invocation.
 
     """
-    #region Methods
+    # region Methods
 
     def prepare(self, argv, input_file):
         if len(argv) >= 3 and argv[2] == '__map__':
@@ -76,7 +76,6 @@ class ReportingCommand(SearchCommand):
         You must override this method, if :code:`requires_preop=True`.
 
         """
-        self  # Turns off ide guidance that method may be static
         return NotImplemented
 
     def reduce(self, records):
@@ -87,74 +86,59 @@ class ReportingCommand(SearchCommand):
         """
         raise NotImplementedError('reduce(self, records)')
 
-    def _execute(self, operation, reader, writer):
+    def _execute(self, ifile, ofile):
         for record in operation(SearchCommand._records(reader)):
             writer.writerow(record)
         return
 
-    #endregion
+    # endregion
 
-    #region Types
+    # region Types
 
     class ConfigurationSettings(SearchCommand.ConfigurationSettings):
         """ Represents the configuration settings for a :code:`ReportingCommand`.
 
         """
-        #region Properties
-        @property
-        def clear_required_fields(self):
-            """ Specifies whether `required_fields` are the only fields required
-            by subsequent commands.
-
-            If :const:`True`, :attr:`required_fields` are the *only* fields
-            required by subsequent commands. If :const:`False`,
-            :attr:`required_fields` are additive to any fields that may be
-            required by subsequent commands. In most cases :const:`False` is
-            appropriate for streaming commands and :const:`True` is appropriate
-            for reporting commands.
-
-            Default: :const:`True`
-
-            """
-            return type(self)._clear_required_fields
-
-        _clear_required_fields = True
+        # region Properties
 
         @property
         def requires_preop(self):
-            """ Indicates whether :meth:`ReportingCommand.map` is required for
-            proper command execution.
+            """ Indicates whether :meth:`ReportingCommand.map` is required for proper command execution.
 
-            If :const:`True`, :meth:`ReportingCommand.map` is guaranteed to be
-            called. If :const:`False`, Splunk considers it to be an optimization
-            that may be skipped.
+            If :const:`True`, :meth:`ReportingCommand.map` is guaranteed to be called. If :const:`False`, Splunk
+            considers it to be an optimization that may be skipped.
 
             Default: :const:`False`
 
             """
             return type(self)._requires_preop
 
+        @requires_preop.setter
+        def requires_preop(self, value):
+            if not (value is None or isinstance(value, bool)):
+                raise ValueError('Expected True, False, or None, not {0}.'.format(repr(value)))
+            setattr(self, '_requires_preop', value)
+
         _requires_preop = False
 
         @property
-        def retainsevents(self):
-            """ Signals that :meth:`ReportingCommand.reduce` transforms _raw
-            events to produce a reporting data structure.
+        def run_in_preview(self):
+            """ :const:`True`, if this command should be run to generate results for preview; not wait for final output.
 
-            Fixed: :const:`False`
+            This may be important for commands that have side effects (e.g. outputlookup)
 
-            """
-            return False
-
-        @property
-        def streaming(self):
-            """ Signals that :meth:`ReportingCommand.reduce` runs on the search
-            head.
-
-            Fixed: :const:`False`
+            Default: :const:`True`
 
             """
-            return False
+            return self._run_in_preview
+
+        @run_in_preview.setter
+        def run_in_preview(self, value):
+            if not (value is None or isinstance(value, bool)):
+                raise ValueError('Expected True, False, or None, not {0}.'.format(repr(value)))
+            setattr(self, '_run_in_preview', value)
+
+        _run_in_preview = None
 
         @property
         def streaming_preop(self):
@@ -175,9 +159,18 @@ class ReportingCommand(SearchCommand):
 
             return text
 
-        #endregion
+        @property
+        def type(self):
+            """ Command type string indicating that this is a command that runs in the reports pipeline.
 
-        #region Methods
+            Fixed: :const:`'reporting'`.
+
+            """
+            return 'reporting'
+
+        # endregion
+
+        # region Methods
 
         @classmethod
         def fix_up(cls, command):
@@ -229,6 +222,6 @@ class ReportingCommand(SearchCommand):
             del f._settings
             return
 
-        #endregion
+        # endregion
 
-    #endregion
+    # endregion
