@@ -22,13 +22,13 @@ from itertools import chain, ifilterfalse, imap
 
 import csv
 
-# TODO: Edit StreamingCommand class documentation
 
+# TODO: Edit EventingCommand class documentation
 
-class StreamingCommand(SearchCommand):
-    """ Applies a transformation to search results as they travel through the processing pipeline.
+class EventingCommand(SearchCommand):
+    """ Applies a transformation to search results as they travel through the events pipeline.
 
-    Streaming commands typically filter, sort, modify, or combine search
+    Eventing commands typically filter, sort, modify, or combine search
     results. Splunk will send search results in batches of up to 50,000 records.
     Hence, a search command must be prepared to be invoked many times during the
     course of pipeline processing. Each invocation should produce a set of
@@ -68,8 +68,7 @@ class StreamingCommand(SearchCommand):
     # region Methods
 
     def stream(self, records):
-        """ Generator function that processes and yields event records to the
-        Splunk processing pipeline.
+        """ Generator function that processes and yields records to the Splunk events pipeline.
 
         You must override this method.
 
@@ -125,23 +124,6 @@ class StreamingCommand(SearchCommand):
         # region Properties
 
         @property
-        def distributed(self):
-            """ True, if this command should be distributed to indexers
-
-            Default: :const:`True`
-
-            """
-            return getattr(self, '_distributed', type(self)._distributed)
-
-        @distributed.setter
-        def distributed(self, value):
-            if not (value is None or isinstance(value, bool)):
-                raise ValueError('Expected True, False, or None, not {0}.'.format(repr(value)))
-            setattr(self, '_distributed', value)
-
-        _distributed = None
-
-        @property
         def required_fields(self):
             """ List of required fields for this search (back-propagates to the generating search).
 
@@ -168,7 +150,7 @@ class StreamingCommand(SearchCommand):
             is :const:`True`, :const:`'stateful'`.
 
             """
-            return 'streaming'
+            return 'eventing'
 
         # endregion
 
@@ -179,18 +161,8 @@ class StreamingCommand(SearchCommand):
             """ Verifies :code:`command` class structure.
 
             """
-            if command.stream == StreamingCommand.stream:
-                raise AttributeError('No StreamingCommand.stream override')
+            if command.stream == EventingCommand.stream:
+                raise AttributeError('No EventingCommand.stream override')
             return
-
-        def render(self):
-
-            sequence = ifilterfalse(
-                lambda item: item[0] == 'distributed', super(StreamingCommand.ConfigurationSettings, self).render())
-
-            if self.distributed:
-                return sequence
-
-            return imap(lambda item: item if item[0] != 'type' else (item[0], 'stateful'), sequence)
 
         # endregion

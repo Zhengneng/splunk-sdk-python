@@ -20,6 +20,8 @@ from . internals import ConfigurationSettingsType
 from . streaming_command import StreamingCommand
 from . search_command import SearchCommand
 
+# TODO: Edit StreamingCommand class documentation
+
 
 class ReportingCommand(SearchCommand):
     """ Processes search results and generates a reporting data structure.
