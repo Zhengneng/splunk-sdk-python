@@ -421,6 +421,7 @@ class SearchCommand(object):
             if self.show_configuration:
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
+            # TODO: Add metadata property that can be overridden by ReportingCommand to get the correct metadata
             self._write_metadata(ofile)
             pass
 
