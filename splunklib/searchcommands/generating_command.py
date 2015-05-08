@@ -21,6 +21,9 @@ from itertools import chain, imap, ifilterfalse
 
 import csv
 
+# TODO: Create pipeline option that may be set to 'events', 'reports', or 'streams' and set type option to a constant:
+# 'generating'
+
 
 class GeneratingCommand(SearchCommand):
     """ Generates events based on command arguments.
