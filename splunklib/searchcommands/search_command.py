@@ -555,10 +555,10 @@ class SearchCommand(object):
 
             for record in process(self._records(reader)):
                 if keys is None:
-                    keys = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
+                    keys = list(chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record)))
                     writer.writerow(keys)
-                values = [chain.from_iterable(
-                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record)))]
+                values = list(chain.from_iterable(
+                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record))))
                 writer.writerow(values)
                 record_count += 1
                 if record_count >= maxresultrows or self.partial:
@@ -691,7 +691,8 @@ class SearchCommand(object):
         self._message_count += 1
 
     def _write_metadata(self, ofile):
-        metadata = {chain(self.configuration.render(), (('inspector', json.dumps(self._inspector, (',', ':'))),))}
+        metadata = OrderedDict(chain(
+            self.configuration.render(), (('inspector', self._inspector if len(self._inspector) else None),)))
         self._write_chunk(ofile, metadata, '')
         self._inspector.clear()
         ofile.write('\n')
@@ -708,7 +709,7 @@ class SearchCommand(object):
             return
 
         metadata = {
-            'inspector': json.dumps(self._inspector, separators=(',', ':')),
+            'inspector': self._inspector if len(self._inspector) else None,
             'finished': self.finished if finished is None else finished,
             'partial': self.partial if partial is None else partial}
 

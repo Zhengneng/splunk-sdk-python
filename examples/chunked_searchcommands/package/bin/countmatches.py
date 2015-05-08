@@ -43,7 +43,7 @@ class CountMatchesCommand(StreamingCommand):
     Count the number of words in the `text` of each tweet in tweets.csv and store the result in `word_count`.
 
     .. code-block::
-        | inputcsv tweets.csv | countmatches fieldname=word_count pattern="\\w+" text
+        | inputlookup tweets | countmatches fieldname=word_count pattern="\\w+" text
 
     """
     fieldname = Option(
@@ -60,11 +60,12 @@ class CountMatchesCommand(StreamingCommand):
 
     def stream(self, records):
         self.logger.debug('CountMatchesCommand: %s', self)  # logs command line
+        pattern = self.pattern
         for record in records:
             count = 0L
             for fieldname in self.fieldnames:
-                matches = self.pattern.finditer(unicode(record[fieldname]))
-                count += len(list(matches))
+                matches = pattern.findall(unicode(record[fieldname]))
+                count += len(matches)
             record[self.fieldname] = count
             yield record
 

@@ -17,12 +17,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from .search_command import SearchCommand
-from .internals import CsvDialect
-
-from cStringIO import StringIO
-from itertools import chain, ifilterfalse, imap
-
-import csv
+from itertools import ifilter
 
 # TODO: Edit StreamingCommand class documentation
 
@@ -125,11 +120,10 @@ class StreamingCommand(SearchCommand):
         def type(self):
             """ Command type
 
-            Computed: :const:`'streaming'`, if :code:`distributed` is :const:`False`; otherwise, if :code:`generating`
-            is :const:`True`, :const:`'stateful'`.
+            Computed: :const:`'streaming'`, if :code:`distributed` is :const:`False`; otherwise :const:`'stateful'`.
 
             """
-            return 'streaming'
+            return 'stateful' if self.distributed is False else 'streaming'
 
         # endregion
 
@@ -145,13 +139,6 @@ class StreamingCommand(SearchCommand):
             return
 
         def render(self):
-
-            sequence = ifilterfalse(
-                lambda item: item[0] == 'distributed', super(StreamingCommand.ConfigurationSettings, self).render())
-
-            if self.distributed:
-                return sequence
-
-            return imap(lambda item: item if item[0] != 'type' else (item[0], 'stateful'), sequence)
+            return ifilter(lambda item: item[1] is not None and item[0] != 'distributed', self.iteritems())
 
         # endregion
