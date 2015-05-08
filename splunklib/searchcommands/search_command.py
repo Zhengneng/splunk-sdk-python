@@ -685,27 +685,28 @@ class SearchCommand(object):
         return
 
     def _write_message(self, message_type, message_text, *args):
-        self._inspector['message.{0:d}.{1}'.format(self._message_count, message_type)] = message_text.format(args)
+        self._inspector.get('messages', []).append([message_type, message_text.format(args)])
         self._message_count += 1
 
     def _write_metadata(self, ofile):
-
-        # TODO: Write dict(chain(self.configuration.render(), (('inspector', self._inspector))))
-        # We must wait until inspector is supported
-
-        self._write_chunk(ofile, dict(self.configuration.render()), '')
+        metadata = {chain(self.configuration.render(), (('inspector', json.dumps(self._inspector, (',', ':'))),))}
+        self._write_chunk(ofile, metadata, '')
         self._inspector.clear()
         ofile.write('\n')
 
     def _write_records(self, ofile, finished=None, partial=None):
 
+        if finished is None:
+            finished = self.finished
+
+        if partial is None:
+            partial = self.partial
+
         if self._output_buffer.tell() == 0 and len(self._inspector) == 0 and finished is None and partial is None:
             return
 
-        # TODO: Write dict((('inspector', self._inspector), ('finished', self.finished)), ('partial', self.partial)))
-        # We must wait until inspector is supported
-
         metadata = {
+            'inspector': json.dumps(self._inspector, separators=(',', ':')),
             'finished': self.finished if finished is None else finished,
             'partial': self.partial if partial is None else partial}
 
