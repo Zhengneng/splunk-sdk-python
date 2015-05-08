@@ -69,7 +69,7 @@ class GeneratingCommand(SearchCommand):
         """
         raise NotImplementedError('GeneratingCommand.generate(self)')
 
-    def _execute(self, ifile, ofile):
+    def _execute(self, ifile, ofile, process):
         """ Execution loop
 
         :param ifile: Input file object. Unused.
@@ -81,31 +81,26 @@ class GeneratingCommand(SearchCommand):
         :return: `None`.
 
         """
-        while True:
+        writer = csv.writer(self._output_buffer, dialect=CsvDialect)
+        maxresultrows = self.metadata.get('maxresultrows', 50000)
+        record_count = 0
+        keys = None
 
-            result = self._read_chunk(ifile)
+        for record in self.generate():
+            if keys is None:
+                keys = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
+                writer.writerow(keys)
+            values = [chain.from_iterable(
+                imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record)))]
+            writer.writerow(values)
+            record_count += 1
+            if self.partial or record_count >= maxresultrows:
+                self._write_records(ofile)
+                record_count = 0
+                keys = None
+            pass
 
-            if not result:
-                break
-
-            # TODO: understand all metadata received and store any metadata that's useful to a command
-            writer = csv.writer(self._output_buffer, dialect=CsvDialect)
-
-            record_count = 0L
-            keys = None
-
-            for record in self.generate():
-                if keys is None:
-                    keys = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
-                    writer.writerow(keys)
-                values = [chain.from_iterable(
-                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record)))]
-                writer.writerow(values)
-                record_count += 1L
-                if self.partial:
-                    self._write_records(ofile)
-
-            self._write_records(ofile)
+        self._write_records(ofile, finished=True, partial=False)
 
     # endregion
 
@@ -136,6 +131,17 @@ class GeneratingCommand(SearchCommand):
             setattr(self, '_distributed', value)
 
         _distributed = None
+
+        @property
+        def generating(self):
+            """ Tells Splunk that this command generates events, but does not process inputs.
+
+            Generating commands must appear at the front of the search pipeline identified by :meth:`type`.
+
+            Fixed: :const:`True`
+
+            """
+            return True
 
         @property
         def type(self):
@@ -178,9 +184,8 @@ class GeneratingCommand(SearchCommand):
 
         def render(self):
 
-            sequence = chain(ifilterfalse(
-                lambda item: item[0] == 'distributed', super(GeneratingCommand.ConfigurationSettings, self).render()),
-                (('generating', True),))
+            sequence = ifilterfalse(
+                lambda item: item[0] == 'distributed', super(GeneratingCommand.ConfigurationSettings, self).render())
 
             if not (self.distributed and self.type == 'streaming'):
                 return sequence

@@ -434,13 +434,13 @@ class SearchCommand(object):
 
         # noinspection PyBroadException
         try:
-            self._execute(ifile, ofile)
+            self._execute(ifile, ofile, None)
         except SystemExit:
-            self._write_records(ofile, finished=True)
+            self._write_records(ofile, finished=True, partial=False)
             raise
         except:
             self._report_unexpected_error()
-            self._write_records(ofile, finished=True)
+            self._write_records(ofile, finished=True, partial=False)
             exit(1)
 
         return
@@ -519,8 +519,8 @@ class SearchCommand(object):
 
         return '\n'.join(imap(lambda item: item[0], value)), '$' + '$;$'.join(imap(lambda item: item[1], value)) + '$'
 
-    def _execute(self, ifile, ofile):
-        """ Execution loop.
+    def _execute(self, ifile, ofile, process):
+        """ Default processing loop
 
         :param ifile: Input file object.
         :type ifile: file
@@ -528,10 +528,46 @@ class SearchCommand(object):
         :param ofile: Output file object.
         :type ofile: file
 
+        :param process: Bound method to call in processing loop.
+        :type process: instancemethod
+
         :return: `None`.
 
         """
-        raise NotImplementedError('SearchCommand._execute(self)')
+        maxresultrows = self.metadata.get('maxresultrows', 50000)
+
+        while True:
+            result = self._read_chunk(ifile)
+
+            if not result:
+                break
+
+            # TODO: understand all metadata received and store any metadata that's useful to a command
+            metadata, body = result
+            input_buffer = StringIO(body)
+            reader = csv.reader(input_buffer, dialect=CsvDialect)
+            writer = csv.writer(self._output_buffer, dialect=CsvDialect)
+
+            record_count = 0
+            keys = None
+
+            for record in process(self._records(reader)):
+                if keys is None:
+                    keys = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
+                    writer.writerow(keys)
+                values = [chain.from_iterable(
+                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record)))]
+                writer.writerow(values)
+                record_count += 1
+                if record_count >= maxresultrows or self.partial:
+                    self._write_records(ofile, partial=True)
+                    record_count = 0
+                    keys = None
+                pass
+
+            self._write_records(ofile, partial=False)
+
+        self._write_records(ofile, finished=True, partial=False)
 
     @staticmethod
     def _read_chunk(f):
@@ -661,15 +697,18 @@ class SearchCommand(object):
         self._inspector.clear()
         ofile.write('\n')
 
-    def _write_records(self, ofile, finished=None):
+    def _write_records(self, ofile, finished=None, partial=None):
 
-        if self._output_buffer.tell() == 0 and len(self._inspector) == 0 and finished is None:
+        if self._output_buffer.tell() == 0 and len(self._inspector) == 0 and finished is None and partial is None:
             return
 
         # TODO: Write dict((('inspector', self._inspector), ('finished', self.finished)), ('partial', self.partial)))
         # We must wait until inspector is supported
 
-        metadata = {'finished': self.finished if finished is None else finished, 'partial': self.partial}
+        metadata = {
+            'finished': self.finished if finished is None else finished,
+            'partial': self.partial if partial is None else partial}
+
         self._write_chunk(ofile, metadata, self._output_buffer.getvalue())
         self._output_buffer.reset()
         self._inspector.clear()
@@ -699,29 +738,6 @@ class SearchCommand(object):
             """
             text = ', '.join(imap(lambda key: key + '=' + repr(getattr(self, key)), type(self).configuration_settings()))
             return text
-
-        # region Properties
-
-        # Configuration settings
-
-        @property
-        def generating(self):
-            """ True, if this command generates events, but does not process inputs.
-
-            Generating commands must appear at the front of the search pipeline.
-
-            Default: :const:`False`
-
-            """
-            return getattr(self, '_generating', type(self)._generating)
-
-        @generating.setter
-        def generating(self, value):
-            setattr(self, '_generating', value)
-
-        _generating = None
-
-        # endregion
 
         # region Methods
 

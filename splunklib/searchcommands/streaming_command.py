@@ -57,45 +57,8 @@ class StreamingCommand(SearchCommand):
         """
         raise NotImplementedError('StreamingCommand.stream(self, records)')
 
-    def _execute(self, ifile, ofile):
-        """ Execution loop
-
-        :param ifile: Input file object.
-        :type ifile: file
-
-        :param ofile: Output file object.
-        :type ofile: file
-
-        :return: `None`.
-
-        """
-        while True:
-            result = self._read_chunk(ifile)
-
-            if not result:
-                break
-
-            # TODO: understand all metadata received and store any metadata that's useful to a command
-            metadata, body = result
-            input_buffer = StringIO(body)
-            reader = csv.reader(input_buffer, dialect=CsvDialect)
-            writer = csv.writer(self._output_buffer, dialect=CsvDialect)
-
-            record_count = 0L
-            keys = None
-
-            for record in self.stream(self._records(reader)):
-                if keys is None:
-                    keys = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
-                    writer.writerow(keys)
-                values = [chain.from_iterable(
-                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record)))]
-                writer.writerow(values)
-                record_count += 1L
-                if self.partial:
-                    self._write_records(ofile)
-
-            self._write_records(ofile)
+    def _execute(self, ifile, ofile, process):
+        super(StreamingCommand, self)._execute(ifile, ofile, self.stream)
 
     # endregion
 
@@ -121,6 +84,23 @@ class StreamingCommand(SearchCommand):
             setattr(self, '_distributed', value)
 
         _distributed = None
+
+        @property
+        def maxinputs(self):
+            """ Specifies the maximum number of events that can be passed to the command for each invocation.
+
+            This limit cannot exceed the value of `maxresultrows` in `limits.conf`.
+
+            Default: The value of maxresultrows.
+
+            """
+            return getattr(self, '_maxinputs', type(self)._maxinputs)
+
+        @maxinputs.setter
+        def maxinputs(self, value):
+            setattr(self, '_maxinputs', value)
+
+        _maxinputs = None
 
         @property
         def required_fields(self):
