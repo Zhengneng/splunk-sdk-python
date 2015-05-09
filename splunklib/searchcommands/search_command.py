@@ -37,7 +37,7 @@ import json
 
 # Relative imports
 
-from .internals import configure_logging, CsvDialect
+from .internals import configure_logging, CsvDialect, ObjectView
 from .decorators import Option
 from .validators import Boolean
 
@@ -251,8 +251,8 @@ class SearchCommand(object):
             return self._search_results_info
 
         try:
-            info_path = self.metadata['infoPath']
-        except KeyError:
+            info_path = self.metadata.infoPath
+        except AttributeError:
             return None
 
         def convert_field(field):
@@ -370,16 +370,15 @@ class SearchCommand(object):
             assert len(body) == 0
 
             self._configuration = type(self).ConfigurationSettings(self)
-            self._metadata = metadata
+            self._metadata = ObjectView(metadata)
             self._message_count = 0L
 
             self.fieldnames = []
             self.options.reset()
 
-            # TODO: Expose searchinfo object to SearchCommand and utilize it in SearchCommand.search_results_info
+            # TODO: Utilize searchinfo in SearchCommand.search_results_info (?)
 
-            searchinfo = metadata['searchinfo']
-            args = searchinfo.get('args')
+            args = self.metadata.searchinfo.args
             error_count = 0L
 
             if args and type(args) == list:
@@ -536,7 +535,7 @@ class SearchCommand(object):
         :return: `None`.
 
         """
-        maxresultrows = self.metadata.get('maxresultrows', 50000)
+        maxresultrows = getattr(self.metadata, 'maxresultrows', 50000)
 
         while True:
             result = self._read_chunk(ifile)

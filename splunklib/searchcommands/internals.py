@@ -18,14 +18,13 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from logging import getLogger, root, StreamHandler
 from logging.config import fileConfig
+from collections import deque
 
 import csv
 import os
 import sys
 
-
-def get_app_directory(probing_path):
-    return os.path.dirname(os.path.abspath(os.path.dirname(probing_path)))
+csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. See SPL-12117 for background on this issue
 
 
 def configure_logging(name, probing_path=None, app_root=None):
@@ -128,6 +127,10 @@ def configure_logging(name, probing_path=None, app_root=None):
     return logger, probing_path
 
 
+def get_app_directory(path):
+    return os.path.dirname(os.path.abspath(os.path.dirname(path)))
+
+
 class ConfigurationSettingsType(type):
     """ Metaclass for constructing ConfigurationSettings classes.
 
@@ -179,4 +182,28 @@ class CsvDialect(csv.Dialect):
     lineterminator = b'\r\n'
     quoting = csv.QUOTE_MINIMAL
 
-csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. See SPL-12117 for background on this issue
+
+class _ObjectView(object):
+    def __init__(self, dictionary):
+        self.__dict__ = dictionary
+
+    def __repr__(self):
+        return repr(self.__dict__)
+
+    def __str__(self):
+        return str(self.__dict__)
+
+
+class ObjectView(_ObjectView):
+    def __init__(self, dictionary):
+        super(ObjectView, self).__init__(dictionary)
+        stack = deque()
+        stack.append((None, None, dictionary))
+        while len(stack):
+            instance, member_name, dictionary = stack.popleft()
+            for name, value in dictionary.iteritems():
+                if isinstance(value, dict):
+                    stack.append((dictionary, name, value))
+            if instance is not None:
+                instance[member_name] = _ObjectView(dictionary)
+        return

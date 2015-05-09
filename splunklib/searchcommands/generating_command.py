@@ -85,7 +85,7 @@ class GeneratingCommand(SearchCommand):
 
         """
         writer = csv.writer(self._output_buffer, dialect=CsvDialect)
-        maxresultrows = self.metadata.get('maxresultrows', 50000)
+        maxresultrows = getattr(self.metadata, 'maxresultrows', 50000)
         record_count = 0
         keys = None
 
