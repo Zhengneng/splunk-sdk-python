@@ -1,2 +1,2 @@
-splunk search '| inputlookup tweets | countmatches fieldname=word_count pattern="\\\\w+" text' \
+splunk search '| inputlookup tweets | countmatches fieldname=word_count pattern="\\w+" text' \
     -app chunked_searchcommands -auth admin:changeme -maxout 0

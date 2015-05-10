@@ -169,51 +169,8 @@ class SearchCommand(object):
         self._fieldnames = value
 
     @property
-    def finished(self):
-        """ Signals that the search command is ready to stop processing data.
-
-        """
-        return self._finished
-
-    @finished.setter
-    def finished(self, value):
-        if value is None or value is bool:
-            self._finished = value
-            return
-        raise ValueError('Expected boolean value or None, not {0}'.format(repr(value)))
-
-    @property
     def metadata(self):
         return self._metadata
-
-    @property
-    def partial(self):
-            """ Signals that the search command is ready to send a partial response for the current record set.
-
-            There are two use-cases for this:
-
-            1. The result is very big and we'd like to emit partial chunks that fit in memory.
-            2. The field set changes dramatically and we don't want to emit a sparse record set.
-
-            If partial is :const:`True`, this chunk is part of a multi-part response. If partial is :const:`False`, this
-            chunk completes a multi-part response.
-
-            An alternative to this metadata field is to include a chunk identifier in each record. The complication of
-            using a chunk identifier is that splunkd won't know that a chunk is complete until it sees a chunk with a
-            new chunk identifier. The upside to having the partial field is that the common case of 1-to-1 chunks
-            requires nothing from the protocol.
-
-            Default: :const:`False`
-
-            """
-            return self._partial
-
-    @partial.setter
-    def partial(self, value):
-        if value is None or value is bool:
-            self._partial = value
-            return
-        raise ValueError('Expected boolean value or None, not {0}'.format(repr(value)))
 
     @property
     def options(self):
@@ -536,20 +493,22 @@ class SearchCommand(object):
 
         """
         maxresultrows = getattr(self.metadata, 'maxresultrows', 50000)
+        record_count = 0
+        finished = None
 
-        while True:
+        while not finished:
             result = self._read_chunk(ifile)
 
             if not result:
                 break
 
-            # TODO: understand all metadata received and store any metadata that's useful to a command
             metadata, body = result
+            assert metadata.get('action') == 'execute'
             input_buffer = StringIO(body)
+            finished = metadata.get('finished', False)
             reader = csv.reader(input_buffer, dialect=CsvDialect)
             writer = csv.writer(self._output_buffer, dialect=CsvDialect)
 
-            record_count = 0
             keys = None
 
             for record in process(self._records(reader)):
@@ -560,15 +519,19 @@ class SearchCommand(object):
                     imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record))))
                 writer.writerow(values)
                 record_count += 1
-                if record_count >= maxresultrows or self.partial:
+                if record_count >= maxresultrows:
                     self._write_records(ofile, partial=True)
                     record_count = 0
                     keys = None
                 pass
 
-            self._write_records(ofile, partial=False)
+            self._write_records(ofile, finished=finished)
+            record_count = 0
 
-        self._write_records(ofile, finished=True, partial=False)
+        if record_count > 0:
+            self._write_records(ofile, finished=True)
+
+        return
 
     @staticmethod
     def _read_chunk(f):
@@ -698,24 +661,15 @@ class SearchCommand(object):
 
     def _write_records(self, ofile, finished=None, partial=None):
 
-        if finished is None:
-            finished = self.finished
-
-        if partial is None:
-            partial = self.partial
-
-        if self._output_buffer.tell() == 0 and len(self._inspector) == 0 and finished is None and partial is None:
+        if self._output_buffer.tell() == 0 and len(self._inspector) == 0:
             return
 
         metadata = {
-            'inspector': self._inspector if len(self._inspector) else None,
-            'finished': self.finished if finished is None else finished,
-            'partial': self.partial if partial is None else partial}
+            'inspector': self._inspector if len(self._inspector) else None, 'finished': finished, 'partial': partial}
 
         self._write_chunk(ofile, metadata, self._output_buffer.getvalue())
         self._output_buffer.reset()
         self._inspector.clear()
-        self.partial = None
 
         return
 
