@@ -84,26 +84,26 @@ class GeneratingCommand(SearchCommand):
         :return: `None`.
 
         """
-        writer = csv.writer(self._output_buffer, dialect=CsvDialect)
         maxresultrows = getattr(self.metadata, 'maxresultrows', 50000)
-        record_count = 0
-        keys = None
+
+        writer = csv.writer(self._output_buffer, dialect=CsvDialect)
+        self._output_fieldnames = None
+        self._output_record_count = 0
+        self._output_file = ofile
 
         for record in self.generate():
-            if keys is None:
-                keys = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
-                writer.writerow(keys)
+            if self._output_fieldnames is None:
+                self._output_fieldnames = [chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record))]
+                writer.writerow(self._output_fieldnames)
             values = [chain.from_iterable(
                 imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record)))]
             writer.writerow(values)
-            record_count += 1
-            if self.partial or record_count >= maxresultrows:
-                self._write_records(ofile)
-                record_count = 0
-                keys = None
+            self._output_record_count += 1
+            if self._output_record_count >= maxresultrows:
+                self._write_records(partial=True)
             pass
 
-        self._write_records(ofile, finished=True, partial=False)
+        self._write_records(finished=True)
 
     # endregion
 

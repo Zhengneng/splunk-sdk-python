@@ -76,16 +76,18 @@ class SearchCommand(object):
         self._finished = None
         self._metadata = None
         self._option_view = None
-        self._partial = None
         self._search_results_info = None
         self._service = None
 
         # Internal variables
 
         self._default_logging_level = self.logger.level
-        self._output_buffer = StringIO()
         self._inspector = OrderedDict()
         self._message_count = None
+        self._output_buffer = StringIO()
+        self._output_file = None
+        self._output_fieldnames = None
+        self._output_record_count = None
 
         return
 
@@ -293,6 +295,22 @@ class SearchCommand(object):
         self.logger.error('Abnormal exit: %s', error)
         exit(1)
 
+    def finish(self):
+        """ Flushes the output buffer and signals that this command has finished processing data.
+
+        :return: :const:`None`
+
+        """
+        self._write_records(finished=True)
+
+    def flush(self):
+        """ Flushes the output buffer.
+
+        :return: :const:`None`
+
+        """
+        self._write_records(self._output_file, partial=True)
+
     def prepare(self):
         """ Prepare for execution.
 
@@ -379,6 +397,7 @@ class SearchCommand(object):
 
             # TODO: Add metadata property that can be overridden by ReportingCommand to its metadata which depends on
             # the operational_phase option, whether its 'map' or 'reduce'.
+            # TODO: Rename operational_phase as phase
             self._write_metadata(ofile)
             pass
 
@@ -394,11 +413,11 @@ class SearchCommand(object):
         try:
             self._execute(ifile, ofile, None)
         except SystemExit:
-            self._write_records(ofile, finished=True, partial=False)
+            self._write_records(finished=True)
             raise
         except:
             self._report_unexpected_error()
-            self._write_records(ofile, finished=True, partial=False)
+            self._write_records(finished=True)
             exit(1)
 
         return
@@ -493,7 +512,8 @@ class SearchCommand(object):
 
         """
         maxresultrows = getattr(self.metadata, 'maxresultrows', 50000)
-        record_count = 0
+        self._output_record_count = 0
+        self._output_file = ofile
         finished = None
 
         while not finished:
@@ -509,29 +529,21 @@ class SearchCommand(object):
             reader = csv.reader(input_buffer, dialect=CsvDialect)
             writer = csv.writer(self._output_buffer, dialect=CsvDialect)
 
-            keys = None
-
             for record in process(self._records(reader)):
-                if keys is None:
-                    keys = list(chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record)))
-                    writer.writerow(keys)
+                if self._output_fieldnames is None:
+                    self._output_fieldnames = list(chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record)))
+                    writer.writerow(self._output_fieldnames)
                 values = list(chain.from_iterable(
                     imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record))))
                 writer.writerow(values)
-                record_count += 1
-                if record_count >= maxresultrows:
-                    self._write_records(ofile, partial=True)
-                    record_count = 0
-                    keys = None
+                self._output_record_count += 1
+                if self._output_record_count >= maxresultrows:
+                    self._write_records(partial=True)
                 pass
 
-            self._write_records(ofile, finished=finished)
-            record_count = 0
+            self._write_records(finished=finished)
 
-        if record_count > 0:
-            self._write_records(ofile, finished=True)
-
-        return
+        self._write_records(finished=True)
 
     @staticmethod
     def _read_chunk(f):
@@ -659,17 +671,23 @@ class SearchCommand(object):
         self._inspector.clear()
         ofile.write('\n')
 
-    def _write_records(self, ofile, finished=None, partial=None):
+    def _write_records(self, finished=None, partial=None):
 
-        if self._output_buffer.tell() == 0 and len(self._inspector) == 0:
+        if self._output_buffer.tell() == 0 and len(self._inspector) == 0 and finished is False:
             return
 
         metadata = {
-            'inspector': self._inspector if len(self._inspector) else None, 'finished': finished, 'partial': partial}
+            'inspector': self._inspector if len(self._inspector) else None,
+            'finished': finished,
+            'partial': partial}
 
-        self._write_chunk(ofile, metadata, self._output_buffer.getvalue())
-        self._output_buffer.reset()
+        self._write_chunk(self._output_file, metadata, self._output_buffer.getvalue())
+        assert finished is not True  # Expectation: splunkd terminates the command process when finished is True
+
         self._inspector.clear()
+        self._output_buffer.reset()
+        self._output_fieldnames = None
+        self._output_record_count = 0
 
         return
 
