@@ -236,7 +236,6 @@ class ReportingCommand(SearchCommand):
 
             f.ConfigurationSettings = ConfigurationSettingsType(module, name, bases, settings)
             del f._settings
-            return
 
         # endregion
 

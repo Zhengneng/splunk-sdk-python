@@ -169,7 +169,6 @@ class Option(property):
                 setattr(command, member_name, option)
                 command.option_definitions[member_number] = member_name, option
             member_number += 1
-        return
 
     def deleter(self, function):
         deleter = super(Option, self).deleter(function)
@@ -269,7 +268,6 @@ class Option(property):
             self._items = OrderedDict([
                 (option.name, Option.Item(command, option))
                 for member_name, option in type(command).option_definitions])
-            return
 
         def __contains__(self, name):
             return name in self._items
@@ -309,7 +307,6 @@ class Option(property):
         def reset(self):
             for value in self.itervalues():
                 value.reset()
-            return
 
         # endregion
 

@@ -174,7 +174,6 @@ class ConfigurationSettingsType(type):
             setattr(cls, backing_field, value)
 
         cls.__module__ = module
-        return
 
 
 class CsvDialect(csv.Dialect):
@@ -212,7 +211,6 @@ class ObjectView(_ObjectView):
                     stack.append((dictionary, name, value))
             if instance is not None:
                 instance[member_name] = _ObjectView(dictionary)
-        return
 
 
 class RecordWriter(object):
@@ -237,7 +235,7 @@ class RecordWriter(object):
             'partial': partial}
 
         self._write_chunk(self._ofile, metadata, self._buffer.getvalue())
-        assert finished is not True  # splunkd terminates the command when finished is True
+        assert finished is not True  # splunkd should terminate command
         self._clear()
 
     def write_message(self, message_type, message_text, *args, **kwargs):

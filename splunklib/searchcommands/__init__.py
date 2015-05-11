@@ -94,4 +94,3 @@ def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys
     """
     if module_name is None or module_name == '__main__':
         command_class().process(argv, input_file, output_file)
-    return

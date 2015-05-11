@@ -165,7 +165,6 @@ class GeneratingCommand(SearchCommand):
             """
             if command.generate == GeneratingCommand.generate:
                 raise AttributeError('No GeneratingCommand.generate override')
-            return
 
         def render(self):
 

@@ -148,7 +148,7 @@ class Integer(Validator):
         return value
 
     def format(self, value):
-        return str(int(value))
+        return unicode(int(value))
 
 
 class Duration(Validator):
@@ -185,7 +185,7 @@ class Duration(Validator):
         m = value / 60 % 60
         h = value / (60 * 60)
 
-        return '%02d:%02d:%02d' % (h, m, s)
+        return '{0:02d}:{1:02d}:{2:02d}'.format(h, m, s)
 
     _60 = Integer(0, 59)
     _unsigned = Integer(0)
@@ -245,7 +245,7 @@ class OptionName(Validator):
     pattern = re.compile(r'''[a-zA-Z][_a-zA-Z0-9]*$''')
 
     def __call__(self, value):
-        value = str(value)
+        value = unicode(value)
         if OptionName.pattern.match(value) is None:
             raise ValueError('Illegal characters in option name: {0}'.format(value))
         return value
@@ -279,7 +279,7 @@ class Set(Validator):
 
     def __call__(self, value):
         if value is not None:
-            value = str(value)
+            value = unicode(value)
             if value not in self.membership:
                 raise ValueError('Unrecognized value: {0}'.format(value))
         return value

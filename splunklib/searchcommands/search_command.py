@@ -107,7 +107,6 @@ class SearchCommand(object):
     @logging_configuration.setter
     def logging_configuration(self, value):
         self.logger, self._logging_configuration = configure_logging(type(self).__name__, value, app_root=self._app_root)
-        return
 
     @Option
     def logging_level(self):
@@ -134,7 +133,6 @@ class SearchCommand(object):
             except ValueError:
                 raise ValueError('Unrecognized logging level: %s' % value)
         self.logger.setLevel(level)
-        return
 
     show_configuration = Option(doc='''
         **Syntax:** show_configuration=<bool>
@@ -418,19 +416,15 @@ class SearchCommand(object):
 
     def write_debug(self, message, *args):
         self._record_writer.write_message('DEBUG', message, *args)
-        return
 
     def write_error(self, message, *args):
         self._record_writer.write_message('ERROR', message, *args)
-        return
 
     def write_fatal(self, message, *args):
         self._record_writer.write_message('FATAL', message, *args)
-        return
 
     def write_info(self, message, *args):
         self._record_writer.write_message('INFO', message, *args)
-        return
 
     def write_warning(self, message, *args):
         self._record_writer.write_message('WARN', message, *args)
@@ -455,7 +449,6 @@ class SearchCommand(object):
 
         """
         self._record_writer.write_metric(name, value)
-        return
 
     # TODO: Support custom inspector values
 
@@ -572,8 +565,6 @@ class SearchCommand(object):
                 record = OrderedDict(izip(fieldnames, values))
                 record_count += 1
                 yield record
-
-        return
 
     def _report_unexpected_error(self):
         import traceback
