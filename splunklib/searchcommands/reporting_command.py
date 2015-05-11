@@ -16,15 +16,10 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from .internals import ConfigurationSettingsType, CsvDialect
+from .internals import ConfigurationSettingsType
 from .streaming_command import StreamingCommand
 from .search_command import SearchCommand
 from .decorators import Option
-
-from itertools import chain, imap
-from cStringIO import StringIO
-
-import csv
 
 # TODO: Edit ReportingCommand class documentation
 
@@ -69,11 +64,11 @@ class ReportingCommand(SearchCommand):
 
     @phase.setter
     def phase(self, value):
+        if value is None or value == 'reduce':
+            self._phase = self.reduce
+            return
         if value == 'map':
             self._phase = self.map
-            return
-        if value == 'reduce':
-            self._phase = self.reduce
             return
         raise ValueError('Expected a value of "map" or "reduce", not {0}'.format(repr(value)))
 
@@ -83,6 +78,9 @@ class ReportingCommand(SearchCommand):
 
     def map(self, records):
         """ Override this method to compute partial results.
+
+        :param records:
+        :type records:
 
         You must override this method, if :code:`requires_preop=True`.
 
@@ -217,7 +215,7 @@ class ReportingCommand(SearchCommand):
                 cls._requires_preop = False
                 return
 
-            f = vars(command)['map']   # Function backing the map method
+            f = vars(command)[b'map']   # Function backing the map method
 
             # EXPLANATION OF PREVIOUS STATEMENT: There is no way to add custom attributes to methods. See [Why does
             # setattr fail on a method](http://goo.gl/aiOsqh) for a discussion of this issue.
@@ -230,8 +228,8 @@ class ReportingCommand(SearchCommand):
 
             # Create new StreamingCommand.ConfigurationSettings class
 
-            module = command.__module__ + '.' + command.__name__ + '.map'
-            name = 'ConfigurationSettings'
+            module = command.__module__ + b'.' + command.__name__ + b'.map'
+            name = b'ConfigurationSettings'
             bases = (StreamingCommand.ConfigurationSettings,)
 
             f.ConfigurationSettings = ConfigurationSettingsType(module, name, bases, settings)

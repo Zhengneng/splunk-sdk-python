@@ -40,8 +40,6 @@ from .internals import configure_logging, CsvDialect, ObjectView, RecordWriter
 from .decorators import Option
 from .validators import Boolean
 
-SearchMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
-
 # TODO: Validate class-level settings provided by the @Configuration decorator
 # At present we have property setters that validate instance-level configuration, but we do not do any validation on
 # the class-level configuration settings that are provided by way of the @Configuration decorator
@@ -331,7 +329,6 @@ class SearchCommand(object):
         :return: :const:`None`
 
         """
-
         # noinspection PyBroadException
         try:
             metadata, body = self._read_chunk(ifile)
@@ -390,7 +387,7 @@ class SearchCommand(object):
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
             # TODO: Add metadata property that can be overridden by ReportingCommand to its metadata which depends on
-            # the operational_phase option, whether its 'map' or 'reduce'.
+            # the phase option, whether its value is 'map' or 'reduce'.
             self._record_writer.write_metadata(self._configuration)
 
         except SystemExit:

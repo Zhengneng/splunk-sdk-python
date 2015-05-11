@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from __future__ import absolute_import, division, print_function, unicode_literals
 import __init__
 
 from splunklib.searchcommands import dispatch, ReportingCommand, Configuration, Option, validators
@@ -48,7 +49,7 @@ class SumCommand(ReportingCommand):
         **Description:** Name of the field that will hold the computed sum''',
         require=True, validate=validators.Fieldname())
 
-    @Configuration(clear_required_fields=True)
+    @Configuration()
     def map(self, records):
         """ Computes sum(fieldname, 1, n) and stores the result in 'total' """
         total = 0.0

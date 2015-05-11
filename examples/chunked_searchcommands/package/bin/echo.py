@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-# coding=utf-8
 #
-# Copyright © 2011-2015 Splunk, Inc.
+# Copyright 2011-2014 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -18,19 +17,16 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import __init__
 
-from splunklib.searchcommands import dispatch, GeneratingCommand, Configuration, Option, validators
+from splunklib.searchcommands import dispatch, EventingCommand, Configuration, Option, validators
 import sys
-import time
 
 
 @Configuration()
-class GenerateHelloCommand(GeneratingCommand):
+class EchoCommand(EventingCommand):
+    """
+    """
+    def transform(self, records):
+        for record in records:
+            yield record
 
-    count = Option(require=True, validate=validators.Integer(0))
- 
-    def generate(self):
-        for i in range(1, self.count + 1):
-            text = 'Hello World %d' % i
-            yield {'_time': time.time(), 'event_no': i, '_raw': text } 
- 
-dispatch(GenerateHelloCommand, sys.argv, sys.stdin, sys.stdout, __name__)
+dispatch(EchoCommand, sys.argv, sys.stdin, sys.stdout, __name__)

@@ -147,7 +147,7 @@ class GeneratingCommand(SearchCommand):
 
         @type.setter
         def type(self, value):
-            if not (isinstance(value, basestring) and value in ('eventing', 'reporting', 'streaming')):
+            if not (isinstance(value, basestring) and value in ('events', 'reporting', 'streaming')):
                 raise ValueError('Expected a value of "eventing", "reporting", or "streaming"; not {0}.'.format(
                     repr(value)))
             self._type = value
@@ -169,7 +169,7 @@ class GeneratingCommand(SearchCommand):
         def render(self):
 
             sequence = ifilterfalse(
-                lambda item: item[0] == 'distributed', super(GeneratingCommand.ConfigurationSettings, self).render())
+                lambda item: item[0] == 'distributed', SearchCommand.ConfigurationSettings.render(self))
 
             if not (self.distributed and self.type == 'streaming'):
                 return sequence

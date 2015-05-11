@@ -20,9 +20,9 @@ from .decorators import *
 from .validators import *
 
 from .generating_command import GeneratingCommand
-from .reporting_command import ReportingCommand
 from .streaming_command import StreamingCommand
-from .search_command import SearchMetric
+from .eventing_command import EventingCommand
+from .reporting_command import ReportingCommand
 
 import sys
 
@@ -32,6 +32,10 @@ if sys.platform == 'win32':
     import msvcrt
     import os
     msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+
+
+from collections import namedtuple
+SearchMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
 
 
 def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys.stdout, module_name=None):

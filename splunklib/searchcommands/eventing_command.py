@@ -28,15 +28,19 @@ import csv
 class EventingCommand(SearchCommand):
     """ Applies a transformation to search results as they travel through the events pipeline.
 
-    Eventing commands typically modify, order, or combine search result records. Splunk will send them in batches of up
-    to 50,000. Hence, an eventing search command must be prepared to be invoked many times during the course of events
-    pipeline processing. Each invocation should produce a set of results independently usable by downstream processors.
+    Eventing commands typically filter, group, order, and/or or augment event records. Examples of eventing commands
+    from Splunk's built-in command set include sort_, dedup_, and cluster_. Each execution of an eventing command
+    should produce a set of event records independently usable by downstream processors.
+
+    .. _sort: http://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort
+    .. _dedup: http://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Dedup
+    .. _cluster: http://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Cluster
 
     """
     # region Methods
 
     def transform(self, records):
-        """ Generator function that processes and yields records to the Splunk events pipeline.
+        """ Generator function that processes and yields event records to the Splunk events pipeline.
 
         You must override this method.
 
@@ -97,7 +101,9 @@ class EventingCommand(SearchCommand):
             Fixed: :const:`'eventing'`.
 
             """
-            return 'eventing'
+            # TODO: Request renaming this type as 'eventing'. Eventing commands process records on the events pipeline.
+            # This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
+            return 'events'
 
         # endregion
 
@@ -110,6 +116,5 @@ class EventingCommand(SearchCommand):
             """
             if command.transform == EventingCommand.transform:
                 raise AttributeError('No EventingCommand.transform override')
-            return
 
         # endregion

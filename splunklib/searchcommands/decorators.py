@@ -55,7 +55,7 @@ class Configuration(object):
             o.name = name.lower()
             if self.settings is not None:
                 o.ConfigurationSettings = ConfigurationSettingsType(
-                    module=b'.'.join((o.__module__, o.__name__)),
+                    module=o.__module__ + b'.' + o.__name__,
                     name=b'ConfigurationSettings',
                     bases=(o.ConfigurationSettings,),
                     settings=self.settings)
@@ -118,7 +118,7 @@ class Option(property):
 
     """
     def __init__(self, fget=None, fset=None, fdel=None, doc=None, name=None, default=None, require=None, validate=None):
-        super(Option, self).__init__(fget, fset, fdel, doc)
+        property.__init__(self, fget, fset, fdel, doc)
         self.name = None if name is None else OptionName()(name)
         self.default = default
         self.require = bool(require)
@@ -171,16 +171,16 @@ class Option(property):
             member_number += 1
 
     def deleter(self, function):
-        deleter = super(Option, self).deleter(function)
-        return self._reset(deleter, function)
+        deleter = property.deleter(self, function)
+        return self._reset(deleter)
 
     def getter(self, function):
-        getter = super(Option, self).getter(function)
+        getter = property.getter(self, function)
         return self._reset(getter)
 
     def setter(self, function):
         f = lambda s, v: function(s, self.validate(v) if self.validate else v)
-        setter = super(Option, self).setter(f)
+        setter = property.setter(self, f)
         return self._reset(setter)
 
     def _reset(self, other):
@@ -196,7 +196,7 @@ class Option(property):
 
     class Encoder(JSONEncoder):
         def __init__(self, item):
-            super(Option.Encoder, self).__init__()
+            JSONEncoder.__init__(self)
             self.item = item
 
         def default(self, o):
