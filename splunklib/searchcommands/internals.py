@@ -16,11 +16,15 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+from collections import deque, OrderedDict
+from cStringIO import StringIO
+from itertools import chain, ifilter, imap
 from logging import getLogger, root, StreamHandler
 from logging.config import fileConfig
-from collections import deque
+from numbers import Number
 
 import csv
+import json
 import os
 import sys
 
@@ -207,3 +211,100 @@ class ObjectView(_ObjectView):
             if instance is not None:
                 instance[member_name] = _ObjectView(dictionary)
         return
+
+
+class RecordWriter(object):
+
+    def __init__(self, ofile, maxresultrows):
+        self._maxresultrows = maxresultrows
+        self._ofile = ofile
+        self._fieldnames = None
+        self._inspector = OrderedDict()
+        self._record_count = 0
+        self._buffer = StringIO()
+        self._writer = csv.writer(self._buffer, dialect=CsvDialect)
+
+    def flush(self, finished=None, partial=None):
+
+        if self._buffer.tell() == 0 and len(self._inspector) == 0 and finished is False:
+            return
+
+        metadata = {
+            'inspector': self._inspector if len(self._inspector) else None,
+            'finished': finished,
+            'partial': partial}
+
+        self._write_chunk(self._ofile, metadata, self._buffer.getvalue())
+        assert finished is not True  # splunkd terminates the command when finished is True
+        self._clear()
+
+    def write_message(self, message_type, message_text, *args, **kwargs):
+        self._inspector.get('messages', []).append([message_type, message_text.format(args, kwargs)])
+
+    def write_metadata(self, configuration):
+        metadata = OrderedDict(chain(
+            configuration.render(), (('inspector', self._inspector if self._inspector else None),)))
+        self._write_chunk(self._ofile, metadata, '')
+        self._ofile.write('\n')
+        self._clear()
+
+    def write_metric(self, name, value):
+        self._inspector['metric.{0}'.format(name)] = value
+
+    def write_record(self, record):
+        if self._fieldnames is None:
+            self._fieldnames = list(chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record)))
+            self._writer.writerow(self._fieldnames)
+        values = list(chain.from_iterable(imap(lambda v: self._encode_value(v), imap(lambda k: record[k], record))))
+        self._writer.writerow(values)
+        self._record_count += 1
+        if self._record_count >= self._maxresultrows:
+            self.flush(partial=True)
+
+    def _clear(self):
+        self._buffer.reset()
+        self._fieldnames = None
+        self._inspector.clear()
+        self._record_count = 0
+
+    @staticmethod
+    def _encode_value(value):
+
+        def to_string(item):
+            if isinstance(item, (basestring, Number)):
+                return unicode(item)
+            return repr(item)
+
+        if not isinstance(value, (list, tuple)):
+            return to_string(value), None
+
+        if len(value) == 0:
+            return None, None
+
+        if len(value) == 1:
+            return to_string(value[0]), None
+
+        # TODO: Bug fix: If a list item contains newlines, value cannot be interpreted correctly
+        # Question: Must we return a value? Is it good enough to return (None, <encoded-list>)?
+        # See what other splunk commands do.
+
+        value = imap(lambda item: (item, item.replace('$', '$$')), imap(lambda item: to_string(item), value))
+        return '\n'.join(imap(lambda item: item[0], value)), '$' + '$;$'.join(imap(lambda item: item[1], value)) + '$'
+
+    @staticmethod
+    def _write_chunk(ofile, metadata, body):
+
+        if metadata:
+            metadata = OrderedDict(ifilter(lambda x: x[1] is not None, metadata.iteritems()))
+            metadata = json.dumps(metadata, separators=(',', ':'))
+        else:
+            metadata = ''
+
+        if not (metadata or body):
+            return
+
+        start_line = 'chunked 1.0,{0:d},{1:d}\n'.format(len(metadata), len(body))
+        ofile.write(start_line)
+        ofile.write(metadata)
+        ofile.write(body)
+        ofile.flush()

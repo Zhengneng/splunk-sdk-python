@@ -59,7 +59,7 @@ class ReportingCommand(SearchCommand):
     # region Options
 
     @Option
-    def operational_phase(self):
+    def phase(self):
         """ **Syntax:** phase=[map|reduce]
 
         **Description:** Identifies the phase of the current map-reduce operation.
@@ -67,8 +67,8 @@ class ReportingCommand(SearchCommand):
         """
         return self._operational_phase
 
-    @operational_phase.setter
-    def operational_phase(self, value):
+    @phase.setter
+    def phase(self, value):
         if value == 'map':
             self._operational_phase = self.map
         elif value == 'reduce':

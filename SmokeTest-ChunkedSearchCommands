@@ -1,2 +1,5 @@
+splunk search '| generatehello count=1000' \
+    -app chunked_searchcommands -auth admin:changeme -maxout 0 -output csv
+
 splunk search '| inputlookup tweets | countmatches fieldname=word_count pattern="\\w+" text' \
-    -app chunked_searchcommands -auth admin:changeme -maxout 0
+    -app chunked_searchcommands -auth admin:changeme -maxout 0 -output csv

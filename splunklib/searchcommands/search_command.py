@@ -22,9 +22,8 @@ from splunklib.client import Service
 
 from collections import OrderedDict, namedtuple
 from cStringIO import StringIO
-from itertools import chain, ifilter, imap, izip
+from itertools import ifilter, imap, izip
 from logging import _levelNames, getLevelName
-from numbers import Number
 from os import environ
 from sys import argv, exit, stdin, stdout
 from urlparse import urlsplit
@@ -37,7 +36,7 @@ import json
 
 # Relative imports
 
-from .internals import configure_logging, CsvDialect, ObjectView
+from .internals import configure_logging, CsvDialect, ObjectView, RecordWriter
 from .decorators import Option
 from .validators import Boolean
 
@@ -82,14 +81,7 @@ class SearchCommand(object):
         # Internal variables
 
         self._default_logging_level = self.logger.level
-        self._inspector = OrderedDict()
-        self._message_count = None
-        self._output_buffer = StringIO()
-        self._output_file = None
-        self._output_fieldnames = None
-        self._output_record_count = None
-
-        return
+        self._record_writer = None
 
     def __str__(self):
         text = type(self).name + ' ' + str(self.options) + ' ' + ' '.join(self.fieldnames)
@@ -301,7 +293,7 @@ class SearchCommand(object):
         :return: :const:`None`
 
         """
-        self._write_records(finished=True)
+        self._record_writer.flush(finished=True)
 
     def flush(self):
         """ Flushes the output buffer.
@@ -309,7 +301,7 @@ class SearchCommand(object):
         :return: :const:`None`
 
         """
-        self._write_records(self._output_file, partial=True)
+        self._record_writer.flush(partial=True)
 
     def prepare(self):
         """ Prepare for execution.
@@ -344,9 +336,9 @@ class SearchCommand(object):
             assert metadata['action'] == 'getinfo'
             assert len(body) == 0
 
-            self._configuration = type(self).ConfigurationSettings(self)
             self._metadata = ObjectView(metadata)
-            self._message_count = 0L
+            self._configuration = type(self).ConfigurationSettings(self)
+            self._record_writer = RecordWriter(ofile, getattr(self._metadata, 'maxresultrows', 50000))
 
             self.fieldnames = []
             self.options.reset()
@@ -354,7 +346,7 @@ class SearchCommand(object):
             # TODO: Utilize searchinfo in SearchCommand.search_results_info (?)
 
             args = self.metadata.searchinfo.args
-            error_count = 0L
+            error_count = 0
 
             if args and type(args) == list:
                 for arg in args:
@@ -397,49 +389,47 @@ class SearchCommand(object):
 
             # TODO: Add metadata property that can be overridden by ReportingCommand to its metadata which depends on
             # the operational_phase option, whether its 'map' or 'reduce'.
-            # TODO: Rename operational_phase as phase
-            self._write_metadata(ofile)
-            pass
+            self._record_writer.write_metadata(self._configuration)
 
         except SystemExit:
-            self._write_metadata(ofile)
+            self._record_writer.write_metadata(self._configuration)
             raise
         except:
             self._report_unexpected_error()
-            self._write_metadata(ofile)
+            self._record_writer.write_metadata(self._configuration)
             exit(1)
 
         # noinspection PyBroadException
         try:
             self._execute(ifile, ofile, None)
         except SystemExit:
-            self._write_records(finished=True)
+            self._record_writer.flush(finished=True)
             raise
         except:
             self._report_unexpected_error()
-            self._write_records(finished=True)
+            self._record_writer.flush(finished=True)
             exit(1)
 
         return
 
     def write_debug(self, message, *args):
-        self._write_message('DEBUG', message, *args)
+        self._record_writer.write_message('DEBUG', message, *args)
         return
 
     def write_error(self, message, *args):
-        self._write_message('ERROR', message, *args)
+        self._record_writer.write_message('ERROR', message, *args)
         return
 
     def write_fatal(self, message, *args):
-        self._write_message('FATAL', message, *args)
+        self._record_writer.write_message('FATAL', message, *args)
         return
 
     def write_info(self, message, *args):
-        self._write_message('INFO', message, *args)
+        self._record_writer.write_message('INFO', message, *args)
         return
 
     def write_warning(self, message, *args):
-        self._write_message('WARN', message, *args)
+        self._record_writer.write_message('WARN', message, *args)
 
     def write_metric(self, name, value):
         """ Writes a metric that will be added to the search inspector.
@@ -460,7 +450,7 @@ class SearchCommand(object):
         :return: :const:`None`.
 
         """
-        self._inspector['metric.{0}'.format(name)] = value
+        self._record_writer.write_metric(name, value)
         return
 
     # TODO: Support custom inspector values
@@ -470,31 +460,6 @@ class SearchCommand(object):
         return [match.replace('$$', '$') for match in SearchCommand._encoded_value.findall(mv)]
 
     _encoded_value = re.compile(r'\$(?P<item>(?:\$\$|[^$])*)\$(?:;|$)')  # matches a single value in an encoded list
-
-    @staticmethod
-    def _encode_value(value):
-
-        def to_string(item):
-            if isinstance(item, (basestring, Number)):
-                return unicode(item)
-            return repr(item)
-
-        if not isinstance(value, (list, tuple)):
-            return to_string(value), None
-
-        if len(value) == 0:
-            return None, None
-
-        if len(value) == 1:
-            return to_string(value[0]), None
-
-        # TODO: Bug fix: If a list item contains newlines, value cannot be interpreted correctly
-        # Question: Must we return a value? Is it good enough to return (None, <encoded-list>)?
-        # See what other splunk commands do.
-
-        value = imap(lambda item: (item, item.replace('$', '$$')), imap(lambda item: to_string(item), value))
-
-        return '\n'.join(imap(lambda item: item[0], value)), '$' + '$;$'.join(imap(lambda item: item[1], value)) + '$'
 
     def _execute(self, ifile, ofile, process):
         """ Default processing loop
@@ -511,9 +476,6 @@ class SearchCommand(object):
         :return: `None`.
 
         """
-        maxresultrows = getattr(self.metadata, 'maxresultrows', 50000)
-        self._output_record_count = 0
-        self._output_file = ofile
         finished = None
 
         while not finished:
@@ -524,26 +486,15 @@ class SearchCommand(object):
 
             metadata, body = result
             assert metadata.get('action') == 'execute'
+
             input_buffer = StringIO(body)
             finished = metadata.get('finished', False)
             reader = csv.reader(input_buffer, dialect=CsvDialect)
-            writer = csv.writer(self._output_buffer, dialect=CsvDialect)
 
             for record in process(self._records(reader)):
-                if self._output_fieldnames is None:
-                    self._output_fieldnames = list(chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record)))
-                    writer.writerow(self._output_fieldnames)
-                values = list(chain.from_iterable(
-                    imap(lambda value: self._encode_value(value), imap(lambda key: record[key], record))))
-                writer.writerow(values)
-                self._output_record_count += 1
-                if self._output_record_count >= maxresultrows:
-                    self._write_records(partial=True)
-                pass
+                self._record_writer.write_record(record)
 
-            self._write_records(finished=finished)
-
-        self._write_records(finished=True)
+            self._record_writer.flush(finished)
 
     @staticmethod
     def _read_chunk(f):
@@ -638,58 +589,6 @@ class SearchCommand(object):
         lineno = origin.tb_lineno
 
         self.write_error('{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error_message))
-        return
-
-    @staticmethod
-    def _write_chunk(ofile, metadata, body):
-
-        if metadata:
-            metadata = OrderedDict(ifilter(lambda x: x[1] is not None, metadata.iteritems()))
-            metadata = json.dumps(metadata, separators=(',', ':'))
-        else:
-            metadata = ''
-
-        if not (metadata or body):
-            return
-
-        start_line = 'chunked 1.0,{0:d},{1:d}\n'.format(len(metadata), len(body))
-        ofile.write(start_line)
-        ofile.write(metadata)
-        ofile.write(body)
-        ofile.flush()
-
-        return
-
-    def _write_message(self, message_type, message_text, *args):
-        self._inspector.get('messages', []).append([message_type, message_text.format(args)])
-        self._message_count += 1
-
-    def _write_metadata(self, ofile):
-        metadata = OrderedDict(chain(
-            self.configuration.render(), (('inspector', self._inspector if len(self._inspector) else None),)))
-        self._write_chunk(ofile, metadata, '')
-        self._inspector.clear()
-        ofile.write('\n')
-
-    def _write_records(self, finished=None, partial=None):
-
-        if self._output_buffer.tell() == 0 and len(self._inspector) == 0 and finished is False:
-            return
-
-        metadata = {
-            'inspector': self._inspector if len(self._inspector) else None,
-            'finished': finished,
-            'partial': partial}
-
-        self._write_chunk(self._output_file, metadata, self._output_buffer.getvalue())
-        assert finished is not True  # Expectation: splunkd terminates the command process when finished is True
-
-        self._inspector.clear()
-        self._output_buffer.reset()
-        self._output_fieldnames = None
-        self._output_record_count = 0
-
-        return
 
     # endregion
 

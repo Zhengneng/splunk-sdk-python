@@ -1,6 +1,7 @@
 #!/usr/bin/env python
+# coding=utf-8
 #
-# Copyright 2011-2014 Splunk, Inc.
+# Copyright © 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -14,9 +15,11 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import __init__
+
+from splunklib.searchcommands import dispatch, GeneratingCommand, Configuration, Option, validators
 import sys
 import time
-from splunklib.searchcommands import dispatch, GeneratingCommand, Configuration, Option, validators
 
 
 @Configuration()
