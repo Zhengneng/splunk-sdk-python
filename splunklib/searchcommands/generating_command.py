@@ -72,14 +72,11 @@ class GeneratingCommand(SearchCommand):
         """
         raise NotImplementedError('GeneratingCommand.generate(self)')
 
-    def _execute(self, ifile, ofile, process):
+    def _execute(self, ifile, process):
         """ Execution loop
 
         :param ifile: Input file object. Unused.
         :type ifile: file
-
-        :param ofile: Output file object.
-        :type ofile: file
 
         :return: `None`.
 

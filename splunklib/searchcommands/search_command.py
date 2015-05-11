@@ -42,6 +42,10 @@ from .validators import Boolean
 
 SearchMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
 
+# TODO: Validate class-level settings provided by the @Configuration decorator
+# At present we have property setters that validate instance-level configuration, but we do not do any validation on
+# the class-level configuration settings that are provided by way of the @Configuration decorator
+
 
 class SearchCommand(object):
     """ Represents a custom search command.
@@ -401,7 +405,7 @@ class SearchCommand(object):
 
         # noinspection PyBroadException
         try:
-            self._execute(ifile, ofile, None)
+            self._execute(ifile, None)
         except SystemExit:
             self._record_writer.flush(finished=True)
             raise
@@ -461,14 +465,11 @@ class SearchCommand(object):
 
     _encoded_value = re.compile(r'\$(?P<item>(?:\$\$|[^$])*)\$(?:;|$)')  # matches a single value in an encoded list
 
-    def _execute(self, ifile, ofile, process):
+    def _execute(self, ifile, process):
         """ Default processing loop
 
         :param ifile: Input file object.
         :type ifile: file
-
-        :param ofile: Output file object.
-        :type ofile: file
 
         :param process: Bound method to call in processing loop.
         :type process: instancemethod

@@ -14,12 +14,13 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import sys
+import __init__
 
 from splunklib.searchcommands import dispatch, ReportingCommand, Configuration, Option, validators
+import sys
 
 
-@Configuration(clear_required_fields=True, requires_preop=True)
+@Configuration(requires_preop=True)
 class SumCommand(ReportingCommand):
     """ Computes the sum of a set of fields.
 

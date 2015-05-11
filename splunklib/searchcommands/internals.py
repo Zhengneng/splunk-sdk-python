@@ -178,7 +178,7 @@ class ConfigurationSettingsType(type):
 
 
 class CsvDialect(csv.Dialect):
-    """ Describes the properties of Splunk CSV streams. """
+    """ Describes the properties of Splunk CSV streams """
     delimiter = b','
     quotechar = b'"'
     doublequote = True
@@ -188,6 +188,7 @@ class CsvDialect(csv.Dialect):
 
 
 class _ObjectView(object):
+
     def __init__(self, dictionary):
         self.__dict__ = dictionary
 
@@ -199,8 +200,9 @@ class _ObjectView(object):
 
 
 class ObjectView(_ObjectView):
+
     def __init__(self, dictionary):
-        super(ObjectView, self).__init__(dictionary)
+        _ObjectView.__init__(self, dictionary)
         stack = deque()
         stack.append((None, None, dictionary))
         while len(stack):

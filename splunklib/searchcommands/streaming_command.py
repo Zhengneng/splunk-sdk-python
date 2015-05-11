@@ -52,8 +52,8 @@ class StreamingCommand(SearchCommand):
         """
         raise NotImplementedError('StreamingCommand.stream(self, records)')
 
-    def _execute(self, ifile, ofile, process):
-        super(StreamingCommand, self)._execute(ifile, ofile, self.stream)
+    def _execute(self, ifile, process):
+        SearchCommand._execute(self, ifile, self.stream)
 
     # endregion
 

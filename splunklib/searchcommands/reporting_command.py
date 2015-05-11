@@ -26,7 +26,7 @@ from cStringIO import StringIO
 
 import csv
 
-# TODO: Edit StreamingCommand class documentation
+# TODO: Edit ReportingCommand class documentation
 
 
 class ReportingCommand(SearchCommand):
@@ -51,8 +51,8 @@ class ReportingCommand(SearchCommand):
     # region Special methods
 
     def __init__(self, app_root=None):
-        super(ReportingCommand, self).__init__(app_root)
-        self._operational_phase = self.reduce
+        SearchCommand.__init__(self, app_root)
+        self._phase = self.reduce
 
     # endregion
 
@@ -65,17 +65,17 @@ class ReportingCommand(SearchCommand):
         **Description:** Identifies the phase of the current map-reduce operation.
 
         """
-        return self._operational_phase
+        return self._phase
 
     @phase.setter
     def phase(self, value):
         if value == 'map':
-            self._operational_phase = self.map
-        elif value == 'reduce':
-            self._operational_phase = self.reduce
-        else:
-            raise ValueError('Expected a value of "map" or "reduce", not {0}'.format(repr(value)))
-        return
+            self._phase = self.map
+            return
+        if value == 'reduce':
+            self._phase = self.reduce
+            return
+        raise ValueError('Expected a value of "map" or "reduce", not {0}'.format(repr(value)))
 
     # endregion
 
@@ -97,8 +97,8 @@ class ReportingCommand(SearchCommand):
         """
         raise NotImplementedError('reduce(self, records)')
 
-    def _execute(self, ifile, ofile, process):
-        super(ReportingCommand, self)._execute(ifile, ofile, self._operational_phase)
+    def _execute(self, ifile, process):
+        SearchCommand._execute(self, ifile, self._phase)
 
     # endregion
 

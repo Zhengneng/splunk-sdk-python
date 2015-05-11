@@ -43,8 +43,8 @@ class EventingCommand(SearchCommand):
         """
         raise NotImplementedError('EventingCommand.transform(self, records)')
 
-    def _execute(self, ifile, ofile, process):
-        super(EventingCommand, self)._execute(ifile, ofile, self.transform)
+    def _execute(self, ifile, process):
+        SearchCommand._execute(self, ifile, self.transform)
 
     # endregion
 
