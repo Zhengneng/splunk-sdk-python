@@ -386,8 +386,8 @@ class SearchCommand(object):
             if self.show_configuration:
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
-            # TODO: Add metadata property that can be overridden by ReportingCommand to its metadata which depends on
-            # the phase option, whether its value is 'map' or 'reduce'.
+            # TODO: Add metadata property that can be overridden by ReportingCommand to get its metadata which depends
+            # on the phase option, whether its value is 'map' or 'reduce'.
             self._record_writer.write_metadata(self._configuration)
 
         except SystemExit:
