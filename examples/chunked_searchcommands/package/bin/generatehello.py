@@ -16,7 +16,7 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-import __init__
+import app
 
 from splunklib.searchcommands import dispatch, GeneratingCommand, Configuration, Option, validators
 import sys
@@ -34,3 +34,4 @@ class GenerateHelloCommand(GeneratingCommand):
             yield {'_time': time.time(), 'event_no': i, '_raw': text } 
  
 dispatch(GenerateHelloCommand, sys.argv, sys.stdin, sys.stdout, __name__)
+app.terminate()

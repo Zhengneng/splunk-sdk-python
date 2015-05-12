@@ -15,7 +15,7 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-import __init__
+import app
 
 from splunklib.searchcommands import dispatch, EventingCommand, Configuration, Option, validators
 import sys
@@ -30,3 +30,4 @@ class EchoCommand(EventingCommand):
             yield record
 
 dispatch(EchoCommand, sys.argv, sys.stdin, sys.stdout, __name__)
+app.terminate

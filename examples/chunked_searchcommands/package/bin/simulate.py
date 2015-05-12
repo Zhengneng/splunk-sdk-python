@@ -15,7 +15,7 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-import __init__
+import app
 
 from splunklib.searchcommands import dispatch, GeneratingCommand, Configuration, Option, validators
 import random
@@ -107,3 +107,4 @@ class SimulateCommand(GeneratingCommand):
         self.records = None
 
 dispatch(SimulateCommand, sys.argv, sys.stdin, sys.stdout, __name__)
+app.terminate()

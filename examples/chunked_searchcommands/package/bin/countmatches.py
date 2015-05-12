@@ -16,7 +16,7 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-import __init__
+import app
 
 from splunklib.searchcommands import dispatch, StreamingCommand, Configuration, Option, validators
 import sys
@@ -70,3 +70,4 @@ class CountMatchesCommand(StreamingCommand):
             yield record
 
 dispatch(CountMatchesCommand, sys.argv, sys.stdin, sys.stdout, __name__)
+app.terminate()

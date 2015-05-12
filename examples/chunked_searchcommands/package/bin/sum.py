@@ -15,13 +15,13 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-import __init__
+import app
 
 from splunklib.searchcommands import dispatch, ReportingCommand, Configuration, Option, validators
 import sys
 
 
-@Configuration(requires_preop=True)
+@Configuration()
 class SumCommand(ReportingCommand):
     """ Computes the sum of a set of fields.
 
@@ -66,3 +66,4 @@ class SumCommand(ReportingCommand):
         yield {self.total: total}
 
 dispatch(SumCommand, sys.argv, sys.stdin, sys.stdout, __name__)
+app.terminate()

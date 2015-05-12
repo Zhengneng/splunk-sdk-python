@@ -20,7 +20,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from splunklib.client import Service
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from cStringIO import StringIO
 from itertools import ifilter, imap, izip
 from logging import _levelNames, getLevelName
@@ -386,8 +386,6 @@ class SearchCommand(object):
             if self.show_configuration:
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
-            # TODO: Add metadata property that can be overridden by ReportingCommand to get its metadata which depends
-            # on the phase option, whether its value is 'map' or 'reduce'.
             self._record_writer.write_metadata(self._configuration)
 
         except SystemExit:

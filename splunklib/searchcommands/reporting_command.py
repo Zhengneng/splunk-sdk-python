@@ -19,6 +19,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from .internals import ConfigurationSettingsType
 from .streaming_command import StreamingCommand
 from .search_command import SearchCommand
+from .decorators import Option
 
 # TODO: Edit ReportingCommand class documentation
 
@@ -50,6 +51,29 @@ class ReportingCommand(SearchCommand):
 
     # endregion
 
+    # region Options
+
+    @Option
+    def phase(self):
+        """ **Syntax:** phase=[map|reduce]
+
+        **Description:** Identifies the phase of the current map-reduce operation.
+
+        """
+        return self._phase
+
+    @phase.setter
+    def phase(self, value):
+        if value is None or value == 'reduce':
+            self._phase = self.reduce
+            return
+        if value == 'map':
+            self._phase = self.map
+            return
+        raise ValueError('Expected a value of "map" or "reduce", not {0}'.format(repr(value)))
+
+    # endregion
+
     # region Methods
 
     def map(self, records):
@@ -72,10 +96,7 @@ class ReportingCommand(SearchCommand):
         raise NotImplementedError('reduce(self, records)')
 
     def _execute(self, ifile, process):
-        streaming = getattr(self.metadata, 'streaming', None)
-        if streaming is None:
-            return
-        SearchCommand._execute(self, ifile, self.map if streaming else self.reduce)
+        SearchCommand._execute(self, ifile, self._phase)
 
     # endregion
 
@@ -122,7 +143,7 @@ class ReportingCommand(SearchCommand):
                 raise ValueError('Expected True, False, or None, not {0}.'.format(repr(value)))
             setattr(self, '_requires_preop', value)
 
-        _requires_preop = False
+        _requires_preop = None
 
         @property
         def run_in_preview(self):
@@ -150,7 +171,7 @@ class ReportingCommand(SearchCommand):
             Computed.
 
             """
-            return str(self.command)
+            return str(self.command) + ' phase=map'
 
         @property
         def type(self):
