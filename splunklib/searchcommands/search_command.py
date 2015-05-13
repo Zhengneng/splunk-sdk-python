@@ -332,10 +332,17 @@ class SearchCommand(object):
         # noinspection PyBroadException
         try:
             metadata, body = self._read_chunk(ifile)
-            assert metadata and metadata.get('action') == 'getinfo'
+            assert metadata['action'] == 'getinfo'
             assert len(body) == 0
-
             self._metadata = ObjectView(metadata)
+        except:
+            self._record_writer = RecordWriter(ofile, 50000)
+            self._report_unexpected_error()
+            self._record_writer.flush(finished=True)
+            exit(1)
+
+        # noinspection PyBroadException
+        try:
             self._configuration = type(self).ConfigurationSettings(self)
             self._record_writer = RecordWriter(ofile, getattr(self._metadata, 'maxresultrows', 50000))
 
@@ -488,45 +495,54 @@ class SearchCommand(object):
     @staticmethod
     def _read_chunk(f):
 
+        # TODO: Exit with an appropriate error, if header, metadata, or body are incorrectly formed.
+        # What's the right Exception type?
+
         # noinspection PyBroadException
         try:
             header = f.readline()
         except:
-            return None, None
+            return None
 
-        if not header or len(header) == 0:
-            return None, None
+        if not header:
+            return None
 
-        m = re.match('chunked\s+1.0\s*,\s*(?P<metadata_length>\d+)\s*,\s*(?P<body_length>\d+)\s*\n', header)
+        m = re.match(SearchCommand._header, header)
         if m is None:
-            print('Failed to parse transport header: {0}'.format(header), file=sys.stderr)
-            return None, None
+            raise RuntimeError('Failed to parse transport header: {0}'.format(header))
+
+        metadata_length, body_length = m.group('metadata_length'), m.group('body_length')
 
         # noinspection PyBroadException
         try:
-            metadata_length = int(m.group('metadata_length'))
-            body_length = int(m.group('body_length'))
+            metadata_length = int(metadata_length)
         except:
-            print('Failed to parse metadata or body length', file=sys.stderr)
-            return None, None
-
-        print('READING CHUNK {0} {1}'.format(metadata_length, body_length), file=sys.stderr)
+            raise RuntimeError('Failed to parse metadata length: {0}'.format(metadata_length))
 
         try:
-            metadata_buffer = f.read(metadata_length)
+            body_length = int(body_length)
+        except:
+            raise RuntimeError('Failed to parse body length: {0}'.format(body_length))
+
+        try:
+            metadata = f.read(metadata_length)
+        except Exception as error:
+            raise RuntimeError('Failed to read metadata: {0}'.format(error))
+
+        # noinspection PyBroadException
+        try:
+            metadata = json.loads(metadata)
+        except Exception as error:
+            raise RuntimeError('Failed to parse metadata of length {0}: {1}'.format(metadata_length, error))
+
+        try:
             body = f.read(body_length)
         except Exception as error:
-            print('Failed to read metadata or body: {0}'.format(error), file=sys.stderr)
-            return None, None
-
-        # noinspection PyBroadException
-        try:
-            metadata = json.loads(metadata_buffer)
-        except:
-            print('Failed to parse metadata JSON', file=sys.stderr)
-            return None, None
+            raise RuntimeError('Failed to read body of length {0}: {1}'.format(body_length, error))
 
         return metadata, body
+
+    _header = re.compile('chunked\s+1.0\s*,\s*(?P<metadata_length>\d+)\s*,\s*(?P<body_length>\d+)\s*\n')
 
     def _records(self, reader):
         record_count = 0L
