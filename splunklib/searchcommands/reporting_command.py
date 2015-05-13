@@ -70,7 +70,7 @@ class ReportingCommand(SearchCommand):
         if value == 'map':
             self._phase = self.map
             return
-        raise ValueError('Expected a value of "map" or "reduce", not {0}'.format(repr(value)))
+        raise ValueError('Expected a value of "map" or "reduce", or None, not {0}'.format(repr(value)))
 
     # endregion
 
@@ -96,7 +96,21 @@ class ReportingCommand(SearchCommand):
         raise NotImplementedError('reduce(self, records)')
 
     def _execute(self, ifile, process):
+        if self._phase == self.reduce:
+            import app
+            app.stoptrace()
         SearchCommand._execute(self, ifile, self._phase)
+
+    # TODO: Verify that the ChunkedExternProcessor complains about saying that the streaming_preop has type='reporting'
+    # Until the following method was implemented we returned type='reporting' for the streaming_preop and it was
+    # accepted.
+
+    def _new_configuration_settings(self):
+        if self._phase == self.map:
+            return self.map.ConfigurationSettings(self)
+        if self._phase == self.reduce:
+            return self.ConfigurationSettings(self)
+        raise RuntimeError('Unrecognized reporting command phase: {0}'.format(repr(self._phase)))
 
     # endregion
 
@@ -124,6 +138,8 @@ class ReportingCommand(SearchCommand):
             setattr(self, '_maxinputs', value)
 
         _maxinputs = None
+
+        # TODO: Implement requires_preop in splunkd's ChunkedExternProcessor
 
         @property
         def requires_preop(self):

@@ -328,6 +328,7 @@ class SearchCommand(object):
         :return: :const:`None`
 
         """
+        # Read search command metadata from splunkd
         # noinspection PyBroadException
         try:
             result = self._read_chunk(ifile)
@@ -351,11 +352,10 @@ class SearchCommand(object):
             self._record_writer.flush(finished=True)
             exit(1)
 
+        # Write search command configuration for consumption by splunkd
         # noinspection PyBroadException
         try:
-            self._configuration = type(self).ConfigurationSettings(self)
             self._record_writer = RecordWriter(ofile, getattr(self._metadata, 'maxresultrows', 50000))
-
             self.fieldnames = []
             self.options.reset()
 
@@ -395,12 +395,14 @@ class SearchCommand(object):
                     self.write_error('Values for these required options are missing: {0}'.format(', '.join(missing)))
                 error_count += 1
 
+            self._configuration = self._new_configuration_settings()  # included in the output even when error_count > 0
+
             if error_count > 0:
                 exit(1)
 
             self.prepare()
 
-            if self.show_configuration:
+            if self.show_configuration:  # only shown, if we successfully prepare for execution
                 self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
 
             self._record_writer.write_metadata(self._configuration)
@@ -413,6 +415,7 @@ class SearchCommand(object):
             self._record_writer.write_metadata(self._configuration)
             exit(1)
 
+        # Execute search command on data passing through the pipeline
         # noinspection PyBroadException
         try:
             self._execute(ifile, None)
@@ -501,6 +504,9 @@ class SearchCommand(object):
                 self._record_writer.write_record(record)
 
             self._record_writer.flush(finished)
+
+    def _new_configuration_settings(self):
+        return self.ConfigurationSettings(self)
 
     @staticmethod
     def _read_chunk(ifile):
