@@ -29,7 +29,6 @@ from sys import argv, exit, stdin, stdout
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
-import sys
 import re
 import csv
 import json
@@ -331,7 +330,12 @@ class SearchCommand(object):
         """
         # noinspection PyBroadException
         try:
-            metadata, body = self._read_chunk(ifile)
+            result = self._read_chunk(ifile)
+
+            if result is None:
+                raise RuntimeError('Expected getinfo action, not end-of-file')
+
+            metadata, body = result
             action = metadata.get('action')
 
             if action != 'getinfo':
@@ -499,41 +503,30 @@ class SearchCommand(object):
             self._record_writer.flush(finished)
 
     @staticmethod
-    def _read_chunk(f):
-
-        # TODO: Exit with an appropriate error, if header, metadata, or body are incorrectly formed.
-        # What's the right Exception type?
+    def _read_chunk(ifile):
 
         # noinspection PyBroadException
         try:
-            header = f.readline()
+            header = ifile.readline()
         except:
             return None
 
         if not header:
             return None
 
-        m = re.match(SearchCommand._header, header)
-        if m is None:
+        match = SearchCommand._header.match(header)
+
+        if match is None:
             raise RuntimeError('Failed to parse transport header: {0}'.format(header))
 
-        metadata_length, body_length = m.group('metadata_length'), m.group('body_length')
-
-        # noinspection PyBroadException
-        try:
-            metadata_length = int(metadata_length)
-        except:
-            raise RuntimeError('Failed to parse metadata length: {0}'.format(metadata_length))
+        metadata_length, body_length = match.groups()
+        metadata_length = long(metadata_length)
+        body_length = long(body_length)
 
         try:
-            body_length = int(body_length)
-        except:
-            raise RuntimeError('Failed to parse body length: {0}'.format(body_length))
-
-        try:
-            metadata = f.read(metadata_length)
+            metadata = ifile.read(metadata_length)
         except Exception as error:
-            raise RuntimeError('Failed to read metadata: {0}'.format(error))
+            raise RuntimeError('Failed to read metadata of length {0}: {0}'.format(metadata_length, error))
 
         # noinspection PyBroadException
         try:
@@ -542,13 +535,13 @@ class SearchCommand(object):
             raise RuntimeError('Failed to parse metadata of length {0}: {1}'.format(metadata_length, error))
 
         try:
-            body = f.read(body_length)
+            body = ifile.read(body_length)
         except Exception as error:
             raise RuntimeError('Failed to read body of length {0}: {1}'.format(body_length, error))
 
         return metadata, body
 
-    _header = re.compile('chunked\s+1.0\s*,\s*(?P<metadata_length>\d+)\s*,\s*(?P<body_length>\d+)\s*\n')
+    _header = re.compile(r'chunked\s+1.0\s*,\s*(\d+)\s*,\s*(\d+)\s*\n')
 
     def _records(self, reader):
         record_count = 0L
