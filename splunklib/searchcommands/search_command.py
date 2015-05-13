@@ -332,7 +332,7 @@ class SearchCommand(object):
         # noinspection PyBroadException
         try:
             metadata, body = self._read_chunk(ifile)
-            assert metadata['action'] == 'getinfo'
+            assert metadata and metadata.get('action') == 'getinfo'
             assert len(body) == 0
 
             self._metadata = ObjectView(metadata)
@@ -492,15 +492,15 @@ class SearchCommand(object):
         try:
             header = f.readline()
         except:
-            return None
+            return None, None
 
         if not header or len(header) == 0:
-            return None
+            return None, None
 
         m = re.match('chunked\s+1.0\s*,\s*(?P<metadata_length>\d+)\s*,\s*(?P<body_length>\d+)\s*\n', header)
         if m is None:
             print('Failed to parse transport header: {0}'.format(header), file=sys.stderr)
-            return None
+            return None, None
 
         # noinspection PyBroadException
         try:
@@ -508,7 +508,7 @@ class SearchCommand(object):
             body_length = int(m.group('body_length'))
         except:
             print('Failed to parse metadata or body length', file=sys.stderr)
-            return None
+            return None, None
 
         print('READING CHUNK {0} {1}'.format(metadata_length, body_length), file=sys.stderr)
 
@@ -517,14 +517,14 @@ class SearchCommand(object):
             body = f.read(body_length)
         except Exception as error:
             print('Failed to read metadata or body: {0}'.format(error), file=sys.stderr)
-            return None
+            return None, None
 
         # noinspection PyBroadException
         try:
             metadata = json.loads(metadata_buffer)
         except:
             print('Failed to parse metadata JSON', file=sys.stderr)
-            return None
+            return None, None
 
         return metadata, body
 
