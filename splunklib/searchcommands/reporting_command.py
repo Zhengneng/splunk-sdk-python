@@ -97,8 +97,12 @@ class ReportingCommand(SearchCommand):
 
     def _execute(self, ifile, process):
         if self._phase == self.reduce:
-            import app
-            app.stoptrace()
+            try:
+                # noinspection PyUnresolvedReferences
+                import app
+                app.stoptrace()
+            except ImportError:
+                pass
         SearchCommand._execute(self, ifile, self._phase)
 
     # TODO: Verify that the ChunkedExternProcessor complains about saying that the streaming_preop has type='reporting'
@@ -107,6 +111,7 @@ class ReportingCommand(SearchCommand):
 
     def _new_configuration_settings(self):
         if self._phase == self.map:
+            # noinspection PyUnresolvedReferences
             return self.map.ConfigurationSettings(self)
         if self._phase == self.reduce:
             return self.ConfigurationSettings(self)

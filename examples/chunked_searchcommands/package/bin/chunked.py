@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-import __init__
-
+import app
 import time
 
 start_clock = time.clock()
