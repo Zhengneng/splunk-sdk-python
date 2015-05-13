@@ -332,8 +332,14 @@ class SearchCommand(object):
         # noinspection PyBroadException
         try:
             metadata, body = self._read_chunk(ifile)
-            assert metadata['action'] == 'getinfo'
-            assert len(body) == 0
+            action = metadata.get('action')
+
+            if action != 'getinfo':
+                raise RuntimeError('Expected getinfo action, not {0}'.format(action))
+
+            if body:
+                raise RuntimeError('Did not expect data for getinfo action')
+
             self._metadata = ObjectView(metadata)
         except:
             self._record_writer = RecordWriter(ofile, 50000)
