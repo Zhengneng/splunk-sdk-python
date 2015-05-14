@@ -99,7 +99,7 @@ class BuildCommand(Command):
 
     def finalize_options(self):
 
-        self.package_name = '-'.join((self.package_name, unicode(self.build_number) + '.tgz'))
+        self.package_name = self.package_name + '-' + unicode(self.build_number)
         self.build_base = os.path.join(project_dir, 'build')
         self.build_dir = os.path.join(self.build_base, self.distribution.metadata.name)
         self.build_lib = self.build_dir
@@ -109,7 +109,7 @@ class BuildCommand(Command):
     def run(self):
 
         if self.debug_client is not None:
-            shutil.copy(self.debug_client, self.distribution.package_dir[b'bin'])
+            shutil.copy(self.debug_client, os.path.join(self.distribution.package_dir[b'bin'], '_pydebug.egg'))
 
         if self.force and os.path.isdir(self.build_dir):
             shutil.rmtree(self.build_dir)
@@ -152,9 +152,9 @@ class BuildCommand(Command):
     def _make_archive(self):
         import tarfile
 
-        basename, extension = os.path.splitext(self.package_name)
-        archive_name = basename + '.tar'
-        current_dir = os.getcwd()
+        build_dir = os.path.basename(self.build_dir)
+        archive_name = self.package_name + '.tar'
+        current_dir = os.getcwdu()
         os.chdir(self.build_base)
 
         try:
@@ -163,10 +163,10 @@ class BuildCommand(Command):
             # 12 Sep 2014.
             tar = tarfile.open(str(archive_name), b'w|gz')
             try:
-                tar.add(str(self.build_dir))
+                tar.add(str(build_dir))
             finally:
                 tar.close()
-            os.rename(archive_name, self.package_name)
+            os.rename(archive_name, archive_name + '.gz')
         finally:
             os.chdir(current_dir)
 
