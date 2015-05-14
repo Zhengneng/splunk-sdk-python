@@ -235,7 +235,6 @@ class RecordWriter(object):
             'partial': partial}
 
         self._write_chunk(self._ofile, metadata, self._buffer.getvalue())
-        assert finished is not True  # splunkd should terminate command
         self._clear()
 
     def write_message(self, message_type, message_text, *args, **kwargs):
@@ -253,7 +252,7 @@ class RecordWriter(object):
 
     def write_record(self, record):
         if self._fieldnames is None:
-            self._fieldnames = list(chain.from_iterable(imap(lambda key: (key, '__mv_' + key), record)))
+            self._fieldnames = list(chain.from_iterable(imap(lambda k: (k, '__mv_' + k), record)))
             self._writer.writerow(self._fieldnames)
         values = list(chain.from_iterable(imap(lambda v: self._encode_value(v), imap(lambda k: record[k], record))))
         self._writer.writerow(values)

@@ -504,6 +504,7 @@ class SearchCommand(object):
                 self._record_writer.write_record(record)
 
             self._record_writer.flush(finished)
+            assert finished is not True  # splunkd should terminate the command as soon as the flush occurs
 
     def _new_configuration_settings(self):
         return self.ConfigurationSettings(self)
