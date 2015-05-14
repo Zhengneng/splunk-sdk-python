@@ -13,21 +13,23 @@ debugging packages, which must be unzipped and copied to packages/pydebug.
 from __future__ import absolute_import, division, print_function, unicode_literals
 from collections import OrderedDict
 from os import path
-from sys import exit, path as sys_path, stderr
+from signal import signal, SIGTERM
+from sys import path as sys_path, stderr
 
 import platform
+import atexit
 
 remote_debugging = None
 settrace = lambda: NotImplemented
 stoptrace = lambda: NotImplemented
-terminate = exit
 
 
 def initialize():
 
     module_dir = path.dirname(path.realpath(__file__))
+    system = platform.system()
 
-    for packages in path.join(module_dir, 'packages'), path.join(path.join(module_dir, 'packages', platform.system())):
+    for packages in path.join(module_dir, 'packages'), path.join(path.join(module_dir, 'packages', system)):
         if not path.isdir(packages):
             break
         sys_path.insert(0, path.join(packages))
@@ -81,10 +83,6 @@ def initialize():
             print('Connected to Python debug server at {0}:{1}'.format(host, port), file=stderr)
             stderr.flush()
 
-    def _terminate(status=None):
-        pydevd.stoptrace()
-        exit(status)
-
     global remote_debugging
     remote_debugging = _remote_debugging
 
@@ -94,11 +92,21 @@ def initialize():
     global stoptrace
     stoptrace = pydevd.stoptrace
 
-    global terminate
-    terminate = _terminate
-
     if _remote_debugging['is_enabled']:
         settrace()
+
+    if system == 'Windows':
+        pass
+        # try:
+        #     import win32api
+        #     win32api.SetConsoleCtrlHandler(func, True)
+        # except ImportError:
+        #     version = “.”.join(map(str, sys.version_info[:2]))
+        #     raise Exception(”pywin32 not installed for Python ” + version)
+    else:
+        signal(SIGTERM, pydevd.stoptrace)
+
+    atexit.register(pydevd.stoptrace)
 
 
 initialize()

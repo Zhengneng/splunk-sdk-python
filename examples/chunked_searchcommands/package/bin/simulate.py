@@ -107,4 +107,3 @@ class SimulateCommand(GeneratingCommand):
         self.records = None
 
 dispatch(SimulateCommand, sys.argv, sys.stdin, sys.stdout, __name__)
-app.terminate()

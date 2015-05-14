@@ -70,4 +70,3 @@ class CountMatchesCommand(StreamingCommand):
             yield record
 
 dispatch(CountMatchesCommand, sys.argv, sys.stdin, sys.stdout, __name__)
-app.terminate()

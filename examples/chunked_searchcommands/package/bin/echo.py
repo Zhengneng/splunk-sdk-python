@@ -30,4 +30,4 @@ class EchoCommand(EventingCommand):
             yield record
 
 dispatch(EchoCommand, sys.argv, sys.stdin, sys.stdout, __name__)
-app.terminate
+

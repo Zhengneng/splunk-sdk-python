@@ -66,4 +66,4 @@ class SumCommand(ReportingCommand):
         yield {self.total: total}
 
 dispatch(SumCommand, sys.argv, sys.stdin, sys.stdout, __name__)
-app.terminate()
+

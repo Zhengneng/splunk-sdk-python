@@ -34,4 +34,3 @@ class GenerateHelloCommand(GeneratingCommand):
             yield {'_time': time.time(), 'event_no': i, '_raw': text } 
  
 dispatch(GenerateHelloCommand, sys.argv, sys.stdin, sys.stdout, __name__)
-app.terminate()
