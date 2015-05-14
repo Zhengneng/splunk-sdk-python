@@ -646,7 +646,6 @@ class SearchCommand(object):
             """
             if not hasattr(cls, '_settings'):
                 # TODO: Do we really need an OrderedDict? Can't we use a list instead?
-                # TODO: cls._settings validation on backing fields
                 def map_attribute(name):
                     attr = getattr(cls, name)
                     if isinstance(attr, property):
