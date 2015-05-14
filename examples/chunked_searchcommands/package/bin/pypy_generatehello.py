@@ -14,4 +14,4 @@ print('PYPY: argv = ' + unicode(argv), file=sys.stderr)
 try:
     os.execvp('pypy', argv)
 except Exception as error:
-    print('PYPY 6: ' + unicode(error))
+    print('PYPY: ' + unicode(error))
