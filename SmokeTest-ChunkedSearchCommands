@@ -1,6 +1,9 @@
 splunk search '| generatehello count=1000 | outputcsv hello' \
     -app chunked_searchcommands -auth admin:changeme -maxout 0 -output csv
 
+splunk search '| pypygeneratehello count=1000 | outputcsv pypyhello' \
+    -app chunked_searchcommands -auth admin:changeme -maxout 0 -output csv
+
 splunk search '| inputcsv hello | echo' \
     -app chunked_searchcommands -auth admin:changeme -maxout 0 -output csv
 

@@ -16,11 +16,6 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 from .search_command import SearchCommand
-from .internals import CsvDialect
-from cStringIO import StringIO
-from itertools import chain, ifilterfalse, imap
-
-import csv
 
 
 # TODO: Edit EventingCommand class documentation
