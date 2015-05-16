@@ -21,7 +21,7 @@ import atexit
 
 remote_debugging = None
 settrace = lambda: NotImplemented
-stoptrace = lambda: NotImplemented
+stoptrace = settrace
 
 
 def initialize():

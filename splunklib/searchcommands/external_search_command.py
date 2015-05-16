@@ -69,8 +69,7 @@ class ExternalSearchCommand(object):
 
     # region Methods
 
-    def execute(self, path=None, argv=None, environ=None, app_root=None):
-
+    def execute(self, path=None, argv=None, environ=None):
         try:
             if path is not None:
                 self.path = path
@@ -78,8 +77,80 @@ class ExternalSearchCommand(object):
                 self.argv = argv
             if environ is not None:
                 self.environ = environ
-            os.execvpe(self._path, self._argv, self._environ)
+            self._execute(self._path, self._argv, self._environ)
         except Exception as error:
             print('{} execution error: {}'.format(self.__class__.__name__, error), file=sys.stderr)
+
+    if sys.platform == 'win32':
+        @staticmethod
+        def _execute(path, argv, environ):
+            """
+            :param path: Path to executable file.
+            :type path: basestring
+            :param argv: Argument list
+            :type argv: list or tuple
+            :param environ:
+            :type environ: dict
+            :return: None
+            """
+            from signal import signal, SIGINT, SIGTERM
+            from subprocess import Popen, PIPE
+            import atexit
+
+            def terminate():
+                process.kill()
+
+            path = ExternalSearchCommand._search_path(path, environ)
+            process = Popen(argv, executable=path, env=environ, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
+
+            atexit.register(terminate)
+            signal(SIGINT, terminate)
+            signal(SIGTERM, terminate)
+
+            process.wait()
+
+        @staticmethod
+        def _search_path(executable, environ):
+
+            directory, filename = os.path.split(executable)
+            extension = os.path.splitext(filename)[1].upper()
+            executable_extensions = ExternalSearchCommand._executable_extensions
+
+            if directory:
+                if len(extension) and extension in executable_extensions:
+                    return executable
+                for extension in executable_extensions:
+                    path = executable + extension
+                    if os.path.isfile(path):
+                        return path
+                return executable
+
+            directories = environ.get('Path', '')
+            if len(directories) == 0:
+                return executable
+
+            directories = [directory for directory in directories.split(';') if len(directory)]
+            if len(directories) == 0:
+                return executable
+
+            if len(extension) and extension in executable_extensions:
+                for directory in directories:
+                    path = os.path.join(directory, executable)
+                    if os.path.isfile(path):
+                        return path
+                return executable
+
+            for directory in directories:
+                path_without_extension = os.path.join(directory, executable)
+                for extension in executable_extensions:
+                    path = path_without_extension + extension
+                    if os.path.isfile(path):
+                        return path
+
+            return executable
+
+        _executable_extensions = ('.COM', '.EXE')
+    else:
+        _execute = os.execvpe
 
     # endregion

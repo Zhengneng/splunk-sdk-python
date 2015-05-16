@@ -166,7 +166,10 @@ class BuildCommand(Command):
                 tar.add(str(build_dir))
             finally:
                 tar.close()
-            os.rename(archive_name, archive_name + '.gz')
+            gzipped_archive_name = archive_name + '.gz'
+            if os.path.exists(gzipped_archive_name):
+                os.remove(gzipped_archive_name)
+            os.rename(archive_name, gzipped_archive_name)
         finally:
             os.chdir(current_dir)
 
