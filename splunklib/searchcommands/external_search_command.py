@@ -64,7 +64,7 @@ class ExternalSearchCommand(object):
     def path(self, value):
         if not isinstance(value, basestring):
             raise ValueError('Expected a string value for path, not {}', repr(value))
-        self._path = value
+        self._path = unicode(value)
 
     # endregion
 
@@ -86,8 +86,8 @@ class ExternalSearchCommand(object):
 
         def _execute(self, path, argv, environ):
             """
-            :param path: Path to executable file.
-            :type path: basestring
+            :param path: Path to executable program.
+            :type path: unicode
             :param argv: Argument list
             :type argv: list or tuple
             :param environ:
@@ -98,8 +98,8 @@ class ExternalSearchCommand(object):
             from subprocess import Popen
             import atexit
 
-            class_name = self.__class__.__name__
-            path = ExternalSearchCommand._search_path(path, environ)
+            class_name = unicode(self.__class__.__name__)
+            path = ExternalSearchCommand._search_path(path, environ.get('Path'))
             process = Popen(argv, executable=path, env=environ, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
 
             atexit.register(lambda: process.kill if process.returncode else None)
@@ -111,8 +111,19 @@ class ExternalSearchCommand(object):
             sys.exit(process.returncode)
 
         @staticmethod
-        def _search_path(executable, environ):
+        def _search_path(executable, paths):
+            """ Locates an executable program file on a path.
 
+            :param executable: The name of the executable program to be found.
+            :type executable: unicode
+
+            :param paths: A list of one or more directory paths where executable programs are located.
+            :type paths: unicode
+
+            :return:
+            :rtype: Path to the executable program found or :const:`None`.
+
+            """
             directory, filename = os.path.split(executable)
             extension = os.path.splitext(filename)[1].upper()
             executable_extensions = ExternalSearchCommand._executable_extensions
@@ -124,22 +135,22 @@ class ExternalSearchCommand(object):
                     path = executable + extension
                     if os.path.isfile(path):
                         return path
-                return executable
+                return None
 
-            directories = environ.get('Path', '')
-            if len(directories) == 0:
-                return executable
+            if not paths:
+                return None
 
-            directories = [directory for directory in directories.split(';') if len(directory)]
+            directories = [directory for directory in paths.split(';') if len(directory)]
+
             if len(directories) == 0:
-                return executable
+                return None
 
             if len(extension) and extension in executable_extensions:
                 for directory in directories:
                     path = os.path.join(directory, executable)
                     if os.path.isfile(path):
                         return path
-                return executable
+                return None
 
             for directory in directories:
                 path_without_extension = os.path.join(directory, executable)
@@ -148,7 +159,7 @@ class ExternalSearchCommand(object):
                     if os.path.isfile(path):
                         return path
 
-            return executable
+            return None
 
         _executable_extensions = ('.COM', '.EXE')
     else:
