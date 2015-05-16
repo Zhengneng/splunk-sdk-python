@@ -23,15 +23,16 @@ app_root = os.path.dirname(os.path.abspath(os.path.dirname(__main__.__file__)))
 
 
 def execute(path, argv=None, environ=None):
-    ExternalSearchCommand().execute(path, argv, environ)
+    ExternalSearchCommand(path, argv, environ).execute()
 
 
 class ExternalSearchCommand(object):
     
-    def __init__(self):
-        self._path = None
-        self._argv = None
-        self._environ = os.environ
+    def __init__(self, path, argv=None, environ=None):
+        self._path = self._argv = self._environ = None
+        self.path = None if argv is None else path
+        self.argv = os.path.splitext(os.path.split(path)[1])[0] if argv is None else argv
+        self.environ = os.environ if environ is None else environ
 
     # region Properties
 
@@ -42,7 +43,7 @@ class ExternalSearchCommand(object):
     @argv.setter
     def argv(self, value):
         if not (value is None or isinstance(value, (list, tuple))):
-            raise ValueError('Expected a list, tuple or value of None for environ, not {}', repr(value))
+            raise ValueError('Expected a list, tuple or value of None for argv, not {}', repr(value))
         self._argv = value
 
     @property
@@ -82,8 +83,8 @@ class ExternalSearchCommand(object):
             print('{} execution error: {}'.format(self.__class__.__name__, error), file=sys.stderr)
 
     if sys.platform == 'win32':
-        @staticmethod
-        def _execute(path, argv, environ):
+
+        def _execute(self, path, argv, environ):
             """
             :param path: Path to executable file.
             :type path: basestring
@@ -93,21 +94,21 @@ class ExternalSearchCommand(object):
             :type environ: dict
             :return: None
             """
-            from signal import signal, SIGINT, SIGTERM
-            from subprocess import Popen, PIPE
+            from signal import signal, SIGABRT, SIGINT, SIGTERM
+            from subprocess import Popen
             import atexit
 
-            def terminate():
-                process.kill()
-
+            class_name = self.__class__.__name__
             path = ExternalSearchCommand._search_path(path, environ)
             process = Popen(argv, executable=path, env=environ, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
 
-            atexit.register(terminate)
-            signal(SIGINT, terminate)
-            signal(SIGTERM, terminate)
+            atexit.register(lambda: process.kill if process.returncode else None)
+            signal(SIGABRT, lambda: sys.exit(class_name + ' aborted.'))
+            signal(SIGINT, lambda: sys.exit(class_name + ' interrupted.'))
+            signal(SIGTERM, lambda: sys.exit(class_name + ' terminated.'))
 
             process.wait()
+            sys.exit(process.returncode)
 
         @staticmethod
         def _search_path(executable, environ):
