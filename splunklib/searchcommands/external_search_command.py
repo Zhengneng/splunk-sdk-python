@@ -21,18 +21,20 @@ import sys
 
 app_root = os.path.dirname(os.path.abspath(os.path.dirname(__main__.__file__)))
 
-
 def execute(path, argv=None, environ=None):
     ExternalSearchCommand(path, argv, environ).execute()
 
 
 class ExternalSearchCommand(object):
     
-    def __init__(self, path, argv=None, environ=None):
+    def __init__(self, path=None, argv=None, environ=None):
         self._path = self._argv = self._environ = None
-        self.path = None if argv is None else path
-        self.argv = os.path.splitext(os.path.split(path)[1])[0] if argv is None else argv
-        self.environ = os.environ if environ is None else environ
+        if path is not None:
+            self.path = path
+        if argv is not None:
+            self.argv = argv
+        if environ is not None:
+            self.environ = environ
 
     # region Properties
 
@@ -74,21 +76,35 @@ class ExternalSearchCommand(object):
         try:
             if path is not None:
                 self.path = path
+
             if argv is not None:
                 self.argv = argv
+
             if environ is not None:
                 self.environ = environ
+
+            if self._path is None:
+                raise ValueError('A value for path must be provided.')
+
+            if self._argv is None:
+                self._argv = os.path.splitext(os.path.basename(self._path))[0]
+
+            if self._environ is None:
+                self._environ = os.environ
+
             self._execute(self._path, self._argv, self._environ)
+
         except Exception as error:
             print('{} execution error: {}'.format(self.__class__.__name__, error), file=sys.stderr)
 
     if sys.platform == 'win32':
 
-        def _execute(self, path, argv, environ):
-            """
-            :param path: Path to executable program.
+        @staticmethod
+        def _execute(path, argv=None, environ=None):
+            """ Executes an external search command.
+            :param path: Path to the external search command.
             :type path: unicode
-            :param argv: Argument list
+            :param argv: Argument list.
             :type argv: list or tuple
             :param environ:
             :type environ: dict
@@ -98,30 +114,29 @@ class ExternalSearchCommand(object):
             from subprocess import Popen
             import atexit
 
-            class_name = unicode(self.__class__.__name__)
             path = ExternalSearchCommand._search_path(path, environ.get('Path'))
             process = Popen(argv, executable=path, env=environ, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
 
             atexit.register(lambda: process.kill if process.returncode else None)
-            signal(SIGABRT, lambda: sys.exit(class_name + ' aborted.'))
-            signal(SIGINT, lambda: sys.exit(class_name + ' interrupted.'))
-            signal(SIGTERM, lambda: sys.exit(class_name + ' terminated.'))
+            signal(SIGABRT, lambda signal_number, frame: sys.exit('External search command aborted.'))
+            signal(SIGINT, lambda signal_number, frame: sys.exit('External search command interrupted.'))
+            signal(SIGTERM, lambda signal_number, frame: sys.exit('External search command terminated.'))
 
             process.wait()
             sys.exit(process.returncode)
 
         @staticmethod
         def _search_path(executable, paths):
-            """ Locates an executable program file on a path.
+            """ Locates an executable program file.
 
-            :param executable: The name of the executable program to be found.
+            :param executable: The name of the executable program to locate.
             :type executable: unicode
 
             :param paths: A list of one or more directory paths where executable programs are located.
             :type paths: unicode
 
             :return:
-            :rtype: Path to the executable program found or :const:`None`.
+            :rtype: Path to the executable program located or :const:`None`.
 
             """
             directory, filename = os.path.split(executable)
@@ -130,7 +145,7 @@ class ExternalSearchCommand(object):
 
             if directory:
                 if len(extension) and extension in executable_extensions:
-                    return executable
+                    return None
                 for extension in executable_extensions:
                     path = executable + extension
                     if os.path.isfile(path):
@@ -166,3 +181,4 @@ class ExternalSearchCommand(object):
         _execute = os.execvpe
 
     # endregion
+
