@@ -1,6 +1,18 @@
 # coding=utf-8
 #
-# Copyright © Splunk, Inc. All Rights Reserved
+# Copyright © 2011-2015 Splunk, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"): you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
 
 """ Sets the packages path and optionally starts the Python remote debugging client.
 
@@ -13,11 +25,9 @@ debugging packages, which must be unzipped and copied to packages/pydebug.
 from __future__ import absolute_import, division, print_function, unicode_literals
 from collections import OrderedDict
 from os import path
-from signal import signal, SIGTERM
 from sys import path as sys_path, stderr
 
 import platform
-import atexit
 
 remote_debugging = None
 settrace = lambda: NotImplemented
@@ -92,21 +102,6 @@ def initialize():
     global stoptrace
     stoptrace = pydevd.stoptrace
 
-    if _remote_debugging['is_enabled']:
-        settrace()
-
-    if system == 'Windows':
-        pass
-        # try:
-        #     import win32api
-        #     win32api.SetConsoleCtrlHandler(func, True)
-        # except ImportError:
-        #     version = “.”.join(map(str, sys.version_info[:2]))
-        #     raise Exception(”pywin32 not installed for Python ” + version)
-    else:
-        signal(SIGTERM, pydevd.stoptrace)
-
-    atexit.register(pydevd.stoptrace)
-
+    if _remote_debugging['is_enabled']: settrace()
 
 initialize()

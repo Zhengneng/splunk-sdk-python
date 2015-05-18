@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # coding=utf-8
 #
 # Copyright 2011-2015 Splunk, Inc.
@@ -17,6 +18,9 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import app
 import os
+import sys
+
+print('pypygeneratehello command started', file=sys.stderr)
 
 from splunklib.searchcommands.external_search_command import app_root, execute
 os.environ.pop('DYLD_LIBRARY_PATH', None)

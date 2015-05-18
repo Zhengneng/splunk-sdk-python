@@ -26,6 +26,8 @@ def execute(path, argv=None, environ=None):
 
 
 class ExternalSearchCommand(object):
+    """
+    """
     
     def __init__(self, path=None, argv=None, environ=None):
         self._path = self._argv = self._environ = None
@@ -72,28 +74,23 @@ class ExternalSearchCommand(object):
 
     # region Methods
 
-    def execute(self, path=None, argv=None, environ=None):
+    def execute(self):
         try:
-            if path is not None:
-                self.path = path
-
-            if argv is not None:
-                self.argv = argv
-
-            if environ is not None:
-                self.environ = environ
-
             if self._path is None:
-                raise ValueError('A value for path must be provided.')
+                raise ValueError('A value for {}.path is required.'.format(self.__class__.__name__))
+
+            search_path = os.getenv('Path') if self._environ is None else self._environ.get('Path')
+            executable = ExternalSearchCommand._search_path(self._path, search_path)
+
+            if executable is None:
+                raise ValueError('Cannot find command "{}" on path.'.format(self._path))
+
+            self._path = executable
 
             if self._argv is None:
                 self._argv = os.path.splitext(os.path.basename(self._path))[0]
 
-            if self._environ is None:
-                self._environ = os.environ
-
             self._execute(self._path, self._argv, self._environ)
-
         except Exception as error:
             print('{} execution error: {}'.format(self.__class__.__name__, error), file=sys.stderr)
 
@@ -102,27 +99,37 @@ class ExternalSearchCommand(object):
         @staticmethod
         def _execute(path, argv=None, environ=None):
             """ Executes an external search command.
+
             :param path: Path to the external search command.
             :type path: unicode
+
             :param argv: Argument list.
             :type argv: list or tuple
-            :param environ:
-            :type environ: dict
+            The arguments to the child process should start with the name of the command being run, but this is not
+            enforced. A value of :const:`None` specifies that the base name of path name :param:`path` should be used.
+
+            :param environ: A mapping which is used to define the environment variables for the new process.
+            :type environ: dict or None.
+            This mapping is used instead of the current process’s environment. A value of :const:`None` specifies that
+            the :data:`os.environ` mapping should be used.
+
             :return: None
+
             """
-            from signal import signal, SIGABRT, SIGINT, SIGTERM
+            from signal import signal, SIGBREAK, SIGINT, SIGTERM
             from subprocess import Popen
             import atexit
 
-            path = ExternalSearchCommand._search_path(path, environ.get('Path'))
+            def terminated(signal_number, frame):
+                sys.exit('External search command terminated on receipt of signal={}.'.format(signal_number))
+
             process = Popen(argv, executable=path, env=environ, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
-
             atexit.register(lambda: process.kill if process.returncode else None)
-            signal(SIGABRT, lambda signal_number, frame: sys.exit('External search command aborted.'))
-            signal(SIGINT, lambda signal_number, frame: sys.exit('External search command interrupted.'))
-            signal(SIGTERM, lambda signal_number, frame: sys.exit('External search command terminated.'))
-
+            signal(SIGBREAK, terminated)
+            signal(SIGINT, terminated)
+            signal(SIGTERM, terminated)
             process.wait()
+
             sys.exit(process.returncode)
 
         @staticmethod

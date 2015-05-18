@@ -25,3 +25,4 @@ examples/chunked-searchcommands/chunked_searchcommands-*.tgz
 _pydebug.egg
 tests/searchcommands/data/log
 tests/searchcommands/data/output
+examples/chunked_searchcommands/package/bin/packages/
