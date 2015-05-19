@@ -17,11 +17,12 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 import app
-import os
-import sys
 
-print('pypygeneratehello command started', file=sys.stderr)
-
-os.environ.pop('DYLD_LIBRARY_PATH', None)  # only relevant on *nix; harmless elsewhere
 from splunklib.searchcommands import app_root, execute
-execute('pypy', ('pypy', os.path.join(app_root, 'bin', 'generatehello.py')))
+from os import environ, path
+
+pypy_environ = dict(environ)
+pypy_environ.pop('PYTHONPATH', None)
+pypy_environ.pop('DYLD_LIBRARY_PATH', None)
+
+execute('pypy', ('pypy', path.join(app_root, 'bin', 'generatehello.py')), pypy_environ)

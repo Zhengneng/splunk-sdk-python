@@ -16,13 +16,15 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
+
+import sys
+
+print('generatehello command started with sys.path={}'.format(sys.path), file=sys.stderr)
+
 import app
 
 from splunklib.searchcommands import dispatch, GeneratingCommand, Configuration, Option, validators
-import sys
 import time
-
-print('generatehello command started', file=sys.stderr)
 
 @Configuration()
 class GenerateHelloCommand(GeneratingCommand):
@@ -32,6 +34,6 @@ class GenerateHelloCommand(GeneratingCommand):
     def generate(self):
         for i in range(1, self.count + 1):
             text = 'Hello World %d' % i
-            yield {'_time': time.time(), 'event_no': i, '_raw': text } 
+            yield {'_time': time.time(), 'event_no': i, '_raw': text}
  
 dispatch(GenerateHelloCommand, sys.argv, sys.stdin, sys.stdout, __name__)

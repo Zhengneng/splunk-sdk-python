@@ -78,7 +78,7 @@ class ExternalSearchCommand(object):
 
     def execute(self):
         try:
-            search_path = os.getenv('Path') if self._environ is None else self._environ.get('Path')
+            search_path = os.getenv('PATH') if self._environ is None else self._environ.get('PATH')
             path = ExternalSearchCommand._search_path(self._path, search_path)
 
             if path is None:
@@ -114,14 +114,14 @@ class ExternalSearchCommand(object):
             :return: None
 
             """
-            splunklib_logger.debug('starting command=%s, arguments=%s', path, argv)
+            splunklib_logger.debug('starting command="%s", arguments=%s', path, argv)
 
             def terminate(signal_number, frame):
                 sys.exit('External search command is terminating on receipt of signal={}.'.format(signal_number))
 
             def terminate_child():
                 if p.pid is not None and p.returncode is None:
-                    splunklib_logger.debug('terminating command=%s, arguments=%d, pid=%d', path, argv, p.pid)
+                    splunklib_logger.debug('terminating command="%s", arguments=%d, pid=%d', path, argv, p.pid)
                     os.kill(p.pid, CTRL_BREAK_EVENT)
 
             p = Popen(argv, executable=path, env=environ, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
@@ -130,11 +130,11 @@ class ExternalSearchCommand(object):
             signal(SIGINT, terminate)
             signal(SIGTERM, terminate)
 
-            splunklib_logger.debug('started command=%s, arguments=%s, pid=%d', path, argv, p.pid)
+            splunklib_logger.debug('started command="%s", arguments=%s, pid=%d', path, argv, p.pid)
             p.wait()
 
             splunklib_logger.debug(
-                'finished command=%s, arguments=%s, pid=%d, returncode=%d', path, argv, p.pid, p.returncode)
+                'finished command="%s", arguments=%s, pid=%d, returncode=%d', path, argv, p.pid, p.returncode)
 
             sys.exit(p.returncode)
 

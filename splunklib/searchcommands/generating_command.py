@@ -16,10 +16,7 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 from .search_command import SearchCommand
-from .internals import CsvDialect
-from itertools import chain, imap, ifilterfalse
-
-import csv
+from itertools import imap, ifilterfalse
 
 # TODO: Create pipeline option that may be set to 'events', 'reports', or 'streams' and set type option to a constant:
 # 'generating'
