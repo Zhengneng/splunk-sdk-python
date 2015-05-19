@@ -142,11 +142,17 @@ class SearchCommand(object):
                 raise ValueError('Unrecognized logging level: %s' % value)
         self.logger.setLevel(level)
 
+    recording = Option(doc='''
+        **Syntax: recording=<bool>
+
+        **Description:** When `true`, records the interaction between the command and splunkd. Defaults to `false`.
+
+        ''', default=False, validate=Boolean())
+
     show_configuration = Option(doc='''
         **Syntax:** show_configuration=<bool>
 
-        **Description:** When `true`, reports command configuration in the
-        messages header for this command invocation. Defaults to `false`.
+        **Description:** When `true`, reports command configuration as an informational message. Defaults to `false`.
 
         ''', default=False, validate=Boolean())
 
@@ -339,6 +345,10 @@ class SearchCommand(object):
         :return: :const:`None`
 
         """
+
+        # TODO: Devise a recording strategy based on replacing self._read_chunk with something like
+        # self._read_and_record_chunk
+
         # Read search command metadata from splunkd
         # noinspection PyBroadException
         try:
