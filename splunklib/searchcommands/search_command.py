@@ -23,9 +23,10 @@ from splunklib.client import Service
 from collections import OrderedDict
 from cStringIO import StringIO
 from itertools import ifilter, imap, izip
-from logging import _levelNames, getLevelName
+from logging import _levelNames, getLevelName, getLogger
 from os import environ
-from sys import argv, exit, stdin, stdout
+from os.path import abspath, dirname
+from sys import argv, exit, modules, stdin, stdout
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
@@ -36,8 +37,10 @@ import json
 # Relative imports
 
 from .internals import configure_logging, CsvDialect, ObjectView, RecordWriter
+from .globals import app_root, splunklib_logger  # TODO: use splunklib_logger
 from .decorators import Option
 from .validators import Boolean
+
 
 # TODO: Validate class-level settings provided by the @Configuration decorator
 # At present we have property setters that validate instance-level configuration, but we do not do any validation on
@@ -49,16 +52,22 @@ class SearchCommand(object):
 
     """
 
-    def __init__(self, app_root=None):
+    def __init__(self, alt_app_root=None):
         """
-        :param app_root: The root of the application directory, used primarily by tests.
-        :type app_root: str or NoneType
+        :param alt_app_root: The root of the application directory, used primarily by tests.
+        :type alt_app_root: unicode or NoneType
 
         """
 
         # Variables that may be used, but not altered by derived classes
 
-        self.logger, self._logging_configuration = configure_logging(type(self).__name__, app_root=app_root)
+        class_name = self.__class__.__name__
+
+        if alt_app_root is None:
+            self.logger = getLogger(class_name)
+        else:
+            global splunklib_logger
+            splunklib_logger, self.logger, self._logging_configuration = configure_logging(class_name, alt_app_root)
 
         if 'SPLUNK_HOME' not in environ:
             self.logger.warning(
@@ -70,7 +79,7 @@ class SearchCommand(object):
 
         # Variables backing option/property values
 
-        self._app_root = app_root
+        self._app_root = app_root if alt_app_root is None else alt_app_root
         self._configuration = None
         self._fieldnames = None
         self._finished = None
@@ -103,7 +112,9 @@ class SearchCommand(object):
 
     @logging_configuration.setter
     def logging_configuration(self, value):
-        self.logger, self._logging_configuration = configure_logging(type(self).__name__, value, app_root=self._app_root)
+        name = self.__class__.__name__
+        global splunklib_logger
+        splunklib_logger, self.logger, self._logging_configuration = configure_logging(name, self._app_root, value)
 
     @Option
     def logging_level(self):

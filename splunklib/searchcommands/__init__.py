@@ -9,12 +9,14 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# distributed under the License is distributed on an "AS IS" BASI, WITHOUT
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
+
+from .globals import app_root, splunklib_logger
 
 from .decorators import *
 from .validators import *
@@ -23,6 +25,8 @@ from .generating_command import GeneratingCommand
 from .streaming_command import StreamingCommand
 from .eventing_command import EventingCommand
 from .reporting_command import ReportingCommand
+
+from .external_search_command import ExternalSearchCommand
 
 import sys
 
@@ -36,7 +40,6 @@ if sys.platform == 'win32':
 
 from collections import namedtuple
 SearchMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
-
 
 def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys.stdout, module_name=None):
     """ Instantiates and executes a search command class
@@ -98,3 +101,13 @@ def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys
     """
     if module_name is None or module_name == '__main__':
         command_class().process(argv, input_file, output_file)
+
+
+def execute(path, argv=None, environ=None):
+    """
+    :param path:
+    :param argv:
+    :param environ:
+    :return:
+    """
+    ExternalSearchCommand(path, argv, environ).execute()

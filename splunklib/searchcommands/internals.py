@@ -26,12 +26,11 @@ from numbers import Number
 import csv
 import json
 import os
-import sys
 
 csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. See SPL-12117 for background on this issue
 
 
-def configure_logging(name, path=None, app_root=None):
+def configure_logging(name, app_root, path=None):
     """ Configure logging and return a logger and the location of its logging configuration file.
 
     This function expects:
@@ -73,25 +72,25 @@ def configure_logging(name, path=None, app_root=None):
     #Arguments:
 
     :param name: Logger name
-    :type name: str
+    :type name: unicode
     :param path: Location of an alternative logging configuration file or `None`
-    :type path: basestring or NoneType
+    :type path: unicode or NoneType
     :returns: A logger and the location of its logging configuration file
     :param app_root: The root of the application directory, used primarily by tests.
-    :type app_root: str or NoneType
+    :type app_root: unicode or NoneType
 
     .. _ConfigParser format: http://goo.gl/K6edZ8
 
     """
-    if app_root is None:
-        app_root = get_app_root(sys.argv[0])
-
     if path is None:
-        probing_paths = [
-            os.path.join('local', name + '.logging.conf'),
-            os.path.join('default', name + '.logging.conf'),
-            'local/logging.conf',
-            'default/logging.conf']
+        if name is None:
+            probing_paths = [os.path.join('local', 'logging.conf'), os.path.join('default', 'logging.conf')]
+        else:
+            probing_paths = [
+                os.path.join('local', name + '.logging.conf'),
+                os.path.join('default', name + '.logging.conf'),
+                os.path.join('local', 'logging.conf'),
+                os.path.join('default', 'logging.conf')]
         for relative_path in probing_paths:
             configuration_file = os.path.join(app_root, relative_path)
             if os.path.exists(configuration_file):
@@ -111,8 +110,10 @@ def configure_logging(name, path=None, app_root=None):
     elif not os.path.exists(path):
         raise ValueError('Logging configuration file "{}" not found'.format(path))
 
+    # TODO: Only load the logging configuration on a path once
+
     if path is not None:
-        working_directory = os.getcwd()
+        working_directory = os.getcwdu()
         os.chdir(app_root)
         try:
             splunk_home = os.path.normpath(os.path.join(working_directory, os.environ['SPLUNK_HOME']))
@@ -127,12 +128,10 @@ def configure_logging(name, path=None, app_root=None):
     if len(root.handlers) == 0:
         root.addHandler(StreamHandler())
 
-    logger = getLogger(name)
-    return logger, path
+    named_logger = None if name is None else getLogger(name)
+    splunklib_logger = getLogger('splunklib')
 
-
-def get_app_root(path):
-    return os.path.dirname(os.path.abspath(os.path.dirname(path)))
+    return splunklib_logger, named_logger, path
 
 
 class ConfigurationSettingsType(type):

@@ -1,7 +1,6 @@
-#!/usr/bin/env python
 # coding=utf-8
 #
-# Copyright 2011-2015 Splunk, Inc.
+# Copyright © 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -10,18 +9,15 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# distributed under the License is distributed on an "AS IS" BASI, WITHOUT
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-import app
-import os
-import sys
+from os.path import abspath, dirname
+from sys import modules
+from .internals import configure_logging
 
-print('pypygeneratehello command started', file=sys.stderr)
-
-os.environ.pop('DYLD_LIBRARY_PATH', None)  # only relevant on *nix; harmless elsewhere
-from splunklib.searchcommands import app_root, execute
-execute('pypy', ('pypy', os.path.join(app_root, 'bin', 'generatehello.py')))
+app_root = dirname(abspath(dirname(modules['__main__'].__dict__.get('__file__', 'Python shell'))))
+splunklib_logger = configure_logging('splunklib', app_root)[0]
