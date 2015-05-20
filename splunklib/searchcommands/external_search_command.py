@@ -80,17 +80,11 @@ class ExternalSearchCommand(object):
 
     def execute(self):
         try:
-            search_path = os.getenv('PATH') if self._environ is None else self._environ.get('PATH')
-            path = ExternalSearchCommand._search_path(self._path, search_path)
-
-            if path is None:
-                raise ValueError('Cannot find command on path: {}'.format(self._path))
-
             if self._argv is None:
                 self._argv = os.path.splitext(os.path.basename(self._path))[0]
-
-            self._execute(path, self._argv, self._environ)
+            self._execute(self._path, self._argv, self._environ)
         except Exception as error:
+            # TODO: Traceback
             self._logger.fatal('Command execution failed: {}'.format(error))
             sys.exit(1)
 
@@ -116,6 +110,13 @@ class ExternalSearchCommand(object):
             :return: None
 
             """
+            search_path = os.getenv('PATH') if environ is None else environ.get('PATH')
+            found = ExternalSearchCommand._search_path(path, search_path)
+
+            if found is None:
+                raise ValueError('Cannot find command on path: {}'.format(path))
+
+            path = found
             splunklib_logger.debug('starting command="%s", arguments=%s', path, argv)
 
             def terminate(signal_number, frame):
@@ -193,7 +194,13 @@ class ExternalSearchCommand(object):
 
         _executable_extensions = ('.COM', '.EXE')
     else:
-        _execute = os.execvpe
+        @staticmethod
+        def _execute(path, argv, environ):
+            if environ is None:
+                os.execvp(path, argv)
+            else:
+                os.execvpe(path, argv, environ)
+            return
 
     # endregion
 

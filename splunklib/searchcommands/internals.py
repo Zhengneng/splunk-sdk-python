@@ -32,23 +32,23 @@ csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. Se
 
 if sys.platform == 'win32':
     # Work around the fact that on Windows '\n' is mapped to '\r\n'. The typical solution is to simply open files in
-    # binary mode, but stdout is already open, thus this hack.
+    # binary mode, but stdout is already open, thus this hack. 'CPython' and 'PyPy' work differently. We assume that
+    # all other Python implementations are compatible with 'CPython'. This might or might not be a valid assumption.
     from platform import python_implementation
     implementation = python_implementation()
     fileno = sys.stdout.fileno()
-    if implementation == 'CPython':
+    if implementation == 'PyPy':
+        sys.stdout = os.fdopen(fileno, 'wb', 0)
+    else:
         from msvcrt import setmode
         setmode(fileno, os.O_BINARY)
-    else:
-        sys.stdout = os.fdopen(fileno, 'wb', 0)
 
 
 def configure_logging(name, app_root, path=None):
-    """ Configure logging and return a logger and the location of its logging configuration file.
+    """ Configure logging and return splunklib_logger, the named logger, and the location of the logging configuration
+    file.
 
-    This function expects:
-
-    + A Splunk app directory structure::
+    This function expects a Splunk app directory structure::
 
         <app-root>
             bin
@@ -58,39 +58,32 @@ def configure_logging(name, app_root, path=None):
             local
                 ...
 
-    + The current working directory is *<app-root>***/bin**.
-
-      Splunk guarantees this. If you are running the app outside of Splunk, be
-      sure to set the current working directory to *<app-root>***/bin** before
-      calling.
-
-    This function looks for a logging configuration file at each of these
-    locations, loading the first, if any, logging configuration file that it
-    finds::
+    This function looks for a logging configuration file at each of these locations, loading the first, if any,
+    logging configuration file that it finds::
 
         local/{name}.logging.conf
         default/{name}.logging.conf
         local/logging.conf
         default/logging.conf
 
-    The current working directory is set to *<app-root>* before the logging
-    configuration file is loaded. Hence, paths in the logging configuration
-    file are relative to *<app-root>*. The current directory is reset before
-    return.
+    The current working directory is set to *<app-root>* before the logging configuration file is loaded. Hence, paths
+    in the logging configuration file are relative to *<app-root>*. The current directory is reset before return.
 
-    You may short circuit the search for a logging configuration file by
-    providing an alternative file location in `probing_path`. Logging configuration
-    files must be in `ConfigParser format`_.
+    You may short circuit the search for a logging configuration file by providing an alternative file location in
+    `path`. Logging configuration files must be in `ConfigParser format`_.
 
     #Arguments:
 
     :param name: Logger name
     :type name: unicode
-    :param path: Location of an alternative logging configuration file or `None`
+
+    :param app_root: The root of the application directory.
+    :type app_root: unicode
+
+    :param path: Location of an alternative logging configuration file or `None`.
     :type path: unicode or NoneType
-    :returns: A logger and the location of its logging configuration file
-    :param app_root: The root of the application directory, used primarily by tests.
-    :type app_root: unicode or NoneType
+
+    :returns: The splunklib_logger, the named logger and the location of the logging configuration file loaded.
 
     .. _ConfigParser format: http://goo.gl/K6edZ8
 
@@ -315,7 +308,8 @@ class RecordWriter(object):
             return
 
         start_line = 'chunked 1.0,{0:d},{1:d}\n'.format(len(metadata), len(body))
-        ofile.write(start_line)
-        ofile.write(metadata)
-        ofile.write(body)
+        write = ofile.write
+        write(start_line)
+        write(metadata)
+        write(body)
         ofile.flush()
