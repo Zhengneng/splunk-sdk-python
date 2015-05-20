@@ -25,10 +25,10 @@ from cStringIO import StringIO
 from itertools import ifilter, imap, izip
 from logging import _levelNames, getLevelName, getLogger
 from os import environ
-from sys import argv, exit, stdin, stdout
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
+import sys
 import re
 import csv
 import json
@@ -329,7 +329,7 @@ class SearchCommand(object):
         """
         return
 
-    def process(self, args=argv, ifile=stdin, ofile=stdout):
+    def process(self, args=sys.argv, ifile=sys.stdin, ofile=sys.stdout):
         """ Processes records on the `input stream optionally writing records to the output stream.
 
         :param args: Unused.
@@ -700,3 +700,67 @@ class SearchCommand(object):
         # endregion
 
     # endregion
+
+
+def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys.stdout, module_name=None):
+    """ Instantiates and executes a search command class
+
+    This function implements a `conditional script stanza <http://goo.gl/OFaox6>`_ based on the value of
+    :code:`module_name`::
+
+        if module_name is None or module_name == '__main__':
+            # execute command
+
+    Call this function at module scope with :code:`module_name=__name__`, if you would like your module to act as either
+    a reusable module or a standalone program. Otherwise, if you wish this function to unconditionally instantiate and
+    execute :code:`command_class`, pass :const:`None` as the value of :code:`module_name`.
+
+    :param command_class: Search command class to instantiate and execute.
+    :type command_class: type
+    :param argv: List of arguments to the command.
+    :type argv: list or tuple
+    :param input_file: File from which the command will read data.
+    :type input_file: :code:`file`
+    :param output_file: File to which the command will write data.
+    :type output_file: :code:`file`
+    :param module_name: Name of the module calling :code:`dispatch` or :const:`None`.
+    :type module_name: :code:`basestring`
+    :returns: :const:`None`
+
+    **Example**
+
+    .. code-block:: python
+        :linenos:
+
+        #!/usr/bin/env python
+        from splunklib.searchcommands import dispatch, StreamingCommand, Configuration, Option, validators
+        @Configuration()
+        class SomeStreamingCommand(StreamingCommand):
+            ...
+            def stream(records):
+                ...
+        dispatch(SomeStreamingCommand, module_name=__name__)
+
+    Dispatches the :code:`SomeStreamingCommand`, if and only if
+    :code:`__name__` is equal to :code:`'__main__'`.
+
+    **Example**
+
+    .. code-block:: python
+        :linenos:
+
+        from splunklib.searchcommands import dispatch, StreamingCommand, Configuration, Option, validators
+        @Configuration()
+        class SomeStreamingCommand(StreamingCommand):
+            ...
+            def stream(records):
+                ...
+        dispatch(SomeStreamingCommand)
+
+    Unconditionally dispatches :code:`SomeStreamingCommand`.
+
+    """
+    assert issubclass(command_class, SearchCommand)
+
+    if module_name is None or module_name == '__main__':
+        command_class().process(argv, input_file, output_file)
