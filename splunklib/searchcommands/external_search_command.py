@@ -15,6 +15,7 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
+
 from logging import getLogger
 import os
 import sys
@@ -25,16 +26,6 @@ if sys.platform == 'win32':
     import atexit
 
 from . import splunklib_logger
-
-
-def execute(path, argv=None, environ=None):
-    """
-    :param path:
-    :param argv:
-    :param environ:
-    :return:
-    """
-    ExternalSearchCommand(path, argv, environ).execute()
 
 
 class ExternalSearchCommand(object):
@@ -206,3 +197,19 @@ class ExternalSearchCommand(object):
 
     # endregion
 
+
+def execute(path, argv=None, environ=None, command_class=ExternalSearchCommand):
+    """
+    :param path:
+    :type path: basestring
+    :param argv:
+    :type: argv: list, tuple, or None
+    :param environ:
+    :type environ: dict
+    :param command_class: External search command class to instantiate and execute.
+    :type command_class: type
+    :return:
+    :rtype: None
+    """
+    assert issubclass(command_class, ExternalSearchCommand)
+    command_class(path, argv, environ).execute()
