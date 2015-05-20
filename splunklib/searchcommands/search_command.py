@@ -25,8 +25,7 @@ from cStringIO import StringIO
 from itertools import ifilter, imap, izip
 from logging import _levelNames, getLevelName, getLogger
 from os import environ
-from os.path import abspath, dirname
-from sys import argv, exit, modules, stdin, stdout
+from sys import argv, exit, stdin, stdout
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
@@ -37,9 +36,9 @@ import json
 # Relative imports
 
 from .internals import configure_logging, CsvDialect, ObjectView, RecordWriter
-from .globals import app_root, splunklib_logger  # TODO: use splunklib_logger
-from .decorators import Option
 from .validators import Boolean
+from .decorators import Option
+from . import globals
 
 
 # TODO: Validate class-level settings provided by the @Configuration decorator
@@ -52,10 +51,10 @@ class SearchCommand(object):
 
     """
 
-    def __init__(self, alt_app_root=None):
+    def __init__(self, app_root=None):
         """
-        :param alt_app_root: The root of the application directory, used primarily by tests.
-        :type alt_app_root: unicode or NoneType
+        :param app_root: The root of the application directory, used primarily by tests.
+        :type app_root: unicode or NoneType
 
         """
 
@@ -63,14 +62,13 @@ class SearchCommand(object):
 
         class_name = self.__class__.__name__
 
-        if alt_app_root is None:
+        if app_root is None:
             self.logger = getLogger(class_name)
         else:
-            global splunklib_logger
-            splunklib_logger, self.logger, self._logging_configuration = configure_logging(class_name, alt_app_root)
+            globals.splunklib_logger, self.logger, self._logging_configuration = configure_logging(class_name, app_root)
 
         if 'SPLUNK_HOME' not in environ:
-            self.logger.warning(
+            splunklib_logger.warning(
                 'SPLUNK_HOME environment variable is undefined.\n'
                 'If you are testing outside of Splunk, consider running under control of the Splunk CLI:\n'
                 '    splunk cmd %s\n'
@@ -79,7 +77,7 @@ class SearchCommand(object):
 
         # Variables backing option/property values
 
-        self._app_root = app_root if alt_app_root is None else alt_app_root
+        self._app_root = globals.app_root if app_root is None else app_root
         self._configuration = None
         self._fieldnames = None
         self._finished = None

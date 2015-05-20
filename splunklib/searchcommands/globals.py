@@ -15,9 +15,76 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
+
+from collections import namedtuple
 from os.path import abspath, dirname
-from sys import modules
+import sys
+
 from .internals import configure_logging
 
-app_root = dirname(abspath(dirname(modules['__main__'].__dict__.get('__file__', 'Python shell'))))
+app_root = dirname(abspath(dirname(sys.modules['__main__'].__dict__.get('__file__', 'Python shell'))))
 splunklib_logger = configure_logging('splunklib', app_root)[0]
+
+SearchMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
+
+
+def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys.stdout, module_name=None):
+    """ Instantiates and executes a search command class
+
+    This function implements a `conditional script stanza <http://goo.gl/OFaox6>`_ based on the value of
+    :code:`module_name`::
+
+        if module_name is None or module_name == '__main__':
+            # execute command
+
+    Call this function at module scope with :code:`module_name=__name__`, if you would like your module to act as either
+    a reusable module or a standalone program. Otherwise, if you wish this function to unconditionally instantiate and
+    execute :code:`command_class`, pass :const:`None` as the value of :code:`module_name`.
+
+    :param command_class: Class to instantiate and execute.
+    :type command_class: :code:`SearchCommand`
+    :param argv: List of arguments to the command.
+    :type argv: :code:`list`
+    :param input_file: File from which the command will read data.
+    :type input_file: :code:`file`
+    :param output_file: File to which the command will write data.
+    :type output_file: :code:`file`
+    :param module_name: Name of the module calling :code:`dispatch` or :const:`None`.
+    :type module_name: :code:`str`
+    :returns: :const:`None`
+
+    **Example**
+
+    .. code-block:: python
+        :linenos:
+
+        #!/usr/bin/env python
+        from splunklib.searchcommands import dispatch, StreamingCommand, Configuration, Option, validators
+        @Configuration()
+        class SomeStreamingCommand(StreamingCommand):
+            ...
+            def stream(records):
+                ...
+        dispatch(SomeStreamingCommand, module_name=__name__)
+
+    Dispatches the :code:`SomeStreamingCommand`, if and only if
+    :code:`__name__` is equal to :code:`'__main__'`.
+
+    **Example**
+
+    .. code-block:: python
+        :linenos:
+
+        from splunklib.searchcommands import dispatch, StreamingCommand, Configuration, Option, validators
+        @Configuration()
+        class SomeStreamingCommand(StreamingCommand):
+            ...
+            def stream(records):
+                ...
+        dispatch(SomeStreamingCommand)
+
+    Unconditionally dispatches :code:`SomeStreamingCommand`.
+
+    """
+    if module_name is None or module_name == '__main__':
+        command_class().process(argv, input_file, output_file)

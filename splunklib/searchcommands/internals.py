@@ -23,11 +23,24 @@ from logging import getLogger, root, StreamHandler
 from logging.config import fileConfig
 from numbers import Number
 
+import os
+import sys
 import csv
 import json
-import os
 
 csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. See SPL-12117 for background on this issue
+
+if sys.platform == 'win32':
+    # Work around the fact that on Windows '\n' is mapped to '\r\n'. The typical solution is to simply open files in
+    # binary mode, but stdout is already open, thus this hack.
+    from platform import python_implementation
+    implementation = python_implementation()
+    fileno = sys.stdout.fileno()
+    if implementation == 'CPython':
+        from msvcrt import setmode
+        setmode(fileno, os.O_BINARY)
+    else:
+        sys.stdout = os.fdopen(fileno, 'wb', 0)
 
 
 def configure_logging(name, app_root, path=None):

@@ -25,7 +25,7 @@ debugging packages, which must be unzipped and copied to packages/pydebug.
 from __future__ import absolute_import, division, print_function, unicode_literals
 from collections import OrderedDict
 from os import path
-from sys import path as sys_path, stderr
+from sys import modules, path as pythonpath, stderr
 
 import platform
 
@@ -42,7 +42,7 @@ def initialize():
     for packages in path.join(module_dir, 'packages'), path.join(path.join(module_dir, 'packages', system)):
         if not path.isdir(packages):
             break
-        sys_path.insert(0, path.join(packages))
+        pythonpath.insert(0, path.join(packages))
 
     configuration_file = path.join(module_dir, '_pydebug_conf.py')
 
@@ -67,7 +67,7 @@ def initialize():
         ('trace_only_current_thread', False)])
 
     execfile(configuration_file, {}, _remote_debugging)
-    sys_path.insert(1, debug_client)
+    pythonpath.insert(1, debug_client)
     import pydevd
 
     def _settrace():
@@ -102,6 +102,15 @@ def initialize():
     global stoptrace
     stoptrace = pydevd.stoptrace
 
-    if _remote_debugging['is_enabled']: settrace()
+    remote_debugging_is_enabled = _remote_debugging['is_enabled']
+
+    if isinstance(remote_debugging_is_enabled, (list, set, tuple)):
+        app_name = path.splitext(path.basename(modules['__main__'].__file__))[0]
+        remote_debugging_is_enabled = app_name in remote_debugging_is_enabled
+
+    if remote_debugging_is_enabled is True:
+        settrace()
+
+    return
 
 initialize()

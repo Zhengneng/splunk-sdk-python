@@ -1,0 +1,1 @@
+| pypygeneratehello count=10 | outputcsv pypyhello

@@ -26,6 +26,17 @@ if sys.platform == 'win32':
 
 from . import splunklib_logger
 
+
+def execute(path, argv=None, environ=None):
+    """
+    :param path:
+    :param argv:
+    :param environ:
+    :return:
+    """
+    ExternalSearchCommand(path, argv, environ).execute()
+
+
 class ExternalSearchCommand(object):
     """
     """
