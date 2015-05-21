@@ -280,15 +280,20 @@ class SearchCommand(object):
         if self._service is not None:
             return self._service
 
-        info = self.search_results_info
+        metadata = self._metadata
 
-        if info is None:
+        if metadata is None:
             return None
 
-        splunkd = urlsplit(info.splunkd_uri, info.splunkd_protocol, allow_fragments=False)
+        searchinfo = metadata.searchinfo
+
+        if searchinfo is None:
+            return None
+
+        uri = urlsplit(searchinfo.splunkd_uri, allow_fragments=False)
 
         self._service = Service(
-            scheme=splunkd.scheme, host=splunkd.hostname, port=splunkd.port, token=info.auth_token, app=info.ppc_app)
+            scheme=uri.scheme, host=uri.hostname, port=uri.port, app=searchinfo.app, token=searchinfo.session_key)
 
         return self._service
 
