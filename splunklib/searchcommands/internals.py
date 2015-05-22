@@ -16,7 +16,7 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from collections import deque, OrderedDict
+from collections import deque, namedtuple, OrderedDict
 from cStringIO import StringIO
 from itertools import chain, ifilter, imap
 from logging import getLogger, root, StreamHandler
@@ -191,6 +191,9 @@ class CsvDialect(csv.Dialect):
     quoting = csv.QUOTE_MINIMAL
 
 
+Message = namedtuple(b'Message', (b'type', b'text'))
+
+
 class _ObjectView(object):
 
     def __init__(self, dictionary):
@@ -228,6 +231,7 @@ class RecordWriter(object):
         self._record_count = 0
         self._buffer = StringIO()
         self._writer = csv.writer(self._buffer, dialect=CsvDialect)
+        self._encode_metadata = json.JSONEncoder(separators=(',', ':')).encode
 
     def flush(self, finished=None, partial=None):
 
@@ -239,7 +243,7 @@ class RecordWriter(object):
             'finished': finished,
             'partial': partial}
 
-        self._write_chunk(self._ofile, metadata, self._buffer.getvalue())
+        self._write_chunk(metadata, self._buffer.getvalue())
         self._clear()
 
     def write_message(self, message_type, message_text, *args, **kwargs):
@@ -248,7 +252,7 @@ class RecordWriter(object):
     def write_metadata(self, configuration):
         metadata = OrderedDict(chain(
             configuration.render(), (('inspector', self._inspector if self._inspector else None),)))
-        self._write_chunk(self._ofile, metadata, '')
+        self._write_chunk(metadata, '')
         self._ofile.write('\n')
         self._clear()
 
@@ -295,12 +299,11 @@ class RecordWriter(object):
         value = imap(lambda item: (item, item.replace('$', '$$')), imap(lambda item: to_string(item), value))
         return '\n'.join(imap(lambda item: item[0], value)), '$' + '$;$'.join(imap(lambda item: item[1], value)) + '$'
 
-    @staticmethod
-    def _write_chunk(ofile, metadata, body):
+    def _write_chunk(self, metadata, body):
 
         if metadata:
             metadata = OrderedDict(ifilter(lambda x: x[1] is not None, metadata.iteritems()))
-            metadata = json.dumps(metadata, separators=(',', ':'))
+            metadata = self._encode_metadata(metadata)
         else:
             metadata = ''
 
@@ -308,8 +311,8 @@ class RecordWriter(object):
             return
 
         start_line = 'chunked 1.0,{0:d},{1:d}\n'.format(len(metadata), len(body))
-        write = ofile.write
+        write = self._ofile.write
         write(start_line)
         write(metadata)
         write(body)
-        ofile.flush()
+        self._ofile.flush()

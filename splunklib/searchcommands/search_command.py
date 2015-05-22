@@ -23,6 +23,7 @@ from splunklib.client import Service
 from collections import OrderedDict
 from cStringIO import StringIO
 from itertools import ifilter, imap, islice, izip
+from json import JSONDecoder
 from logging import _levelNames, getLevelName, getLogger
 from urlparse import urlsplit
 from xml.etree import ElementTree
@@ -31,11 +32,10 @@ import os
 import sys
 import re
 import csv
-import json
 
 # Relative imports
 
-from .internals import configure_logging, CsvDialect, ObjectView, RecordWriter
+from .internals import configure_logging, CsvDialect, Message, ObjectView, RecordWriter
 from .validators import Boolean
 from .decorators import Option
 from . import globals
@@ -209,42 +209,49 @@ class SearchCommand(object):
         except AttributeError:
             return None
 
-        def convert_field(field):
-            return (field[1:] if field[0] == '_' else field).replace('.', '_')
-
         path = os.path.join(dispatch_dir, 'info.csv')
 
         with open(path, 'rb') as f:
             reader = csv.reader(f, dialect=CsvDialect)
-            fields = [convert_field(x) for x in reader.next()]
-            info = ObjectView(dict(izip(fields, reader.next())))
+            fields = reader.next()
+            values = reader.next()
+
+        def convert_field(field):
+            return (field[1:] if field[0] == '_' else field).replace('.', '_')
+
+        decode = JSONDecoder().decode
+
+        def convert_value(value):
+            try:
+                return decode(value) if len(value) > 0 else value
+            except ValueError:
+                return value
+
+        info = ObjectView(dict(imap(lambda (f, v): (convert_field(f), convert_value(v)), izip(fields, values))))
 
         try:
-            count_map = info.countMap.split(';')
+            count_map = info.countMap
         except AttributeError:
             pass
         else:
+            count_map = count_map.split(';')
             n = len(count_map)
             info.countMap = dict(izip(islice(count_map, 0, n, 2), islice(count_map, 1, n, 2)))
+
+        try:
+            msg_type = info.msgType
+            msg_text = info.msg
+        except AttributeError:
+            pass
+        else:
+            messages = ifilter(lambda (t, m): t or m, izip(msg_type.split('\n'), msg_text.split('\n')))
+            info.msg = [Message(message) for message in messages]
+            del info.msgType
 
         try:
             info.vix_families = ElementTree.fromstring(info.vix_families)
         except AttributeError:
             pass
-
-        try:
-            info.msg = info.msg.split('\n') if len(info.msg) > 0 else []
-        except AttributeError:
-            pass
-
-        for name, value in info.__dict__.iteritems():
-            if not (isinstance(value, basestring) and len(value) > 0):
-                continue
-            try:
-                value = json.loads(value)
-            except ValueError:
-                continue
-            setattr(info, name, value)
 
         return self._search_results_info
 
@@ -511,17 +518,23 @@ class SearchCommand(object):
                 break
 
             metadata, body = result
-            assert metadata.get('action') == 'execute'
 
-            input_buffer = StringIO(body)
+            action = metadata.get('action')
+
+            if action != 'execute':
+                raise RuntimeError('Expected execute action, not {0}'.format(action))
+
+            writer = self._record_writer
+            write_record = writer.write_record
             finished = metadata.get('finished', False)
-            reader = csv.reader(input_buffer, dialect=CsvDialect)
 
-            for record in process(self._records(reader)):
-                self._record_writer.write_record(record)
+            for record in process(self._records(csv.reader(StringIO(body), dialect=CsvDialect))):
+                write_record(record)
 
-            self._record_writer.flush(finished)
-            assert finished is not True  # splunkd should terminate the command as soon as the flush occurs
+            writer.flush(finished)
+
+            if finished:
+                raise RuntimeError('Expected splunkd to terminate command on receipt of finished signal')
 
     def _new_configuration_settings(self):
         return self.ConfigurationSettings(self)
@@ -552,9 +565,10 @@ class SearchCommand(object):
         except Exception as error:
             raise RuntimeError('Failed to read metadata of length {0}: {0}'.format(metadata_length, error))
 
-        # noinspection PyBroadException
+        decoder = JSONDecoder()
+
         try:
-            metadata = json.loads(metadata)
+            metadata = decoder.decode(metadata)
         except Exception as error:
             raise RuntimeError('Failed to parse metadata of length {0}: {1}'.format(metadata_length, error))
 
@@ -613,8 +627,10 @@ class SearchCommand(object):
 
         filename = origin.tb_frame.f_code.co_filename
         lineno = origin.tb_lineno
+        message = '{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error_message)
 
-        self.write_error('{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error_message))
+        splunklib_logger.error(message + '\n' + ''.join(traceback.format_tb(error_traceback)))
+        self.write_error(message)
 
     # endregion
 
