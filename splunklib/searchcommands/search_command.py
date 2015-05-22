@@ -22,12 +22,12 @@ from splunklib.client import Service
 
 from collections import OrderedDict
 from cStringIO import StringIO
-from itertools import ifilter, imap, izip
+from itertools import ifilter, imap, islice, izip
 from logging import _levelNames, getLevelName, getLogger
-from os import environ
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
+import os
 import sys
 import re
 import csv
@@ -67,7 +67,7 @@ class SearchCommand(object):
         else:
             globals.splunklib_logger, self.logger, self._logging_configuration = configure_logging(class_name, app_root)
 
-        if 'SPLUNK_HOME' not in environ:
+        if 'SPLUNK_HOME' not in os.environ:
             splunklib_logger.warning(
                 'SPLUNK_HOME environment variable is undefined.\n'
                 'If you are testing outside of Splunk, consider running under control of the Splunk CLI:\n'
@@ -191,65 +191,60 @@ class SearchCommand(object):
 
     @property
     def search_results_info(self):
-        """ Returns the search results info for this command invocation or None.
+        """ Returns the search results info for this command invocation.
 
-        The search results info object is created from the search results info
-        file associated with the command invocation. Splunk does not pass the
-        location of this file by default. You must request it by specifying
-        these configuration settings in commands.conf:
+        The search results info object is created from the search results info file associated with the command
+        invocation.
 
-        .. code-block:: python
-            enableheader=true
-            requires_srinfo=true
-
-        The :code:`enableheader` setting is :code:`true` by default. Hence, you
-        need not set it. The :code:`requires_srinfo` setting is false by
-        default. Hence, you must set it.
-
-        :return: :class:`SearchResultsInfo`, if :code:`enableheader` and
-            :code:`requires_srinfo` are both :code:`true`. Otherwise, if either
-            :code:`enableheader` or :code:`requires_srinfo` are :code:`false`,
-            a value of :code:`None` is returned.
+        :return: Search results info:const:`None`, if the search results info file associated with the command
+        invocation is inaccessible.
+        :rtype: SearchResultsInfo or NoneType
 
         """
         if self._search_results_info is not None:
             return self._search_results_info
 
         try:
-            info_path = self.metadata.infoPath
+            dispatch_dir = self._metadata.searchinfo.dispatch_dir
         except AttributeError:
             return None
 
         def convert_field(field):
             return (field[1:] if field[0] == '_' else field).replace('.', '_')
 
-        def convert_value(field, value):
+        path = os.path.join(dispatch_dir, 'info.csv')
 
-            if field == 'countMap':
-                split = value.split(';')
-                value = dict((key, int(value)) for key, value in zip(split[0::2], split[1::2]))
-            elif field == 'vix_families':
-                value = ElementTree.fromstring(value)
-            elif value == '':
-                value = None
-            else:
-                try:
-                    value = float(value)
-                    if value.is_integer():
-                        value = int(value)
-                except ValueError:
-                    pass
-
-            return value
-
-        with open(info_path, 'rb') as f:
-            from collections import namedtuple
+        with open(path, 'rb') as f:
             reader = csv.reader(f, dialect=CsvDialect)
             fields = [convert_field(x) for x in reader.next()]
-            values = [convert_value(f, v) for f, v in zip(fields, reader.next())]
+            info = ObjectView(dict(izip(fields, reader.next())))
 
-        search_results_info_type = namedtuple('SearchResultsInfo', fields)
-        self._search_results_info = search_results_info_type._make(values)
+        try:
+            count_map = info.countMap.split(';')
+        except AttributeError:
+            pass
+        else:
+            n = len(count_map)
+            info.countMap = dict(izip(islice(count_map, 0, n, 2), islice(count_map, 1, n, 2)))
+
+        try:
+            info.vix_families = ElementTree.fromstring(info.vix_families)
+        except AttributeError:
+            pass
+
+        try:
+            info.msg = info.msg.split('\n') if len(info.msg) > 0 else []
+        except AttributeError:
+            pass
+
+        for name, value in info.__dict__.iteritems():
+            if not (isinstance(value, basestring) and len(value) > 0):
+                continue
+            try:
+                value = json.loads(value)
+            except ValueError:
+                continue
+            setattr(info, name, value)
 
         return self._search_results_info
 
@@ -285,9 +280,9 @@ class SearchCommand(object):
         if metadata is None:
             return None
 
-        searchinfo = metadata.searchinfo
-
-        if searchinfo is None:
+        try:
+            searchinfo = self._metadata.searchinfo
+        except AttributeError:
             return None
 
         uri = urlsplit(searchinfo.splunkd_uri, allow_fragments=False)
@@ -382,8 +377,6 @@ class SearchCommand(object):
             self._record_writer = RecordWriter(ofile, getattr(self._metadata, 'maxresultrows', 50000))
             self.fieldnames = []
             self.options.reset()
-
-            # TODO: Utilize searchinfo in SearchCommand.search_results_info (?)
 
             args = self.metadata.searchinfo.args
             error_count = 0
