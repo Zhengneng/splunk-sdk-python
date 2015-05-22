@@ -132,12 +132,12 @@ class SearchCommand(object):
             try:
                 level = _levelNames[value.upper()]
             except KeyError:
-                raise ValueError('Unrecognized logging level: %s' % value)
+                raise ValueError('Unrecognized logging level: {}'.format(value))
         else:
             try:
                 level = int(value)
             except ValueError:
-                raise ValueError('Unrecognized logging level: %s' % value)
+                raise ValueError('Unrecognized logging level: {}'.format(value))
         self.logger.setLevel(level)
 
     recording = Option(doc='''
@@ -366,14 +366,14 @@ class SearchCommand(object):
             action = metadata.get('action')
 
             if action != 'getinfo':
-                raise RuntimeError('Expected getinfo action, not {0}'.format(action))
+                raise RuntimeError('Expected getinfo action, not {}'.format(action))
 
             if body:
                 raise RuntimeError('Did not expect data for getinfo action')
 
             self._metadata = ObjectView(metadata)
         except:
-            self._record_writer = RecordWriter(ofile, 50000)
+            self._record_writer = RecordWriter(ofile)
             self._report_unexpected_error()
             self._record_writer.flush(finished=True)
             exit(1)
@@ -381,7 +381,7 @@ class SearchCommand(object):
         # Write search command configuration for consumption by splunkd
         # noinspection PyBroadException
         try:
-            self._record_writer = RecordWriter(ofile, getattr(self._metadata, 'maxresultrows', 50000))
+            self._record_writer = RecordWriter(ofile, getattr(self._metadata, 'maxresultrows', None))
             self.fieldnames = []
             self.options.reset()
 
@@ -398,13 +398,13 @@ class SearchCommand(object):
                         try:
                             option = self.options[name]
                         except KeyError:
-                            self.write_error('Unrecognized option: {0}={1}'.format(name, value))
+                            self.write_error('Unrecognized option: {}={}'.format(name, value))
                             error_count += 1
                             continue
                         try:
                             option.value = value
                         except ValueError:
-                            self.write_error('Illegal value: {0}'.format(option))
+                            self.write_error('Illegal value: {}'.format(option))
                             error_count += 1
                             continue
                     pass
@@ -414,9 +414,9 @@ class SearchCommand(object):
 
             if missing is not None:
                 if len(missing) == 1:
-                    self.write_error('A value for "{0}" is required'.format(missing[0]))
+                    self.write_error('A value for "{}" is required'.format(missing[0]))
                 else:
-                    self.write_error('Values for these required options are missing: {0}'.format(', '.join(missing)))
+                    self.write_error('Values for these required options are missing: {}'.format(', '.join(missing)))
                 error_count += 1
 
             self._configuration = self._new_configuration_settings()  # included in the output even when error_count > 0
@@ -427,7 +427,7 @@ class SearchCommand(object):
             self.prepare()
 
             if self.show_configuration:  # only shown, if we successfully prepare for execution
-                self.write_info('{0} command configuration settings: {1}'.format(self.name, self.configuration))
+                self.write_info('{} command configuration settings: {}'.format(self.name, self.configuration))
 
             self._record_writer.write_metadata(self._configuration)
 
@@ -522,7 +522,7 @@ class SearchCommand(object):
             action = metadata.get('action')
 
             if action != 'execute':
-                raise RuntimeError('Expected execute action, not {0}'.format(action))
+                raise RuntimeError('Expected execute action, not {}'.format(action))
 
             writer = self._record_writer
             write_record = writer.write_record
@@ -554,7 +554,7 @@ class SearchCommand(object):
         match = SearchCommand._header.match(header)
 
         if match is None:
-            raise RuntimeError('Failed to parse transport header: {0}'.format(header))
+            raise RuntimeError('Failed to parse transport header: {}'.format(header))
 
         metadata_length, body_length = match.groups()
         metadata_length = long(metadata_length)
@@ -563,19 +563,19 @@ class SearchCommand(object):
         try:
             metadata = ifile.read(metadata_length)
         except Exception as error:
-            raise RuntimeError('Failed to read metadata of length {0}: {0}'.format(metadata_length, error))
+            raise RuntimeError('Failed to read metadata of length {}: {}'.format(metadata_length, error))
 
         decoder = JSONDecoder()
 
         try:
             metadata = decoder.decode(metadata)
         except Exception as error:
-            raise RuntimeError('Failed to parse metadata of length {0}: {1}'.format(metadata_length, error))
+            raise RuntimeError('Failed to parse metadata of length {}: {}'.format(metadata_length, error))
 
         try:
             body = ifile.read(body_length)
         except Exception as error:
-            raise RuntimeError('Failed to read body of length {0}: {1}'.format(body_length, error))
+            raise RuntimeError('Failed to read body of length {}: {}'.format(body_length, error))
 
         return metadata, body
 

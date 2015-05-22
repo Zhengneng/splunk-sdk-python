@@ -223,8 +223,8 @@ class ObjectView(_ObjectView):
 
 class RecordWriter(object):
 
-    def __init__(self, ofile, maxresultrows):
-        self._maxresultrows = maxresultrows
+    def __init__(self, ofile, maxresultrows=None):
+        self._maxresultrows = 50000 if maxresultrows is None else maxresultrows
         self._ofile = ofile
         self._fieldnames = None
         self._inspector = OrderedDict()
@@ -279,9 +279,7 @@ class RecordWriter(object):
     def _encode_value(value):
 
         def to_string(item):
-            if isinstance(item, (basestring, Number)):
-                return unicode(item)
-            return repr(item)
+            return unicode(item) if isinstance(item, (basestring, Number)) else repr(item)
 
         if not isinstance(value, (list, tuple)):
             return to_string(value), None
