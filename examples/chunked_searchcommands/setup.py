@@ -20,23 +20,21 @@ project_dir = os.path.dirname(os.path.abspath(__file__))
 # region Monkey patches for Python 2.7.x on Windows
 
 if sys.platform == 'win32':
-
     import ctypes
 
     # See `PEP 3107 -- Function Annotations <https://www.python.org/dev/peps/pep-3107/>`_ for ideas on how we might
     # use function annotations here.
 
-
-    def create_hard_link(link, target):
-        if _create_hard_link(target, link, None) == 0:
-            raise OSError(ctypes.FormatError)
+    def create_hard_link(source, link_name):
+        if _create_hard_link(link_name, source, None) == 0:
+            raise OSError(ctypes.FormatError())
     _create_hard_link = ctypes.windll.kernel32.CreateHardLinkW
 
     os.link = create_hard_link
 
 
-    def create_symbolic_link(link, target):
-        if _create_symbolic_link(target, link, 1 if os.path.isdir(target) else 0) == 0:
+    def create_symbolic_link(source, link_name):
+        if _create_symbolic_link(link_name, source, 1 if os.path.isdir(source) else 0) == 0:
             raise OSError(ctypes.FormatError())
     _create_symbolic_link = ctypes.windll.kernel32.CreateSymbolicLinkW
 
