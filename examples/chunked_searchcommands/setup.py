@@ -335,16 +335,26 @@ setup(
         'Topic :: System :: Logging',
         'Topic :: System :: Monitoring'],
     packages=[
-        b'', b'bin', b'bin.packages.splunklib', b'bin.packages.splunklib.searchcommands'
+        b'bin.packages.splunklib', b'bin.packages.splunklib.searchcommands'
     ],
     package_dir={
-        b'': 'package',
         b'bin': 'package/bin',
+        b'bin.packages': 'package/bin/packages',
         b'bin.packages.splunklib': '../../splunklib',
         b'bin.packages.splunklib.searchcommands': '../../splunklib/searchcommands',
     },
     package_data={
-        b'bin': ['package/bin/_pydebug.egg']
+        b'bin': [
+            'package/bin/_pydebug.egg',
+            'package/bin/_pydebug_conf.py',
+            'package/bin/app.py',
+            'package/bin/countmatches.py',
+            'package/bin/echo.py',
+            'package/bin/generatehello.py',
+            'package/bin/pypygeneratehello.py',
+            'package/bin/simulate.py',
+            'package/bin/sum.py'
+        ]
     },
     data_files=[
         (b'default', ['package/default/*.conf']),
