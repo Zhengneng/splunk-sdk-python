@@ -5,42 +5,34 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 import os
-import requests
-import shutil
-import sys
 
-from subprocess import CalledProcessError, check_call, STDOUT
-from distutils.core import setup, Command
-from collections import OrderedDict
-from glob import glob
-from itertools import chain
-
-project_dir = os.path.dirname(os.path.abspath(__file__))
-
-if sys.platform == 'win32':
+if os.name == 'nt':
 
     def patch_os():
         import ctypes
 
         kernel32 = ctypes.windll.kernel32
-
-        create_symbolic_link = kernel32.CreateSymbolicLinkW
-        create_hard_link = kernel32.CreateHardLinkW
-        delete_file = kernel32.DeleteFileW
-        remove_directory = kernel32.RemoveDirectoryW
-        get_file_attributes = kernel32.GetFileAttributesW
-
         format_error = ctypes.FormatError
 
-        def islink(source):
-            attributes = get_file_attributes(source)
+        create_hard_link = kernel32.CreateHardLinkW
+        create_symbolic_link = kernel32.CreateSymbolicLinkW
+        delete_file = kernel32.DeleteFileW
+        get_file_attributes = kernel32.GetFileAttributesW
+        remove_directory = kernel32.RemoveDirectoryW
+
+        def islink(path):
+            attributes = get_file_attributes(path)
             if attributes == -1:
                 raise OSError(format_error())
             return (attributes & 0x400) != 0  # 0x400 == FILE_ATTRIBUTE_REPARSE_POINT
 
+        os.path.islink = islink
+
         def link(source, link_name):
             if create_hard_link(link_name, source, None) == 0:
                 raise OSError(format_error())
+
+        os.link = link
 
         def remove(path):
             attributes = get_file_attributes(path)
@@ -56,14 +48,28 @@ if sys.platform == 'win32':
                 return
             raise OSError(format_error())
 
+        os.remove = remove
+
         def symlink(source, link_name):
             if create_symbolic_link(link_name, source, 1 if os.path.isdir(source) else 0) == 0:
                 raise OSError(format_error())
 
-        os.path.islink, os.link, os.remove, os.symlink = islink, link, remove, symlink
+        os.symlink = symlink
 
     patch_os()
+    del locals()['patch_os']  # since this function has done its job
 
+import requests
+import shutil
+import sys
+
+from subprocess import CalledProcessError, check_call, STDOUT
+from distutils.core import setup, Command
+from collections import OrderedDict
+from glob import glob
+from itertools import chain
+
+project_dir = os.path.dirname(os.path.abspath(__file__))
 
 # region Helper functions
 
@@ -255,7 +261,7 @@ class LinkCommand(Command):
         if os.path.islink(target):
             os.remove(target)
         elif os.path.exists(target):
-            message = 'Cannot create a link at "{0}" because a file by that name already exists.'.format(target)
+            message = 'Cannot create a link at "{}" because a file by that name already exists.'.format(target)
             raise SystemError(message)
 
         self._copy_debug_client()
@@ -311,7 +317,7 @@ class TestCommand(Command):
         (b'uri=', None, 'Splunk server URI'),
         (b'env=', None, 'Test running environment'),
         (b'pattern=', None, 'Pattern to match test files'),
-        (b'skip-setup-teardown', None, 'Skips SA-ldapsearch test setup/teardown on the Splunk server')]
+        (b'skip-setup-teardown', None, 'Skips test setup/teardown on the Splunk server')]
 
     def __init__(self, dist):
         Command.__init__(self, dist)
