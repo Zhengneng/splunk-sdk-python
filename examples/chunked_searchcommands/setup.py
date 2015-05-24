@@ -17,30 +17,53 @@ from itertools import chain
 
 project_dir = os.path.dirname(os.path.abspath(__file__))
 
-# region Monkey patches for Python 2.7.x on Windows
-
 if sys.platform == 'win32':
-    import ctypes
 
-    # See `PEP 3107 -- Function Annotations <https://www.python.org/dev/peps/pep-3107/>`_ for ideas on how we might
-    # use function annotations here.
+    def patch_os():
+        import ctypes
 
-    def create_hard_link(source, link_name):
-        if _create_hard_link(link_name, source, None) == 0:
-            raise OSError(ctypes.FormatError())
-    _create_hard_link = ctypes.windll.kernel32.CreateHardLinkW
+        kernel32 = ctypes.windll.kernel32
 
-    os.link = create_hard_link
+        create_symbolic_link = kernel32.CreateSymbolicLinkW
+        create_hard_link = kernel32.CreateHardLinkW
+        delete_file = kernel32.DeleteFileW
+        remove_directory = kernel32.RemoveDirectoryW
+        get_file_attributes = kernel32.GetFileAttributesW
 
+        format_error = ctypes.FormatError
 
-    def create_symbolic_link(source, link_name):
-        if _create_symbolic_link(link_name, source, 1 if os.path.isdir(source) else 0) == 0:
-            raise OSError(ctypes.FormatError())
-    _create_symbolic_link = ctypes.windll.kernel32.CreateSymbolicLinkW
+        def islink(source):
+            attributes = get_file_attributes(source)
+            if attributes == -1:
+                raise OSError(format_error())
+            return (attributes & 0x400) != 0  # 0x400 == FILE_ATTRIBUTE_REPARSE_POINT
 
-    os.symlink = create_symbolic_link
+        def link(source, link_name):
+            if create_hard_link(link_name, source, None) == 0:
+                raise OSError(format_error())
 
-# endregion
+        def remove(path):
+            attributes = get_file_attributes(path)
+            if attributes == -1:
+                success = False
+            elif (attributes & 0x400) == 0:  # file or directory, not symbolic link
+                success = delete_file(path) != 0
+            elif (attributes & 0x010) == 0:  # symbolic link to file
+                success = delete_file(path) != 0
+            else:                            # symbolic link to directory
+                success = remove_directory(path) != 0
+            if success:
+                return
+            raise OSError(format_error())
+
+        def symlink(source, link_name):
+            if create_symbolic_link(link_name, source, 1 if os.path.isdir(source) else 0) == 0:
+                raise OSError(format_error())
+
+        os.path.islink, os.link, os.remove, os.symlink = islink, link, remove, symlink
+
+    patch_os()
+
 
 # region Helper functions
 
