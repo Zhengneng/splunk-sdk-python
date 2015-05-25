@@ -33,7 +33,7 @@ class ExternalSearchCommand(object):
     """
     def __init__(self, path, argv=None, environ=None):
 
-        if not isinstance(path, basestring):
+        if not isinstance(path, (bytes, unicode)):
             raise ValueError('Expected a string value for path, not {}'.format(repr(path)))
 
         self._logger = getLogger(self.__class__.__name__)

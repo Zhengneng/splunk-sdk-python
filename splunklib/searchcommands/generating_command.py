@@ -144,8 +144,8 @@ class GeneratingCommand(SearchCommand):
 
         @type.setter
         def type(self, value):
-            if not (isinstance(value, basestring) and value in ('events', 'reporting', 'streaming')):
-                raise ValueError('Expected a value of "eventing", "reporting", or "streaming"; not {0}.'.format(
+            if not (isinstance(value, (bytes, unicode)) and value in ('events', 'reporting', 'streaming')):
+                raise ValueError('Expected a value of "eventing", "reporting", or "streaming"; not {}.'.format(
                     repr(value)))
             self._type = value
 

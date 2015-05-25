@@ -279,7 +279,7 @@ class RecordWriter(object):
     def _encode_value(value):
 
         def to_string(item):
-            return unicode(item) if isinstance(item, (basestring, Number)) else repr(item)
+            return unicode(item) if isinstance(item, (bytes, unicode, Number)) else repr(item)
 
         if not isinstance(value, (list, tuple)):
             return to_string(value), None
