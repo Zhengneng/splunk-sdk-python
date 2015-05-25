@@ -129,7 +129,7 @@ class SearchCommand(object):
     def logging_level(self, value):
         if value is None:
             value = self._default_logging_level
-        if isinstance(value, basestring):
+        if isinstance(value, (bytes, unicode)):
             try:
                 level = _levelNames[value.upper()]
             except KeyError:
