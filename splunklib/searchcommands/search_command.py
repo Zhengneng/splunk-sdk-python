@@ -32,6 +32,7 @@ import os
 import sys
 import re
 import csv
+import traceback
 
 # Relative imports
 
@@ -615,11 +616,8 @@ class SearchCommand(object):
                 yield record
 
     def _report_unexpected_error(self):
-        import traceback
-        import sys
 
         error_type, error_message, error_traceback = sys.exc_info()
-        self.logger.error(traceback.format_exc(error_traceback))
         origin = error_traceback
 
         while origin.tb_next is not None:

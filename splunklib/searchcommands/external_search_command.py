@@ -19,6 +19,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from logging import getLogger
 import os
 import sys
+import traceback
 
 if sys.platform == 'win32':
     from signal import signal, CTRL_BREAK_EVENT, SIGBREAK, SIGINT, SIGTERM
@@ -79,13 +80,15 @@ class ExternalSearchCommand(object):
     # region Methods
 
     def execute(self):
+        # noinspection PyBroadException
         try:
             if self._argv is None:
                 self._argv = os.path.splitext(os.path.basename(self._path))[0]
             self._execute(self._path, self._argv, self._environ)
-        except Exception as error:
-            # TODO: Traceback
-            self._logger.fatal('Command execution failed: {}'.format(error))
+        except:
+            error_type, error_message, error_traceback = sys.exc_info()
+            error_message = 'Command execution failed: ' + error_message + '\n'
+            self._logger.error(error_message + ''.join(traceback.format_tb(error_traceback)))
             sys.exit(1)
 
     if sys.platform == 'win32':

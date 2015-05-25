@@ -59,15 +59,16 @@ if os.name == 'nt':
     patch_os()
     del locals()['patch_os']  # since this function has done its job
 
-import requests
-import shutil
-import sys
 
 from subprocess import CalledProcessError, check_call, STDOUT
 from distutils.core import setup, Command
 from collections import OrderedDict
 from glob import glob
 from itertools import chain
+
+import requests
+import shutil
+import sys
 
 project_dir = os.path.dirname(os.path.abspath(__file__))
 
