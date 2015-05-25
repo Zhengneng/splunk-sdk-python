@@ -86,9 +86,9 @@ class ExternalSearchCommand(object):
                 self._argv = os.path.splitext(os.path.basename(self._path))[0]
             self._execute(self._path, self._argv, self._environ)
         except:
-            error_type, error_message, error_traceback = sys.exc_info()
-            error_message = 'Command execution failed: ' + error_message + '\n'
-            self._logger.error(error_message + ''.join(traceback.format_tb(error_traceback)))
+            error_type, error, tb = sys.exc_info()
+            message = 'Command execution failed: ' + unicode(error)
+            self._logger.error(message + '\nTraceback:\n' + ''.join(traceback.format_tb(tb)))
             sys.exit(1)
 
     if sys.platform == 'win32':

@@ -617,17 +617,17 @@ class SearchCommand(object):
 
     def _report_unexpected_error(self):
 
-        error_type, error_message, error_traceback = sys.exc_info()
-        origin = error_traceback
+        error_type, error, tb = sys.exc_info()
+        origin = tb
 
         while origin.tb_next is not None:
             origin = origin.tb_next
 
         filename = origin.tb_frame.f_code.co_filename
         lineno = origin.tb_lineno
-        message = '{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error_message)
+        message = '{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error)
 
-        splunklib_logger.error(message + '\n' + ''.join(traceback.format_tb(error_traceback)))
+        splunklib_logger.error(message + '\nTraceback:\n' + ''.join(traceback.format_tb(tb)))
         self.write_error(message)
 
     # endregion
