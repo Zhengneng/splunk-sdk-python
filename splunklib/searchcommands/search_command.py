@@ -69,12 +69,12 @@ class SearchCommand(object):
             globals.splunklib_logger, self.logger, self._logging_configuration = configure_logging(class_name, app_root)
 
         if 'SPLUNK_HOME' not in os.environ:
-            splunklib_logger.warning(
+            globals.splunklib_logger.warning(
                 'SPLUNK_HOME environment variable is undefined.\n'
                 'If you are testing outside of Splunk, consider running under control of the Splunk CLI:\n'
-                '    splunk cmd %s\n'
+                '    splunk cmd python %s\n'
                 'If you are running inside of Splunk, SPLUNK_HOME should be defined. Consider troubleshooting your '
-                'installation.', self)
+                'installation.', globals.app_file)
 
         # Variables backing option/property values
 
@@ -112,8 +112,7 @@ class SearchCommand(object):
     @logging_configuration.setter
     def logging_configuration(self, value):
         name = self.__class__.__name__
-        global splunklib_logger
-        splunklib_logger, self.logger, self._logging_configuration = configure_logging(name, self._app_root, value)
+        globals.splunklib_logger, self.logger, self._logging_configuration = configure_logging(name, self._app_root, value)
 
     @Option
     def logging_level(self):
@@ -351,6 +350,9 @@ class SearchCommand(object):
         :return: :const:`None`
 
         """
+        debug = globals.splunklib_logger.debug
+        class_name = self.__class__.__name__
+        debug('%s.process started', class_name)
 
         # TODO: Devise a recording strategy based on replacing self._read_chunk with something like
         # self._read_and_record_chunk
@@ -358,6 +360,7 @@ class SearchCommand(object):
         # Read search command metadata from splunkd
         # noinspection PyBroadException
         try:
+            debug('Reading metadata')
             result = self._read_chunk(ifile)
 
             if result is None:
@@ -373,6 +376,7 @@ class SearchCommand(object):
                 raise RuntimeError('Did not expect data for getinfo action')
 
             self._metadata = ObjectView(metadata)
+            debug('  metadata=%r', self._metadata)
         except:
             self._record_writer = RecordWriter(ofile)
             self._report_unexpected_error()
@@ -388,6 +392,8 @@ class SearchCommand(object):
 
             args = self.metadata.searchinfo.args
             error_count = 0
+
+            debug('Parsing arguments')
 
             if args and type(args) == list:
                 for arg in args:
@@ -425,11 +431,15 @@ class SearchCommand(object):
             if error_count > 0:
                 exit(1)
 
+            debug('  command=%s', unicode(self))
+
+            debug('Preparing for execution')
             self.prepare()
 
             if self.show_configuration:  # only shown, if we successfully prepare for execution
                 self.write_info('{} command configuration settings: {}'.format(self.name, self.configuration))
 
+            debug('Writing configuration=%s', self._configuration)
             self._record_writer.write_metadata(self._configuration)
 
         except SystemExit:
@@ -443,6 +453,7 @@ class SearchCommand(object):
         # Execute search command on data passing through the pipeline
         # noinspection PyBroadException
         try:
+            debug('Executing')
             self._execute(ifile, None)
         except SystemExit:
             self._record_writer.flush(finished=True)
@@ -452,6 +463,7 @@ class SearchCommand(object):
             self._record_writer.flush(finished=True)
             exit(1)
 
+        debug('%s.process completed', class_name)
         return
 
     def write_debug(self, message, *args):
@@ -627,7 +639,7 @@ class SearchCommand(object):
         lineno = origin.tb_lineno
         message = '{0} at "{1}", line {2:d} : {3}'.format(error_type.__name__, filename, lineno, error)
 
-        splunklib_logger.error(message + '\nTraceback:\n' + ''.join(traceback.format_tb(tb)))
+        globals.splunklib_logger.error(message + '\nTraceback:\n' + ''.join(traceback.format_tb(tb)))
         self.write_error(message)
 
     # endregion

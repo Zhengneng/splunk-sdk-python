@@ -55,11 +55,11 @@
 #     22 </plist>
 #
 #   Note lines 16-20 which extend PATH to include /opt/local/bin, the directory that the pypy executable is typically
-#   installed.
+#   placed.
 #
 #   Windows
 #   -------
-#   Make sure that the system-wide Path environment variable includes the directory containing pypy.exe.
+#   Ensure that pypy.exe is on the system-wide Path environment variable.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 import app
@@ -68,7 +68,7 @@ from splunklib.searchcommands import app_root, execute
 from os import environ, path
 
 pypy_environ = dict(environ)
-pypy_environ.pop('PYTHONPATH', None)
-pypy_environ.pop('DYLD_LIBRARY_PATH', None)
+pypy_environ.pop('PYTHONPATH', None)  # On Windows Splunk is a 64-bit service, but pypy is a 32-bit program
+pypy_environ.pop('DYLD_LIBRARY_PATH', None)  # On *nix Splunk includes shared objects that are incompatible with pypy
 
 execute('pypy', ('pypy', path.join(app_root, 'bin', 'generatehello.py')), pypy_environ)

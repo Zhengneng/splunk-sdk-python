@@ -23,6 +23,7 @@ from .decorators import Option
 
 # TODO: Edit ReportingCommand class documentation
 
+# TODO: Phase option should print in a more user-friendly way
 
 class ReportingCommand(SearchCommand):
     """ Processes search result records and generates a reporting data structure.
@@ -96,13 +97,6 @@ class ReportingCommand(SearchCommand):
         raise NotImplementedError('reduce(self, records)')
 
     def _execute(self, ifile, process):
-        if self._phase == self.reduce:
-            try:
-                # noinspection PyUnresolvedReferences
-                import app
-                app.stoptrace()
-            except ImportError:
-                pass
         SearchCommand._execute(self, ifile, self._phase)
 
     # TODO: Verify that the ChunkedExternProcessor complains about saying that the streaming_preop has type='reporting'
