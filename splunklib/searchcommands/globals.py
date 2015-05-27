@@ -14,6 +14,9 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+# TODO: Rename globals.py because while its allowed as a module name, it's unsatisfying that globals is also the name of
+# a python builtin function. Note that global.py is not permitted as a module name because it conflicts with a keyword.
+
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from collections import namedtuple
@@ -26,5 +29,4 @@ app_file = sys.modules['__main__'].__dict__.get('__file__', 'Python shell')
 app_root = dirname(abspath(dirname(app_file)))
 splunklib_logger = configure_logging('splunklib', app_root)[0]
 
-SearchMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
-
+SearchMetric = namedtuple(b'SearchMetric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))

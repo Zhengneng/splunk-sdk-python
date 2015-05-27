@@ -440,7 +440,7 @@ class SearchCommand(object):
             if self.show_configuration:  # only shown, if we successfully prepare for execution
                 self.write_info('{} command configuration settings: {}'.format(self.name, self.configuration))
 
-            debug('Writing configuration=%s', self._configuration)
+            debug('  configuration=%s', self._configuration)
             self._record_writer.write_metadata(self._configuration)
 
         except SystemExit:
@@ -527,6 +527,7 @@ class SearchCommand(object):
         write_record = self._record_writer.write_record
         for record in process(self._records(ifile)):
             write_record(record)
+        self._record_writer.flush(finished=True)  # TODO: boundary tests on RecordWriter.flush
 
     def _new_configuration_settings(self):
         return self.ConfigurationSettings(self)
@@ -549,8 +550,8 @@ class SearchCommand(object):
             raise RuntimeError('Failed to parse transport header: {}'.format(header))
 
         metadata_length, body_length = match.groups()
-        metadata_length = long(metadata_length)
-        body_length = long(body_length)
+        metadata_length = int(metadata_length)
+        body_length = int(body_length)
 
         try:
             metadata = ifile.read(metadata_length)
@@ -575,14 +576,13 @@ class SearchCommand(object):
 
     def _records(self, ifile):
 
-        flush = self._record_writer.flush
         finished = None
 
         while not finished:
             result = self._read_chunk(ifile)
 
             if not result:
-                break
+                return
 
             metadata, body = result
 
@@ -599,28 +599,24 @@ class SearchCommand(object):
             except StopIteration:
                 return
 
-            mv_fieldnames = set()
+            # TODO: Consider string interning (see intern built-in) for some performance improvement in this loop
 
-            for fieldname in fieldnames:
-                if fieldname.startswith('__mv_'):
-                    mv_fieldnames.add(fieldname[len('__mv_'):])
+            mv_fieldnames = {name: name[len('__mv_'):] for name in fieldnames if name.startswith('__mv_')}
 
-            if len(mv_fieldnames) > 0:
+            if len(mv_fieldnames) == 0:
                 for values in reader:
-                    record = OrderedDict()
-                    for fieldname, value in izip(fieldnames, values):
-                        if fieldname.startswith('__mv_'):
-                            if value:
-                                record[fieldname[len('__mv_'):]] = self._decode_list(value)
-                        elif fieldname not in record:
-                            record[fieldname] = value
-                    yield record
-            else:
-                for values in reader:
-                    record = OrderedDict(izip(fieldnames, values))
-                    yield record
+                    yield OrderedDict(izip(fieldnames, values))
+                continue
 
-            flush(finished)
+            for values in reader:
+                record = OrderedDict()
+                for fieldname, value in izip(fieldnames, values):
+                    if fieldname.startswith('__mv_'):
+                        if len(value) > 0:
+                            record[mv_fieldnames[fieldname]] = self._decode_list(value)
+                    elif fieldname not in record:
+                        record[fieldname] = value
+                yield record
 
         # raise RuntimeError('Expected splunkd to terminate command on receipt of finished signal')
 

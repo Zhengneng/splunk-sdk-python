@@ -44,6 +44,8 @@ if sys.platform == 'win32':
         setmode(fileno, os.O_BINARY)
 
 
+_global = sys.modules['splunklib.searchcommands.globals']
+
 def configure_logging(name, app_root, path=None):
     """ Configure logging and return splunklib_logger, the named logger, and the location of the logging configuration
     file.
@@ -229,15 +231,28 @@ class RecordWriter(object):
         self._ofile = ofile
         self._fieldnames = None
         self._inspector = OrderedDict()
+        self._chunk_count = 0
         self._record_count = 0
+        self._total_record_count = 0L
         self._buffer = StringIO()
         self._writer = csv.writer(self._buffer, dialect=CsvDialect)
         self._encode_metadata = json.JSONEncoder(separators=(',', ':')).encode
+        self._finished = False
 
     def flush(self, finished=None, partial=None):
 
-        if self._buffer.tell() == 0 and len(self._inspector) == 0 and finished is False:
+        assert finished is None or isinstance(finished, bool)
+        assert partial is None or isinstance(partial, bool)
+        assert finished is None or partial is None
+        self._ensure_validity()
+
+        if self._record_count == 0 and len(self._inspector) == 0:
             return
+
+        # TODO: Write SearchMetric (?) Include timing (?) Anything else (?)
+
+        self._total_record_count += self._record_count
+        self._chunk_count += 1
 
         metadata = {
             'inspector': self._inspector if len(self._inspector) else None,
@@ -246,11 +261,14 @@ class RecordWriter(object):
 
         self._write_chunk(metadata, self._buffer.getvalue())
         self._clear()
+        self._finished = finished is True
 
     def write_message(self, message_type, message_text, *args, **kwargs):
+        self._ensure_validity()
         self._inspector.get('messages', []).append([message_type, message_text.format(args, kwargs)])
 
     def write_metadata(self, configuration):
+        self._ensure_validity()
         metadata = OrderedDict(chain(
             configuration.render(), (('inspector', self._inspector if self._inspector else None),)))
         self._write_chunk(metadata, '')
@@ -258,15 +276,20 @@ class RecordWriter(object):
         self._clear()
 
     def write_metric(self, name, value):
+        self._ensure_validity()
         self._inspector['metric.{0}'.format(name)] = value
 
     def write_record(self, record):
+        self._ensure_validity()
+
         if self._fieldnames is None:
             self._fieldnames = list(chain.from_iterable(imap(lambda k: (k, '__mv_' + k), record)))
             self._writer.writerow(self._fieldnames)
+
         values = list(chain.from_iterable(imap(lambda v: self._encode_value(v), imap(lambda k: record[k], record))))
         self._writer.writerow(values)
         self._record_count += 1
+
         if self._record_count >= self._maxresultrows:
             self.flush(partial=True)
 
@@ -297,6 +320,11 @@ class RecordWriter(object):
 
         value = imap(lambda item: (item, item.replace('$', '$$')), imap(lambda item: to_string(item), value))
         return '\n'.join(imap(lambda item: item[0], value)), '$' + '$;$'.join(imap(lambda item: item[1], value)) + '$'
+
+    def _ensure_validity(self):
+        if self._finished is True:
+            assert self._record_count == 0 and len(self._inspector) == 0
+            raise ValueError('I/O operation on closed record writer')
 
     def _write_chunk(self, metadata, body):
 

@@ -54,9 +54,10 @@ class SumCommand(ReportingCommand):
     def map(self, records):
         """ Computes sum(fieldname, 1, n) and stores the result in 'total' """
         self.logger.debug('SumCommand.map')
+        fieldnames = self.fieldnames
         total = 0.0
         for record in records:
-            for fieldname in self.fieldnames:
+            for fieldname in fieldnames:
                 total += float(record[fieldname])
         yield {self.total: total}
 
@@ -71,9 +72,5 @@ class SumCommand(ReportingCommand):
             except ValueError:
                 self.logger.debug('  could not convert value to float: %s', repr(value))
         yield {self.total: total}
-
-    def __init__(self):
-        ReportingCommand.__init__(self)
-        self.record_count = long(0)
 
 dispatch(SumCommand, sys.argv, sys.stdin, sys.stdout, __name__)
