@@ -112,7 +112,8 @@ class SearchCommand(object):
     @logging_configuration.setter
     def logging_configuration(self, value):
         name = self.__class__.__name__
-        globals.splunklib_logger, self.logger, self._logging_configuration = configure_logging(name, self._app_root, value)
+        root = self._app_root
+        globals.splunklib_logger, self.logger, self._logging_configuration = configure_logging(name, root, value)
 
     @Option
     def logging_level(self):
@@ -519,35 +520,13 @@ class SearchCommand(object):
         :param process: Bound method to call in processing loop.
         :type process: instancemethod
 
-        :return: `None`.
+        :return: :const:`None`.
+        :rtype: NoneType
 
         """
-        finished = None
-
-        while not finished:
-            result = self._read_chunk(ifile)
-
-            if not result:
-                break
-
-            metadata, body = result
-
-            action = metadata.get('action')
-
-            if action != 'execute':
-                raise RuntimeError('Expected execute action, not {}'.format(action))
-
-            writer = self._record_writer
-            write_record = writer.write_record
-            finished = metadata.get('finished', False)
-
-            for record in process(self._records(csv.reader(StringIO(body), dialect=CsvDialect))):
-                write_record(record)
-
-            writer.flush(finished)
-
-            if finished:
-                raise RuntimeError('Expected splunkd to terminate command on receipt of finished signal')
+        write_record = self._record_writer.write_record
+        for record in process(self._records(ifile)):
+            write_record(record)
 
     def _new_configuration_settings(self):
         return self.ConfigurationSettings(self)
@@ -594,38 +573,56 @@ class SearchCommand(object):
 
     _header = re.compile(r'chunked\s+1.0\s*,\s*(\d+)\s*,\s*(\d+)\s*\n')
 
-    def _records(self, reader):
-        record_count = 0L
+    def _records(self, ifile):
 
-        try:
-            fieldnames = reader.next()
-        except StopIteration:
-            return
+        flush = self._record_writer.flush
+        finished = None
 
-        mv_fieldnames = set()
+        while not finished:
+            result = self._read_chunk(ifile)
 
-        for fieldname in fieldnames:
-            if fieldname.startswith('__mv_'):
-                mv_fieldnames.add(fieldname[len('__mv_'):])
-            pass
+            if not result:
+                break
 
-        if len(mv_fieldnames) > 0:
-            for values in reader:
-                record = OrderedDict()
-                for fieldname, value in izip(fieldnames, values):
-                    if fieldname.startswith('__mv_'):
-                        if value:
-                            record[fieldname[len('__mv_'):]] = self._decode_list(value)
-                        pass
-                    elif fieldname not in record:
-                        record[fieldname] = value
-                record_count += 1L
-                yield record
-        else:
-            for values in reader:
-                record = OrderedDict(izip(fieldnames, values))
-                record_count += 1
-                yield record
+            metadata, body = result
+
+            action = metadata.get('action')
+
+            if action != 'execute':
+                raise RuntimeError('Expected execute action, not {}'.format(action))
+
+            reader = csv.reader(StringIO(body), dialect=CsvDialect)
+            finished = metadata.get('finished', False)
+
+            try:
+                fieldnames = reader.next()
+            except StopIteration:
+                return
+
+            mv_fieldnames = set()
+
+            for fieldname in fieldnames:
+                if fieldname.startswith('__mv_'):
+                    mv_fieldnames.add(fieldname[len('__mv_'):])
+
+            if len(mv_fieldnames) > 0:
+                for values in reader:
+                    record = OrderedDict()
+                    for fieldname, value in izip(fieldnames, values):
+                        if fieldname.startswith('__mv_'):
+                            if value:
+                                record[fieldname[len('__mv_'):]] = self._decode_list(value)
+                        elif fieldname not in record:
+                            record[fieldname] = value
+                    yield record
+            else:
+                for values in reader:
+                    record = OrderedDict(izip(fieldnames, values))
+                    yield record
+
+            flush(finished)
+
+        # raise RuntimeError('Expected splunkd to terminate command on receipt of finished signal')
 
     def _report_unexpected_error(self):
 

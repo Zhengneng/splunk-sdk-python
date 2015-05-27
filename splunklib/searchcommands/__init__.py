@@ -16,7 +16,7 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from .globals import app_root, splunklib_logger, SearchMetric
+from .globals import app_file, app_root, SearchMetric
 
 from .decorators import *
 from .validators import *

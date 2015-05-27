@@ -26,7 +26,7 @@ if sys.platform == 'win32':
     from subprocess import Popen
     import atexit
 
-from . import splunklib_logger
+from . import globals
 
 
 class ExternalSearchCommand(object):
@@ -120,14 +120,14 @@ class ExternalSearchCommand(object):
                 raise ValueError('Cannot find command on path: {}'.format(path))
 
             path = found
-            splunklib_logger.debug('starting command="%s", arguments=%s', path, argv)
+            globals.splunklib_logger.debug('starting command="%s", arguments=%s', path, argv)
 
             def terminate(signal_number, frame):
                 sys.exit('External search command is terminating on receipt of signal={}.'.format(signal_number))
 
             def terminate_child():
                 if p.pid is not None and p.returncode is None:
-                    splunklib_logger.debug('terminating command="%s", arguments=%d, pid=%d', path, argv, p.pid)
+                    globals.splunklib_logger.debug('terminating command="%s", arguments=%d, pid=%d', path, argv, p.pid)
                     os.kill(p.pid, CTRL_BREAK_EVENT)
 
             p = Popen(argv, executable=path, env=environ, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
@@ -136,10 +136,10 @@ class ExternalSearchCommand(object):
             signal(SIGINT, terminate)
             signal(SIGTERM, terminate)
 
-            splunklib_logger.debug('started command="%s", arguments=%s, pid=%d', path, argv, p.pid)
+            globals.splunklib_logger.debug('started command="%s", arguments=%s, pid=%d', path, argv, p.pid)
             p.wait()
 
-            splunklib_logger.debug(
+            globals.splunklib_logger.debug(
                 'finished command="%s", arguments=%s, pid=%d, returncode=%d', path, argv, p.pid, p.returncode)
 
             sys.exit(p.returncode)

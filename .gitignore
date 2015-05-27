@@ -26,3 +26,4 @@ _pydebug.egg
 tests/searchcommands/data/log
 tests/searchcommands/data/output
 examples/chunked_searchcommands/package/bin/packages/
+examples/chunked_searchcommands/package/local

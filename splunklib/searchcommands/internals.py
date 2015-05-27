@@ -75,15 +75,16 @@ def configure_logging(name, app_root, path=None):
     #Arguments:
 
     :param name: Logger name
-    :type name: unicode
+    :type name: bytes or unicode
 
     :param app_root: The root of the application directory.
-    :type app_root: unicode
+    :type app_root: bytes or unicode
 
     :param path: Location of an alternative logging configuration file or `None`.
     :type path: unicode or NoneType
 
     :returns: The splunklib_logger, the named logger and the location of the logging configuration file loaded.
+    :rtype: tuple
 
     .. _ConfigParser format: http://goo.gl/K6edZ8
 
@@ -302,13 +303,16 @@ class RecordWriter(object):
         if metadata:
             metadata = OrderedDict(ifilter(lambda x: x[1] is not None, metadata.iteritems()))
             metadata = self._encode_metadata(metadata)
+            metadata_length = len(metadata)
         else:
-            metadata = ''
+            metadata_length = 0
 
-        if not (metadata or body):
+        body_length = len(body)
+
+        if not (metadata_length > 0 or body_length > 0):
             return
 
-        start_line = 'chunked 1.0,{0:d},{1:d}\n'.format(len(metadata), len(body))
+        start_line = 'chunked 1.0,' + unicode(metadata_length) + ',' + unicode(body_length) + '\n'
         write = self._ofile.write
         write(start_line)
         write(metadata)

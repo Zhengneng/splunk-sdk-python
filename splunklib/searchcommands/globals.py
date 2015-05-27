@@ -27,3 +27,4 @@ app_root = dirname(abspath(dirname(app_file)))
 splunklib_logger = configure_logging('splunklib', app_root)[0]
 
 SearchMetric = namedtuple(b'Metric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
+
