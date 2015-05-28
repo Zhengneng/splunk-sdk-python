@@ -24,6 +24,7 @@ from logging.config import fileConfig
 from numbers import Number
 
 import os
+import io
 import sys
 import csv
 import json
@@ -346,3 +347,23 @@ class RecordWriter(object):
         write(metadata)
         write(body)
         self._ofile.flush()
+
+
+class Recorder(object):
+    def __init__(self, f, path):
+        self._recording = io.open(path, 'wb')
+        self._file = f
+
+    def __getattr__(self, name):
+        return getattr(self._file, name)
+
+    def read(self, size=None):
+        value = self._file.read(size)
+        self._recording.write(value)
+        self._recording.flush()
+        return value
+
+    def write(self, value):
+        self._recording.write(value)
+        self._file.write(value)
+        self._recording.flush()
