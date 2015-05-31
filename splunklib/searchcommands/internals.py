@@ -250,6 +250,13 @@ class Recorder(object):
         self._recording.flush()
         return value
 
+    def readline(self, size=None):
+        value = self._file.readline(size)
+        if len(value) > 0:
+            self._recording.write(value)
+            self._recording.flush()
+        return value
+
     def record(self, text):
         self._recording.write(text)
 

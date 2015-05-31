@@ -387,9 +387,9 @@ class SearchCommand(object):
             debug('  metadata=%r', self._metadata)
 
             try:
-                tempfile.tempdir = self._metadata.dispatch_dir
+                tempfile.tempdir = self._metadata.searchinfo.dispatch_dir
             except AttributeError:
-                debug('  %s.metadata.dispatch_dir is undefined', class_name)
+                raise RuntimeError('%s.metadata.searchinfo.dispatch_dir is undefined'.format(class_name))
 
             debug('  tempfile.tempdir=%r', tempfile.tempdir)
         except:
