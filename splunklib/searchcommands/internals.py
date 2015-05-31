@@ -245,13 +245,13 @@ class Recorder(object):
         return getattr(self._file, name)
 
     def read(self, size=None):
-        value = self._file.read(size)
+        value = self._file.read() if size is None else self._file.read(size)
         self._recording.write(value)
         self._recording.flush()
         return value
 
     def readline(self, size=None):
-        value = self._file.readline(size)
+        value = self._file.readline() if size is None else self._file.readline(size)
         if len(value) > 0:
             self._recording.write(value)
             self._recording.flush()

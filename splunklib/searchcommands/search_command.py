@@ -25,6 +25,7 @@ from cStringIO import StringIO
 from itertools import ifilter, imap, islice, izip
 from json import JSONDecoder
 from logging import _levelNames, getLevelName, getLogger
+from shutil import make_archive
 from time import time
 from urlparse import urlsplit
 from xml.etree import ElementTree
@@ -47,6 +48,16 @@ from . import globals
 # TODO: Validate class-level settings provided by the @Configuration decorator
 # At present we have property setters that validate instance-level configuration, but we do not do any validation on
 # the class-level configuration settings that are provided by way of the @Configuration decorator
+
+# TODO: Save contents of dispatch dir for use in tests that may require it (?)
+# ISSUE: Some bits of data expire or change. Examples:
+#   self.metadata.searchinfo.session_key
+#   self.metadata.searchinfo.sid
+#   self.metadata.searchinfo.splunk_uri
+#   self.metadata.searchinfo.splunk_version
+# To make this more generally useful to application developers we should provide/demonstrate how to
+# mock self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived
+# dispatch directories.
 
 
 class SearchCommand(object):
@@ -452,14 +463,33 @@ class SearchCommand(object):
             self.prepare()
 
             if self.record:
+
+                # Create the recordings directory, if it doesn't already exist
+
                 recordings = os.path.join(self._splunk_home, 'var', 'run', 'splunklib.searchcommands', 'recordings')
+
                 if not os.path.isdir(recordings):
                     os.makedirs(recordings)
+
+                # Create input/output recorders from ifile and ofile
+
                 recording = os.path.join(recordings, class_name + '-' + repr(time()))
                 ifile = Recorder(recording + '.input', ifile)
-                metadata = MetadataEncoder().encode(metadata)
                 self._record_writer.ofile = Recorder(recording + '.output', ofile)
+
+                # Record the metadata that initiated this command after removing the record option from args/raw_args
+
+                info = self._metadata.searchinfo
+
+                for attr in 'args', 'raw_args':
+                    setattr(info, attr, [arg for arg in getattr(info, attr) if not arg.startswith('record=')])
+
+                metadata = MetadataEncoder().encode(self._metadata)
                 ifile.record('chunked 1.0,' + unicode(len(metadata)) + ',0\n' + metadata)
+
+                # Archive the dispatch dir because it is useful for developing tests (use it as a baseline in mocks)
+                root_dir, base_dir = os.path.split(info.dispatch_dir)
+                make_archive(recording + '.dispatch_dir', 'gztar', root_dir, base_dir, logger=self.logger)
 
             if self.show_configuration:
                 self.write_info('{} command configuration settings: {}'.format(self.name, self.configuration))
@@ -562,7 +592,7 @@ class SearchCommand(object):
         # noinspection PyBroadException
         try:
             header = ifile.readline()
-        except:
+        except Exception as error:
             return None
 
         if not header:
