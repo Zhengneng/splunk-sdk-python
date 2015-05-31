@@ -19,6 +19,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from collections import deque, namedtuple, OrderedDict
 from cStringIO import StringIO
 from itertools import chain, ifilter, imap
+from json import JSONEncoder
 from logging import getLogger, root, StreamHandler
 from logging.config import fileConfig
 from numbers import Number
@@ -27,7 +28,6 @@ import os
 import io
 import sys
 import csv
-import json
 
 csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. See SPL-12117 for background on this issue
 
@@ -195,6 +195,17 @@ class CsvDialect(csv.Dialect):
     quoting = csv.QUOTE_MINIMAL
 
 
+class MetadataEncoder(JSONEncoder):
+
+    def __init__(self):
+        JSONEncoder.__init__(self, self._separators)
+
+    def default(self, o):
+        return o.__dict__ if isinstance(o, _ObjectView) else JSONEncoder.default(self, o)
+
+    _separators = (',', ':')
+
+
 Message = namedtuple(b'Message', (b'type', b'text'))
 
 
@@ -225,6 +236,29 @@ class ObjectView(_ObjectView):
                 instance[member_name] = _ObjectView(dictionary)
 
 
+class Recorder(object):
+    def __init__(self, path, f):
+        self._recording = io.open(path, 'wb')
+        self._file = f
+
+    def __getattr__(self, name):
+        return getattr(self._file, name)
+
+    def read(self, size=None):
+        value = self._file.read(size)
+        self._recording.write(value)
+        self._recording.flush()
+        return value
+
+    def record(self, text):
+        self._recording.write(text)
+
+    def write(self, text):
+        self._recording.write(text)
+        self._file.write(text)
+        self._recording.flush()
+
+
 class RecordWriter(object):
 
     def __init__(self, ofile, maxresultrows=None):
@@ -237,8 +271,16 @@ class RecordWriter(object):
         self._total_record_count = 0L
         self._buffer = StringIO()
         self._writer = csv.writer(self._buffer, dialect=CsvDialect)
-        self._encode_metadata = json.JSONEncoder(separators=(',', ':')).encode
+        self._encode_metadata = JSONEncoder(separators=(',', ':')).encode
         self._finished = False
+
+    @property
+    def ofile(self):
+        return self._ofile
+
+    @ofile.setter
+    def ofile(self, value):
+        self._ofile = value
 
     def flush(self, finished=None, partial=None):
 
@@ -347,23 +389,3 @@ class RecordWriter(object):
         write(metadata)
         write(body)
         self._ofile.flush()
-
-
-class Recorder(object):
-    def __init__(self, f, path):
-        self._recording = io.open(path, 'wb')
-        self._file = f
-
-    def __getattr__(self, name):
-        return getattr(self._file, name)
-
-    def read(self, size=None):
-        value = self._file.read(size)
-        self._recording.write(value)
-        self._recording.flush()
-        return value
-
-    def write(self, value):
-        self._recording.write(value)
-        self._file.write(value)
-        self._recording.flush()

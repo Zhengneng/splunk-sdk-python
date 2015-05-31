@@ -64,13 +64,14 @@ class SumCommand(ReportingCommand):
     def reduce(self, records):
         """ Computes sum(total, 1, N) and stores the result in 'total' """
         self.logger.debug('SumCommand.reduce')
+        fieldname = self.total
         total = 0.0
         for record in records:
-            value = record[self.total]
+            value = record[fieldname]
             try:
                 total += float(value)
             except ValueError:
-                self.logger.debug('  could not convert value to float: %s', repr(value))
+                self.logger.debug('  could not convert %s value to float: %s', fieldname, repr(value))
         yield {self.total: total}
 
 dispatch(SumCommand, sys.argv, sys.stdin, sys.stdout, __name__)

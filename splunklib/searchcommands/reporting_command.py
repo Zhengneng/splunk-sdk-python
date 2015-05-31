@@ -114,6 +114,7 @@ class ReportingCommand(SearchCommand):
     # endregion
 
     # region Types
+    # TODO: Implement requires_preop in splunkd's ChunkedExternProcessor
 
     class ConfigurationSettings(SearchCommand.ConfigurationSettings):
         """ Represents the configuration settings for a :code:`ReportingCommand`.
@@ -137,8 +138,6 @@ class ReportingCommand(SearchCommand):
             setattr(self, '_maxinputs', value)
 
         _maxinputs = None
-
-        # TODO: Implement requires_preop in splunkd's ChunkedExternProcessor
 
         @property
         def requires_preop(self):

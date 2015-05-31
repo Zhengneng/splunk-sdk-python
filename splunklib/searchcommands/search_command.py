@@ -25,6 +25,7 @@ from cStringIO import StringIO
 from itertools import ifilter, imap, islice, izip
 from json import JSONDecoder
 from logging import _levelNames, getLevelName, getLogger
+from time import time
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
@@ -36,7 +37,7 @@ import traceback
 
 # Relative imports
 
-from .internals import configure_logging, CsvDialect, Message, ObjectView, RecordWriter
+from .internals import configure_logging, CsvDialect, MetadataEncoder, Message, ObjectView, Recorder, RecordWriter
 from .validators import Boolean
 from .decorators import Option
 from . import globals
@@ -68,13 +69,16 @@ class SearchCommand(object):
         else:
             globals.splunklib_logger, self.logger, self._logging_configuration = configure_logging(class_name, app_root)
 
-        if 'SPLUNK_HOME' not in os.environ:
+        self._splunk_home = os.environ.get('SPLUNK_HOME')
+
+        if self._splunk_home is None:
             globals.splunklib_logger.warning(
                 'SPLUNK_HOME environment variable is undefined.\n'
                 'If you are testing outside of Splunk, consider running under control of the Splunk CLI:\n'
                 '    splunk cmd python %s\n'
                 'If you are running inside of Splunk, SPLUNK_HOME should be defined. Consider troubleshooting your '
                 'installation.', globals.app_file)
+            self._splunk_home = os.getcwdu()
 
         # Variables backing option/property values
 
@@ -141,8 +145,8 @@ class SearchCommand(object):
                 raise ValueError('Unrecognized logging level: {}'.format(value))
         self.logger.setLevel(level)
 
-    recording = Option(doc='''
-        **Syntax: recording=<bool>
+    record = Option(doc='''
+        **Syntax: record=<bool>
 
         **Description:** When `true`, records the interaction between the command and splunkd. Defaults to `false`.
 
@@ -300,6 +304,10 @@ class SearchCommand(object):
 
         return self._service
 
+    @property
+    def splunk_home(self):
+        return self._splunk_home
+
     # endregion
 
     # region Methods
@@ -354,9 +362,7 @@ class SearchCommand(object):
         debug = globals.splunklib_logger.debug
         class_name = self.__class__.__name__
         debug('%s.process started', class_name)
-
-        # TODO: Devise a recording strategy based on replacing self._read_chunk with something like
-        # self._read_and_record_chunk
+        metadata, body = None, None
 
         # Read search command metadata from splunkd
         # noinspection PyBroadException
@@ -437,7 +443,17 @@ class SearchCommand(object):
             debug('Preparing for execution')
             self.prepare()
 
-            if self.show_configuration:  # only shown, if we successfully prepare for execution
+            if self.record:
+                recordings = os.path.join(self._splunk_home, 'var', 'run', 'splunklib.searchcommands', 'recordings')
+                if not os.path.isdir(recordings):
+                    os.makedirs(recordings)
+                recording = os.path.join(recordings, class_name + '-' + repr(time()))
+                ifile = Recorder(recording + '.input', ifile)
+                metadata = MetadataEncoder().encode(metadata)
+                self._record_writer.ofile = Recorder(recording + '.output', ofile)
+                ifile.record('chunked 1.0,' + unicode(len(metadata)) + ',0\n' + metadata)
+
+            if self.show_configuration:
                 self.write_info('{} command configuration settings: {}'.format(self.name, self.configuration))
 
             debug('  configuration=%s', self._configuration)
@@ -599,7 +615,8 @@ class SearchCommand(object):
             except StopIteration:
                 return
 
-            # TODO: Consider string interning (see intern built-in) for some performance improvement in this loop
+            # TODO: Consider string interning (see intern built-in) for some performance improvement in this loop should
+            # performance data back this approach
 
             mv_fieldnames = {name: name[len('__mv_'):] for name in fieldnames if name.startswith('__mv_')}
 
