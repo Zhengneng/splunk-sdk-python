@@ -33,6 +33,7 @@ import os
 import sys
 import re
 import csv
+import tempfile
 import traceback
 
 # Relative imports
@@ -384,6 +385,13 @@ class SearchCommand(object):
 
             self._metadata = ObjectView(metadata)
             debug('  metadata=%r', self._metadata)
+
+            try:
+                tempfile.tempdir = self._metadata.dispatch_dir
+            except AttributeError:
+                debug('  %s.metadata.dispatch_dir is undefined', class_name)
+
+            debug('  tempfile.tempdir=%r', tempfile.tempdir)
         except:
             self._record_writer = RecordWriter(ofile)
             self._report_unexpected_error()
