@@ -363,10 +363,10 @@ class SearchCommand(object):
         :param args: Unused.
 
         :param ifile: Input file object.
-        :type ifile: file
+        :type ifile: file or InputType
 
         :param ofile: Output file object.
-        :type ofile: file
+        :type ofile: file or OutputType
 
         :return: :const:`None`
 
@@ -374,7 +374,6 @@ class SearchCommand(object):
         debug = globals.splunklib_logger.debug
         class_name = self.__class__.__name__
         debug('%s.process started', class_name)
-        metadata, body = None, None
 
         # Read search command metadata from splunkd
         # noinspection PyBroadException

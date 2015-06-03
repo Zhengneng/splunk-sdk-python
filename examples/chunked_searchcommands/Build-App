@@ -1,2 +1,0 @@
-#!/usr/bin/env bash
-"$(dirname $0)/setup.py" package --build-number="$(git log -1 --pretty=format:%ct)"

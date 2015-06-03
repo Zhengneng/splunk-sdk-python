@@ -1,0 +1,64 @@
+ERROR:search_command: Traceback (most recent call last):
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/search_command.py", line 336, in process
+    raise NotImplementedError(message)
+NotImplementedError: Command sum appears to be statically configured and static configuration is unsupported by splunklib.searchcommands. Please ensure that default/commands.conf contains this stanza:
+[sum]
+filename = sum.py
+supports_getinfo = true
+supports_rawargs = true
+outputheader = true
+
+ERROR:search_command: Traceback (most recent call last):
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/search_command.py", line 321, in process
+    self._execute(operation, reader, writer)
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/reporting_command.py", line 75, in _execute
+    for record in operation(SearchCommand.records(reader)):
+  File "/Users/david-noble/Workspace/Splunk/etc/apps/searchcommands_app/bin/sum.py", line 56, in map
+    for record in records:
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/search_command.py", line 365, in records
+    for record in reader:
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/splunk_csv/dict_reader.py", line 52, in next
+    list_value = DictReader._decode_list(row[mv_fieldname])
+KeyError: '__mv__raw'
+
+ERROR:search_command: Traceback (most recent call last):
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/search_command.py", line 321, in process
+    self._execute(operation, reader, writer)
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/reporting_command.py", line 75, in _execute
+    for record in operation(SearchCommand.records(reader)):
+  File "/Users/david-noble/Workspace/Splunk/etc/apps/searchcommands_app/bin/sum.py", line 56, in map
+    for record in records:
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/search_command.py", line 365, in records
+    for record in reader:
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/splunk_csv/dict_reader.py", line 52, in next
+    list_value = DictReader._decode_list(row.get(mv_fieldname))
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/splunk_csv/dict_reader.py", line 60, in _decode_list
+    if len(mv) == 0:
+TypeError: object of type 'NoneType' has no len()
+
+ERROR:search_command: Traceback (most recent call last):
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/search_command.py", line 321, in process
+    self._execute(operation, reader, writer)
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/reporting_command.py", line 75, in _execute
+    for record in operation(SearchCommand.records(reader)):
+  File "/Users/david-noble/Workspace/Splunk/etc/apps/searchcommands_app/bin/sum.py", line 56, in map
+    for record in records:
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/search_command.py", line 365, in records
+    for record in reader:
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/splunk_csv/dict_reader.py", line 55, in next
+    del row[mv_fieldname]
+KeyError: '__mv__raw'
+
+ERROR:search_command: Traceback (most recent call last):
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/search_command.py", line 321, in process
+    self._execute(operation, reader, writer)
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/reporting_command.py", line 75, in _execute
+    for record in operation(SearchCommand.records(reader)):
+  File "/Users/david-noble/Workspace/Splunk/etc/apps/searchcommands_app/bin/sum.py", line 56, in map
+    for record in records:
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/search_command.py", line 365, in records
+    for record in reader:
+  File "/Users/david-noble/Workspace/splunk-mine/splunk-sdk-python/examples/searchcommands_app/bin/splunklib/searchcommands/splunk_csv/dict_reader.py", line 55, in next
+    row.pop(mv_fieldname)
+KeyError: '__mv__raw'
+
