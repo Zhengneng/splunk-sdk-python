@@ -24,10 +24,10 @@ from logging import getLogger, root, StreamHandler
 from logging.config import fileConfig
 from numbers import Number
 
-import os
-import io
-import sys
 import csv
+import io
+import os
+import sys
 
 csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. See SPL-12117 for background on this issue
 
@@ -78,13 +78,13 @@ def configure_logging(name, app_root, path=None):
     #Arguments:
 
     :param name: Logger name
-    :type name: bytes or unicode
+    :type name: bytes, unicode
 
     :param app_root: The root of the application directory.
     :type app_root: bytes or unicode
 
     :param path: Location of an alternative logging configuration file or `None`.
-    :type path: unicode or NoneType
+    :type path: bytes, unicode or NoneType
 
     :returns: The splunklib_logger, the named logger and the location of the logging configuration file loaded.
     :rtype: tuple
@@ -130,6 +130,7 @@ def configure_logging(name, app_root, path=None):
         except KeyError:
             splunk_home = working_directory  # reasonable in debug scenarios
         try:
+            # TODO: Ensure that all existing loggers are still usable after this logging configuration file is loaded
             path = os.path.abspath(path)
             fileConfig(path, {'SPLUNK_HOME': splunk_home})
         finally:
@@ -138,10 +139,7 @@ def configure_logging(name, app_root, path=None):
     if len(root.handlers) == 0:
         root.addHandler(StreamHandler())
 
-    named_logger = None if name is None else getLogger(name)
-    splunklib_logger = getLogger('splunklib')
-
-    return splunklib_logger, named_logger, path
+    return None if name is None else getLogger(name), path
 
 
 class ConfigurationSettingsType(type):

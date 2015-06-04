@@ -17,6 +17,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from cStringIO import StringIO
+from io import open
 import csv
 import os
 import re
@@ -85,7 +86,7 @@ class File(Validator):
     """ Validates file option values.
 
     """
-    def __init__(self, mode='r', buffering=-1):
+    def __init__(self, mode='rt', buffering=None):
         self.mode = mode
         self.buffering = buffering
 
@@ -100,10 +101,10 @@ class File(Validator):
             path = os.path.join(File._var_run_splunk, path)
 
         try:
-            value = open(path, self.mode, self.buffering)
-        except IOError as e:
+            value = open(path, self.mode) if self.buffering is None else open(path, self.mode, self.buffering)
+        except IOError as error:
             raise ValueError('Cannot open {0} with mode={1} and buffering={2}: {3}'.format(
-                value, self.mode, self.buffering, e))
+                value, self.mode, self.buffering, error))
 
         return value
 
@@ -111,7 +112,7 @@ class File(Validator):
         return value.name
 
     _var_run_splunk = os.path.join(
-        os.environ['SPLUNK_HOME'] if 'SPLUNK_HOME' in os.environ else os.getcwd(), 'var', 'run', 'splunk')
+        os.environ['SPLUNK_HOME'] if 'SPLUNK_HOME' in os.environ else os.getcwdu(), 'var', 'run', 'splunk')
 
 
 class Integer(Validator):
@@ -122,17 +123,17 @@ class Integer(Validator):
         if minimum is not None and maximum is not None:
             def check_range(value):
                 if not (minimum <= value <= maximum):
-                    raise ValueError('Expected integer in the range [{0},{1}]: {2}'.format(minimum, maximum, value))
+                    raise ValueError('Expected integer in the range [{0},{1}], not {2}'.format(minimum, maximum, value))
                 return
         elif minimum is not None:
             def check_range(value):
                 if value < minimum:
-                    raise ValueError('Expected integer in the range [{0},+∞]: {1}'.format(minimum, value))
+                    raise ValueError('Expected integer in the range [{0},+∞], not {1}'.format(minimum, value))
                 return
         elif maximum is not None:
             def check_range(value):
                 if value > maximum:
-                    raise ValueError('Expected integer in the range [-∞,{0}]: {1}'.format(maximum, value))
+                    raise ValueError('Expected integer in the range [-∞,{0}], not {1}'.format(maximum, value))
                 return
         else:
             def check_range(value):
@@ -182,8 +183,8 @@ class Duration(Validator):
         value = int(value)
 
         s = value % 60
-        m = value / 60 % 60
-        h = value / (60 * 60)
+        m = value // 60 % 60
+        h = value // (60 * 60)
 
         return '{0:02d}:{1:02d}:{2:02d}'.format(h, m, s)
 
@@ -197,19 +198,38 @@ class List(Validator):
     """
     class Dialect(csv.Dialect):
         """ Describes the properties of list option values. """
-        delimiter = ','
-        quotechar = '"'
+        strict = True
+        delimiter = b','
+        quotechar = b'"'
         doublequote = True
-        lineterminator = '\n'
+        lineterminator = b'\n'
         skipinitialspace = True
         quoting = csv.QUOTE_MINIMAL
 
+    def __init__(self, validator=None):
+        if not (validator is None or isinstance(validator, Validator)):
+            raise ValueError('Expected a Validator instance or None for validator, not {}', repr(validator))
+        self._validator = validator
+
     def __call__(self, value):
-        if not (value is None or isinstance(value, list)):
-            try:
-                value = csv.reader([value], List.Dialect).next()
-            except BaseException as e:
-                raise ValueError(e)
+
+        if value is None or isinstance(value, list):
+            return value
+
+        try:
+            value = csv.reader([value], self.Dialect).next()
+        except csv.Error as error:
+            raise ValueError(error)
+
+        if self._validator is None:
+            return value
+
+        try:
+            for index, item in enumerate(value):
+                value[index] = self._validator(item)
+        except ValueError as error:
+            raise ValueError('Could not convert item {}: {}'.format(index, error))
+
         return value
 
     def format(self, value):
@@ -228,10 +248,15 @@ class Map(Validator):
         self.membership = kwargs
 
     def __call__(self, value):
-        if value is not None:
-            value = unicode(value)
-            if value not in self.membership:
-                raise ValueError('Unrecognized value: {0}'.format(value))
+
+        if value is None:
+            return None
+
+        value = unicode(value)
+
+        if value not in self.membership:
+            raise ValueError('Unrecognized value: {0}'.format(value))
+
         return self.membership[value]
 
     def format(self, value):
@@ -259,11 +284,12 @@ class RegularExpression(Validator):
 
     """
     def __call__(self, value):
-        value = unicode(value)
+        if value is None:
+            return None
         try:
-            value = re.compile(value)
-        except re.error as e:
-            raise ValueError('{0}: {1}'.format(unicode(e).capitalize(), value))
+            value = re.compile(unicode(value))
+        except re.error as error:
+            raise ValueError('{0}: {1}'.format(unicode(error).capitalize(), value))
         return value
 
     def format(self, value):
@@ -275,13 +301,14 @@ class Set(Validator):
 
     """
     def __init__(self, *args):
-        self.membership = args
+        self.membership = set(args)
 
     def __call__(self, value):
-        if value is not None:
-            value = unicode(value)
-            if value not in self.membership:
-                raise ValueError('Unrecognized value: {0}'.format(value))
+        if value is None:
+            return None
+        value = unicode(value)
+        if value not in self.membership:
+            raise ValueError('Unrecognized value: {0}'.format(value))
         return value
 
     def format(self, value):

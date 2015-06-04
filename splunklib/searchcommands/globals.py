@@ -25,8 +25,10 @@ import sys
 
 from .internals import configure_logging
 
-app_file = sys.modules['__main__'].__dict__.get('__file__', 'Python shell')
+app_file = getattr(sys.modules['__main__'], '__file__', 'Python shell')
 app_root = dirname(abspath(dirname(app_file)))
-splunklib_logger = configure_logging('splunklib', app_root)[0]
+
+splunklib_logger, logging_configuration = configure_logging('splunklib', app_root)
 
 SearchMetric = namedtuple(b'SearchMetric', (b'elapsed_seconds', b'invocation_count', b'input_count', b'output_count'))
+

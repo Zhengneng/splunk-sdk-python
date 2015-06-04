@@ -94,18 +94,21 @@ class TestSearchCommandsApp(unittest.TestCase):
     def setUp(self):
         unittest.TestCase.setUp(self)
 
-    def get_search_command_path(self, name):
-        path = os.path.join(project_root, 'examples', 'searchcommands_app', 'package', 'bin', name + '.py')
-        self.assertTrue(path)
-        return path
-
     def test_countmatches_as_unit(self):
         expected, output = self._run_command('countmatches')
         self.assertEqual(expected, output)
 
     def test_generatehello_as_unit(self):
-        output, expected = self._run_command('generatehello')
+        expected, output = self._run_command('generatehello')
         # TODO: Smart diff that's insensitive to _time
+
+    @unittest.skipUnless(
+        True, 'Skipping TestSearchCommandsApp.test_pypygeneratehello_as_unit because the PyPy compiler is not on the '
+        'PATH.')
+    def test_pypygeneratehello_as_unit(self):
+        expected, output = self._run_command('pypygeneratehello')
+        # TODO: Smart diff that's insensitive to _time
+        # TODO: Skip unless pypy is the path
 
     def test_sum_as_unit(self):
         expected, output = self._run_command('sum', 'map')
@@ -113,9 +116,14 @@ class TestSearchCommandsApp(unittest.TestCase):
         expected, output = self._run_command('sum', 'reduce')
         self.assertEqual(expected, output)
 
+    def _get_search_command_path(self, name):
+        path = os.path.join(project_root, 'examples', 'searchcommands_app', 'package', 'bin', name + '.py')
+        self.assertTrue(path)
+        return path
+
     def _run_command(self, name, phase=None):
 
-        command = self.get_search_command_path(name)
+        command = self._get_search_command_path(name)
         args = ['splunk', 'cmd', 'python', command]
 
         # TODO: Test against the version of Python that ships with the version of Splunk used to produce each recording

@@ -292,7 +292,7 @@ class TestSearchCommand(unittest.TestCase):
         #   service
         pass
 
-    _package_directory = os.path.dirname(__file__)
+    _package_directory = os.path.dirname(os.path.abspath(__file__))
 
 
 if __name__ == "__main__":

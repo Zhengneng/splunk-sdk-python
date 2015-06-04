@@ -148,9 +148,7 @@ class Option(property):
                     return getter
 
                 fget = new_getter(field_name)
-                fget = FunctionType(
-                    fget.func_code, fget.func_globals, member_name, None,
-                    fget.func_closure)
+                fget = FunctionType(fget.func_code, fget.func_globals, member_name, None, fget.func_closure)
                 fget = MethodType(fget, None, command)
                 option = option.getter(fget)
 
@@ -160,9 +158,7 @@ class Option(property):
                     return setter
 
                 fset = new_setter(field_name)
-                fset = FunctionType(
-                    fset.func_code, fset.func_globals, member_name, None,
-                    fset.func_closure)
+                fset = FunctionType(fset.func_code, fset.func_globals, member_name, None, fset.func_closure)
                 fset = MethodType(fset, None, command)
                 option = option.setter(fset)
 

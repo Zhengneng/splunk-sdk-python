@@ -39,31 +39,36 @@ import traceback
 
 # Relative imports
 
-from .internals import configure_logging, CsvDialect, MetadataEncoder, Message, ObjectView, Recorder, RecordWriter
+from .internals import CsvDialect, MetadataEncoder, Message, ObjectView, Recorder, RecordWriter
+from .internals import configure_logging
 from .validators import Boolean
 from .decorators import Option
 from . import globals
 
 
-# TODO: Validate class-level settings provided by the @Configuration decorator
+# [ ] TODO: Validate class-level settings provided by the @Configuration decorator
 # At present we have property setters that validate instance-level configuration, but we do not do any validation on
 # the class-level configuration settings that are provided by way of the @Configuration decorator
 
-# TODO: Save contents of dispatch dir for use in tests that may require it (?)
+# [X] TODO: Save contents of dispatch dir for use in tests that may require it
 # ISSUE: Some bits of data expire or change. Examples:
 #   self.metadata.searchinfo.session_key
 #   self.metadata.searchinfo.sid
 #   self.metadata.searchinfo.splunk_uri
 #   self.metadata.searchinfo.splunk_version
-# To make this more generally useful to application developers we should provide/demonstrate how to
-# mock self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived
-# dispatch directories.
+
+# [ ] TODO: Use saved dispatch dir to mock tests that depend on its contents (?)
+# To make records more generally useful to application developers we should provide/demonstrate how to mock
+# self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived dispatch directories.
 
 
 class SearchCommand(object):
     """ Represents a custom search command.
 
     """
+
+    # TODO: In SearchCommand.__init__ change app_root parameter to app_file because both app_file is required and
+    # app_root can be computed from it. See globals.py and SearchCommand.__init__.
 
     def __init__(self, app_root=None):
         """
@@ -77,9 +82,11 @@ class SearchCommand(object):
         class_name = self.__class__.__name__
 
         if app_root is None:
-            self.logger = getLogger(class_name)
+            self._logger, self._logging_configuration = getLogger(class_name), globals.logging_configuration
         else:
-            globals.splunklib_logger, self.logger, self._logging_configuration = configure_logging(class_name, app_root)
+            self._logger, self._logging_configuration = configure_logging(class_name, app_root)
+            globals.splunklib_logger = getLogger('splunklib')
+            globals.logging_configuration = self._logging_configuration
 
         self._splunk_home = os.environ.get('SPLUNK_HOME')
 
@@ -127,9 +134,9 @@ class SearchCommand(object):
 
     @logging_configuration.setter
     def logging_configuration(self, value):
-        name = self.__class__.__name__
-        root = self._app_root
-        globals.splunklib_logger, self.logger, self._logging_configuration = configure_logging(name, root, value)
+        self._logger, self._logging_configuration = configure_logging(self.__class__.__name__, self._app_root, value)
+        globals.splunklib_logger = getLogger('splunklib')
+        globals.logging_configuration = self._logging_configuration
 
     @Option
     def logging_level(self):
@@ -139,7 +146,7 @@ class SearchCommand(object):
         `logging_level` will be ignored.
 
         """
-        return getLevelName(self.logger.getEffectiveLevel())
+        return getLevelName(self._logger.getEffectiveLevel())
 
     @logging_level.setter
     def logging_level(self, value):
@@ -155,7 +162,7 @@ class SearchCommand(object):
                 level = int(value)
             except ValueError:
                 raise ValueError('Unrecognized logging level: {}'.format(value))
-        self.logger.setLevel(level)
+        self._logger.setLevel(level)
 
     record = Option(doc='''
         **Syntax: record=<bool>
@@ -192,6 +199,16 @@ class SearchCommand(object):
     @fieldnames.setter
     def fieldnames(self, value):
         self._fieldnames = value
+
+    @property
+    def logger(self):
+        """ Returns the logger for this command.
+
+        :return: The logger for this command.
+        :rtype:
+
+        """
+        return self._logger
 
     @property
     def metadata(self):
@@ -750,13 +767,14 @@ class SearchCommand(object):
             """ Adjusts and checks this class and its search command class.
 
             Derived classes must override this method. It is used by the :decorator:`Configuration` decorator to fix up
-            the :class:`SearchCommand` classes it adorns. This method is overridden by :class:`GeneratingCommand`,
-            :class:`ReportingCommand`, and :class:`StreamingCommand`, the base types for all other search commands.
+            the :class:`SearchCommand` classes it adorns. This method is overridden by :class:`EventingCommand`,
+            :class:`GeneratingCommand`, :class:`ReportingCommand`, and :class:`StreamingCommand`, the base types for all
+            other search commands.
 
             :param command_class: Command class targeted by this class
 
             """
-            raise NotImplementedError('SearchCommand.fix_up method must be overridden')
+            raise NotImplementedError('SearchCommand.Configuration.fix_up method must be overridden')
 
         def render(self):
             """ Renders settings for presentation to splunkd.
