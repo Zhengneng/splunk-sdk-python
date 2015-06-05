@@ -61,26 +61,21 @@ class TestInternals(unittest.TestCase):
 
             try:
                 # Read and then write a line
-
                 ifile.readline()
                 ofile.write(result.readline())
 
                 # Read and then write a block
-
                 ifile.read()
                 ofile.write(result.read())
 
                 # Verify that what we wrote is equivalent to the original recording, the result from a prior
                 # countmatches run
-
                 self.assertEqual(ofile.getvalue(), result.getvalue())
 
                 # Verify that we faithfully recorded the input and output files
-
                 with open(ifile._recording.name, 'rb') as file_1, open(ofile._recording.name, 'rb') as file_2:
                     self.assertEqual(file_1.read(), ifile._file.getvalue())
                     self.assertEqual(file_2.read(), ofile._file.getvalue())
-                    pass
 
             finally:
                 ofile._recording.close()
@@ -94,7 +89,10 @@ class TestInternals(unittest.TestCase):
 
     def test_record_writer(self):
         # RecordWriter writes data in units of maxresultrows records. Default: 50,0000. Overridden by: getinfo metadata.
+        
         # RecordWriter accumulates inspector messages and metrics until maxresultrows are written.
+        # RecordWriter gives consumers the ability to write partial results by calling RecordWriter.flush.
+        # RecordWriter gives consumers the ability to finish early by calling RecordWriter.flush.
         pass
 
     _dictionary = {
