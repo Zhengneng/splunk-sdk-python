@@ -148,36 +148,56 @@ class TestDecorators(unittest.TestCase):
 
     def test_option(self):
 
+        presets = ['logging_level="WARNING"', 'record="f"', 'show_configuration="f"']
+
         command = StubbedSearchCommand()
-        command.options.reset()
-        missing = command.options.get_missing()
-        self.assertListEqual(missing, [option.name for option in command.options.itervalues() if option.is_required])
+        options = command.options
+        itervalues = options.itervalues
 
-        error_count = 0
-        args = []
+        options.reset()
+        missing = options.get_missing()
+        self.assertListEqual(missing, [option.name for option in itervalues() if option.is_required])
+        self.assertListEqual(presets, [str(option) for option in itervalues() if option.value is not None])
+        self.assertListEqual(presets, [str(option) for option in itervalues() if str(option) != option.name + '=null'])
 
-        for arg in args:
-            result = arg.split('=', 1)
-            if len(result) == 1:
-                command.fieldnames.append(result[0])
+        test_option_values = {
+            validators.Boolean: ('0', 'non-boolean value'),
+            validators.Duration: ('24:59:59', 'non-duration value'),
+            validators.Fieldname: ('some.field_name', 'non-fieldname value'),
+            validators.File: (__file__, 'non-existent file'),
+            validators.Integer: ('100', 'non-integer value'),
+            validators.List: ('a,b,c', '"non-list value'),
+            validators.Map: ('foo', 'non-existent map entry'),
+            validators.OptionName: ('some_option_name', 'non-option name value'),
+            validators.RegularExpression: ('\\s+', '(poorly formed regular expression'),
+            validators.Set: ('bar', 'non-existent set entry')}
+
+        for option in itervalues():
+            validator = option.validator
+
+            if validator is None:
+                # TODO: Consider adding validators for these two
+                self.assertIn(option.name, ['logging_configuration', 'logging_level'])
+                continue
+
+            legal_value, illegal_value = test_option_values[type(validator)]
+            option.value = legal_value
+
+            self.assertEqual(
+                validator.format(option.value), validator.format(validator.__call__(legal_value)),
+                "{}={}".format(option.name, legal_value))
+
+            try:
+                option.value = illegal_value
+            except ValueError:
+                pass
+            except BaseException as error:
+                self.assertFalse('Expected ValueError for {}={}, not this {}: {}'.format(
+                    option.name, illegal_value, type(error).__name__, error))
             else:
-                name, value = result
-                try:
-                    option = command.options[name]
-                except KeyError:
-                    command.write_error('Unrecognized option: {}={}'.format(name, value))
-                    error_count += 1
-                    continue
-                try:
-                    option.value = value
-                except ValueError:
-                    command.write_error('Illegal value: {}'.format(option))
-                    error_count += 1
-                    continue
-            pass
-        pass
+                self.assertFalse('Expected ValueError for {}={}, not a pass.'.format(option.name, illegal_value))
 
-        missing = command.options.get_missing()
+        return
 
     _package_directory = os.path.dirname(__file__)
 

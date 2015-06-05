@@ -279,9 +279,10 @@ class OptionName(Validator):
     pattern = re.compile(r'''[a-zA-Z][_a-zA-Z0-9]*$''')
 
     def __call__(self, value):
-        value = unicode(value)
-        if OptionName.pattern.match(value) is None:
-            raise ValueError('Illegal characters in option name: {0}'.format(value))
+        if value is not None:
+            value = unicode(value)
+            if OptionName.pattern.match(value) is None:
+                raise ValueError('Illegal characters in option name: {}'.format(value))
         return value
 
     def format(self, value):

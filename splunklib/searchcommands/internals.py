@@ -125,6 +125,7 @@ def configure_logging(name, app_root, path=None):
     if path is not None:
         working_directory = os.getcwdu()
         os.chdir(app_root)
+        # TODO: Compute splunk_home just once and keep it somewhere like globals or internals
         try:
             splunk_home = os.path.normpath(os.path.join(working_directory, os.environ['SPLUNK_HOME']))
         except KeyError:
@@ -196,7 +197,7 @@ class CsvDialect(csv.Dialect):
 class MetadataEncoder(JSONEncoder):
 
     def __init__(self):
-        JSONEncoder.__init__(self, self._separators)
+        JSONEncoder.__init__(self, separators=self._separators)
 
     def default(self, o):
         return o.__dict__ if isinstance(o, _ObjectView) else JSONEncoder.default(self, o)
@@ -235,6 +236,7 @@ class ObjectView(_ObjectView):
 
 
 class Recorder(object):
+
     def __init__(self, path, f):
         self._recording = io.open(path, 'wb')
         self._file = f
