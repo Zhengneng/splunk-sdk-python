@@ -29,8 +29,7 @@ import unittest
 class TestInternals(unittest.TestCase):
 
     def setUp(self):
-        super(TestInternals, self).setUp()
-        return
+        unittest.TestCase.setUp(self)
 
     def test_object_view(self):
 
@@ -115,7 +114,6 @@ class TestInternals(unittest.TestCase):
     }
 
     _json_input = unicode(json.dumps(_dictionary, separators=(',', ':')))
-
     _package_path = os.path.dirname(os.path.abspath(__file__))
 
 
