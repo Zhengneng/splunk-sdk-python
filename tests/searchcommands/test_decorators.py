@@ -151,7 +151,7 @@ class TestDecorators(unittest.TestCase):
         command = StubbedSearchCommand()
         command.options.reset()
         missing = command.options.get_missing()
-        self.assertListEqual(missing, [option for option in command.options if option.require is True])
+        self.assertListEqual(missing, [option.name for option in command.options.itervalues() if option.is_required])
 
         error_count = 0
         args = []
