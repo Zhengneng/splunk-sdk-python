@@ -25,6 +25,8 @@ import re
 import sys
 import unittest
 
+# TODO: Verify that all format methods produce 'null' when value is None
+# TODO: Consider bumping None formatting up to Option.Item.__str__
 
 class TestValidators(unittest.TestCase):
 

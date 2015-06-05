@@ -63,7 +63,7 @@ class Boolean(Validator):
         return value
 
     def format(self, value):
-        return 't' if value else 'f'
+        return None if value is None else 't' if value else 'f'
 
 
 class Fieldname(Validator):
@@ -73,9 +73,10 @@ class Fieldname(Validator):
     pattern = re.compile(r'''[_.a-zA-Z-][_.a-zA-Z0-9-]*$''')
 
     def __call__(self, value):
-        value = unicode(value)
-        if Fieldname.pattern.match(value) is None:
-            raise ValueError('Illegal characters in fieldname: {0}'.format(value))
+        if value is not None:
+            value = unicode(value)
+            if Fieldname.pattern.match(value) is None:
+                raise ValueError('Illegal characters in fieldname: {}'.format(value))
         return value
 
     def format(self, value):
@@ -109,7 +110,7 @@ class File(Validator):
         return value
 
     def format(self, value):
-        return value.name
+        return None if value is None else value.name
 
     _var_run_splunk = os.path.join(
         os.environ['SPLUNK_HOME'] if 'SPLUNK_HOME' in os.environ else os.getcwdu(), 'var', 'run', 'splunk')
@@ -143,13 +144,18 @@ class Integer(Validator):
         return
 
     def __call__(self, value):
-        if value is not None:
+        if value is None:
+            return None
+        try:
             value = long(value)
-            self.check_range(value)
+        except ValueError:
+            raise ValueError('Expected integer value, not {}'.format(repr(value)))
+
+        self.check_range(value)
         return value
 
     def format(self, value):
-        return unicode(int(value))
+        return None if value is None else unicode(long(value))
 
 
 class Duration(Validator):
@@ -179,6 +185,9 @@ class Duration(Validator):
         return result
 
     def format(self, value):
+
+        if value is None:
+            return None
 
         value = int(value)
 
@@ -260,7 +269,7 @@ class Map(Validator):
         return self.membership[value]
 
     def format(self, value):
-        return self.membership.keys()[self.membership.values().index(value)]
+        return None if value is None else self.membership.keys()[self.membership.values().index(value)]
 
 
 class OptionName(Validator):
@@ -276,7 +285,7 @@ class OptionName(Validator):
         return value
 
     def format(self, value):
-        return self.__call__(value)
+        return None if value is None else unicode(value)
 
 
 class RegularExpression(Validator):
@@ -293,7 +302,7 @@ class RegularExpression(Validator):
         return value
 
     def format(self, value):
-        return value.pattern
+        return None if value is None else value.pattern
 
 
 class Set(Validator):

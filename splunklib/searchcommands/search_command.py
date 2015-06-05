@@ -106,7 +106,7 @@ class SearchCommand(object):
         self._fieldnames = None
         self._finished = None
         self._metadata = None
-        self._option_view = None
+        self._options = None
         self._search_results_info = None
         self._service = None
 
@@ -219,9 +219,9 @@ class SearchCommand(object):
         """ Returns the options specified as argument to this command.
 
         """
-        if self._option_view is None:
-            self._option_view = Option.View(self)
-        return self._option_view
+        if self._options is None:
+            self._options = Option.View(self)
+        return self._options
 
     @property
     def search_results_info(self):

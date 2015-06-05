@@ -199,7 +199,7 @@ class Option(property):
             # Convert the value of a type unknown to the JSONEncoder
             validator = self.item.validator
             if validator is None:
-                return str(o)
+                return unicode(o)
             return validator.format(o)
 
     class Item(object):
@@ -215,7 +215,7 @@ class Option(property):
             return str(self)
 
         def __str__(self):
-            value = str(self.value) if self.validator is None else self.validator.format(self.value)
+            value = self.value if self.validator is None else self.validator.format(self.value)
             encoder = Option.Encoder(self)
             text = '='.join([self.name, encoder.encode(value)])
             return text
@@ -257,13 +257,12 @@ class Option(property):
         # endregion
 
     class View(object):
-        """ Presents a view of the set of `Option` arguments to a search command.
+        """ Presents a view of the set of :class:`Option` arguments to a search command.
 
         """
         def __init__(self, command):
-            self._items = OrderedDict([
-                (option.name, Option.Item(command, option))
-                for member_name, option in type(command).option_definitions])
+            self._items = OrderedDict(
+                [(member, Option.Item(command, option)) for member, option in type(command).option_definitions])
 
         def __contains__(self, name):
             return name in self._items
