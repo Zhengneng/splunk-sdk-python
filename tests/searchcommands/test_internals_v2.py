@@ -35,6 +35,7 @@ class TestInternals(unittest.TestCase):
 
         decoder = MetadataDecoder()
         view = decoder.decode(self._json_input)
+
         encoder = MetadataEncoder()
         json_output = encoder.encode(view)
 
@@ -56,8 +57,7 @@ class TestInternals(unittest.TestCase):
         ifile = Recorder(mktemp(), ifile)
 
         try:
-            ofile = StringIO()
-            ofile = Recorder(mktemp(), ofile)
+            ofile = Recorder(mktemp(), StringIO())
 
             try:
                 # Read and then write a line
@@ -81,6 +81,7 @@ class TestInternals(unittest.TestCase):
                     self.assertEqual(file_1.read(), ifile._file.getvalue())
                     self.assertEqual(file_2.read(), ofile._file.getvalue())
                     pass
+
             finally:
                 ofile._recording.close()
                 os.remove(ofile._recording.name)
@@ -92,6 +93,8 @@ class TestInternals(unittest.TestCase):
         return
 
     def test_record_writer(self):
+        # RecordWriter writes data in units of maxresultrows records. Default: 50,0000. Overridden by: getinfo metadata.
+        # RecordWriter accumulates inspector messages and metrics until maxresultrows are written.
         pass
 
     _dictionary = {

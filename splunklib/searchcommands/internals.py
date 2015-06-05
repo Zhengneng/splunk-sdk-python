@@ -44,12 +44,14 @@ if sys.platform == 'win32':
         from msvcrt import setmode
         setmode(fileno, os.O_BINARY)
 
+_global = sys.modules['splunklib.searchcommands.globals']  # Get access globals without creating a circular reference
 
-_global = sys.modules['splunklib.searchcommands.globals']
+_splunk_home = os.path.realpath(os.path.join(os.getcwdu(), os.environ.get('SPLUNK_HOME', '')))
+_current_logging_configuration_file = None
+
 
 def configure_logging(name, app_root, path=None):
-    """ Configure logging and return splunklib_logger, the named logger, and the location of the logging configuration
-    file.
+    """ Configure logging and return the named logger and the location of the logging configuration file loaded.
 
     This function expects a Splunk app directory structure::
 
@@ -86,7 +88,7 @@ def configure_logging(name, app_root, path=None):
     :param path: Location of an alternative logging configuration file or `None`.
     :type path: bytes, unicode or NoneType
 
-    :returns: The splunklib_logger, the named logger and the location of the logging configuration file loaded.
+    :returns: The named logger and the location of the logging configuration file loaded.
     :rtype: tuple
 
     .. _ConfigParser format: http://goo.gl/K6edZ8
@@ -120,22 +122,20 @@ def configure_logging(name, app_root, path=None):
     elif not os.path.exists(path):
         raise ValueError('Logging configuration file "{}" not found'.format(path))
 
-    # TODO: Only load the logging configuration on a path once
-
     if path is not None:
+        path = os.path.realpath(path)
+
+    global _current_logging_configuration_file
+
+    if path != _current_logging_configuration_file:
         working_directory = os.getcwdu()
         os.chdir(app_root)
-        # TODO: Compute splunk_home just once and keep it somewhere like globals or internals
-        try:
-            splunk_home = os.path.normpath(os.path.join(working_directory, os.environ['SPLUNK_HOME']))
-        except KeyError:
-            splunk_home = working_directory  # reasonable in debug scenarios
         try:
             # TODO: Ensure that all existing loggers are still usable after this logging configuration file is loaded
-            path = os.path.abspath(path)
-            fileConfig(path, {'SPLUNK_HOME': splunk_home})
+            fileConfig(path, {'SPLUNK_HOME': _splunk_home})
         finally:
             os.chdir(working_directory)
+        _current_logging_configuration_file = path
 
     if len(root.handlers) == 0:
         root.addHandler(StreamHandler())
@@ -309,7 +309,7 @@ class RecordWriter(object):
         if self._record_count == 0 and len(self._inspector) == 0:
             return
 
-        # TODO: Write SearchMetric (?) Include timing (?) Anything else (?)
+        # [ ] TODO: Write SearchMetric (?) Include timing (?) Anything else (?)
 
         self._total_record_count += self._record_count
         self._chunk_count += 1
