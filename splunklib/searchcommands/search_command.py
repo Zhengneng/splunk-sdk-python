@@ -23,7 +23,6 @@ from splunklib.client import Service
 from collections import OrderedDict
 from cStringIO import StringIO
 from itertools import ifilter, imap, islice, izip
-from json import JSONDecoder
 from logging import _levelNames, getLevelName, getLogger
 from shutil import make_archive
 from time import time
@@ -39,7 +38,7 @@ import traceback
 
 # Relative imports
 
-from .internals import CsvDialect, MetadataEncoder, Message, ObjectView, Recorder, RecordWriter
+from .internals import CsvDialect, MetadataDecoder, MetadataEncoder, Message, ObjectView, Recorder, RecordWriter
 from .internals import configure_logging
 from .validators import Boolean
 from .decorators import Option
@@ -253,7 +252,7 @@ class SearchCommand(object):
         def convert_field(field):
             return (field[1:] if field[0] == '_' else field).replace('.', '_')
 
-        decode = JSONDecoder().decode
+        decode = MetadataDecoder().decode
 
         def convert_value(value):
             try:
@@ -396,21 +395,17 @@ class SearchCommand(object):
         # noinspection PyBroadException
         try:
             debug('Reading metadata')
-            result = self._read_chunk(ifile)
+            metadata, body = self._read_chunk(ifile)
 
-            if result is None:
-                raise RuntimeError('Expected getinfo action, not end-of-file')
-
-            metadata, body = result
-            action = metadata.get('action')
+            action = getattr(metadata, 'action', None)
 
             if action != 'getinfo':
                 raise RuntimeError('Expected getinfo action, not {}'.format(action))
 
-            if body:
+            if len(body) > 0:
                 raise RuntimeError('Did not expect data for getinfo action')
 
-            self._metadata = ObjectView(metadata)
+            self._metadata = metadata
             debug('  metadata=%r', self._metadata)
 
             try:
@@ -609,7 +604,7 @@ class SearchCommand(object):
         try:
             header = ifile.readline()
         except Exception as error:
-            return None
+            raise RuntimeError('Failed to read transport header: {}'.format(error))
 
         if not header:
             return None
@@ -628,7 +623,7 @@ class SearchCommand(object):
         except Exception as error:
             raise RuntimeError('Failed to read metadata of length {}: {}'.format(metadata_length, error))
 
-        decoder = JSONDecoder()
+        decoder = MetadataDecoder()
 
         try:
             metadata = decoder.decode(metadata)
@@ -656,13 +651,13 @@ class SearchCommand(object):
 
             metadata, body = result
 
-            action = metadata.get('action')
+            action = getattr(metadata, 'action', None)
 
             if action != 'execute':
                 raise RuntimeError('Expected execute action, not {}'.format(action))
 
             reader = csv.reader(StringIO(body), dialect=CsvDialect)
-            finished = metadata.get('finished', False)
+            finished = getattr(metadata, 'finished', False)
 
             try:
                 fieldnames = reader.next()

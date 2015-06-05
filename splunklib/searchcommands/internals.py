@@ -19,7 +19,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from collections import deque, namedtuple, OrderedDict
 from cStringIO import StringIO
 from itertools import chain, ifilter, imap
-from json import JSONEncoder
+from json import JSONDecoder, JSONEncoder
 from logging import getLogger, root, StreamHandler
 from logging.config import fileConfig
 from numbers import Number
@@ -194,21 +194,46 @@ class CsvDialect(csv.Dialect):
     quoting = csv.QUOTE_MINIMAL
 
 
+Message = namedtuple(b'Message', (b'type', b'text'))
+
+
+class MetadataDecoder(JSONDecoder):
+
+    def __init__(self):
+        JSONDecoder.__init__(self, object_hook=self._object_hook)
+
+    @staticmethod
+    def _object_hook(dictionary):
+
+        object_view = ObjectView(dictionary)
+        stack = deque()
+        stack.append((None, None, dictionary))
+
+        while len(stack):
+            instance, member_name, dictionary = stack.popleft()
+
+            for name, value in dictionary.iteritems():
+                if isinstance(value, dict):
+                    stack.append((dictionary, name, value))
+
+            if instance is not None:
+                instance[member_name] = ObjectView(dictionary)
+
+        return object_view
+
+
 class MetadataEncoder(JSONEncoder):
 
     def __init__(self):
         JSONEncoder.__init__(self, separators=self._separators)
 
     def default(self, o):
-        return o.__dict__ if isinstance(o, _ObjectView) else JSONEncoder.default(self, o)
+        return o.__dict__ if isinstance(o, ObjectView) else JSONEncoder.default(self, o)
 
     _separators = (',', ':')
 
 
-Message = namedtuple(b'Message', (b'type', b'text'))
-
-
-class _ObjectView(object):
+class ObjectView(object):
 
     def __init__(self, dictionary):
         self.__dict__ = dictionary
@@ -218,21 +243,6 @@ class _ObjectView(object):
 
     def __str__(self):
         return str(self.__dict__)
-
-
-class ObjectView(_ObjectView):
-
-    def __init__(self, dictionary):
-        _ObjectView.__init__(self, dictionary)
-        stack = deque()
-        stack.append((None, None, dictionary))
-        while len(stack):
-            instance, member_name, dictionary = stack.popleft()
-            for name, value in dictionary.iteritems():
-                if isinstance(value, dict):
-                    stack.append((dictionary, name, value))
-            if instance is not None:
-                instance[member_name] = _ObjectView(dictionary)
 
 
 class Recorder(object):
@@ -278,7 +288,7 @@ class RecordWriter(object):
         self._total_record_count = 0L
         self._buffer = StringIO()
         self._writer = csv.writer(self._buffer, dialect=CsvDialect)
-        self._encode_metadata = JSONEncoder(separators=(',', ':')).encode
+        self._encode_metadata = MetadataEncoder().encode
         self._finished = False
 
     @property
