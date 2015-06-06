@@ -116,7 +116,6 @@ class TestInternals(unittest.TestCase):
         for i in xrange(0, 5):
             for j in xrange(0, 100):
                 for record in records:
-                    print(record)
                     write_record(OrderedDict(izip(fieldnames, record)))
 
         # RecordWriter accumulates inspector messages and metrics until maxresultrows are written.
