@@ -289,6 +289,7 @@ class RecordWriter(object):
         self._buffer = StringIO()
         self._writer = csv.writer(self._buffer, dialect=CsvDialect)
         self._encode_metadata = MetadataEncoder().encode
+        self._writerow = self._writer.writerow
         self._finished = False
 
     @property
@@ -347,7 +348,7 @@ class RecordWriter(object):
             self._writer.writerow(self._fieldnames)
 
         values = list(chain.from_iterable(imap(lambda v: self._encode_value(v), imap(lambda k: record[k], record))))
-        self._writer.writerow(values)
+        self._writerow(values)
         self._record_count += 1
 
         if self._record_count >= self._maxresultrows:
@@ -363,7 +364,9 @@ class RecordWriter(object):
     def _encode_value(value):
 
         def to_string(item):
-            return unicode(item) if isinstance(item, (bytes, unicode, Number)) else repr(item)
+            # TODO: Consider trying a json dump before producing a repr(item)
+            item = unicode(item) if isinstance(item, (bytes, unicode, Number)) else unicode(repr(item))
+            return item.encode('utf8')
 
         if not isinstance(value, (list, tuple)):
             return to_string(value), None

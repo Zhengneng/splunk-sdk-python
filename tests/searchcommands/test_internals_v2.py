@@ -17,8 +17,10 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from splunklib.searchcommands.internals import MetadataDecoder, MetadataEncoder, ObjectView, Recorder, RecordWriter
+from splunklib.searchcommands.internals import MetadataDecoder, MetadataEncoder, Recorder, RecordWriter
+from collections import OrderedDict
 from cStringIO import StringIO
+from itertools import izip
 from tempfile import mktemp
 
 import json
@@ -88,8 +90,35 @@ class TestInternals(unittest.TestCase):
         return
 
     def test_record_writer(self):
-        # RecordWriter writes data in units of maxresultrows records. Default: 50,0000. Overridden by: getinfo metadata.
-        
+
+        # RecordWriter writes data in units of maxresultrows records. Default: 50,0000.
+        # Partial results are written when the record count reaches maxresultrows.
+
+        writer = RecordWriter(StringIO(), maxresultrows=1000)  # small for the purposes of this unit test
+
+        fieldnames = ['_serial', '_time', 'text']
+        records = [
+            [0, 1380899494, 'excellent review my friend loved it yours always guppyman @GGreeny62... http://t.co/fcvq7NDHxl'],
+            [1, 1380899494, 'Tú novia te ama mucho'],
+            [2, 1380899494, 'RT @Cindystaysjdm: @MannyYHT girls are like the Feds, they always watching 👀'],
+            [3, 1380899494, 'no me alcanza las palabras para el verbo amar..♫'],
+            [4, 1380899494, '@__AmaT  요즘은 곡안쓰시고 귀농하시는군요 ㅋㅋ'],
+            [5, 1380899494, 'melhor geração #DiaMundialDeRBD'],
+            [6, 1380899494, '@mariam_n_k من أي ناحية مين أنا ؟ ، إذا كان السؤال هل اعرفك او لا الجواب : ل'],
+            [7, 1380899494, 'Oreka Sud lance #DEMplus un logiciel de simulation du démantèlement d\'un réacteur #nucléaire http://t.co/lyC9nWxnWk'],
+            [8, 1380899494, '@gusosama そんなことないですよ(｡•́︿•̀｡)でも有難うございま'],
+            [9, 1380899494, '11:11 pwede pwends ta? HAHAHA']]
+
+        # Expectation: 5 blocks of 1000 records representing partial results (5 blocks * (100 * 10 records) = 5,000)
+
+        write_record = writer.write_record
+
+        for i in xrange(0, 5):
+            for j in xrange(0, 100):
+                for record in records:
+                    print(record)
+                    write_record(OrderedDict(izip(fieldnames, record)))
+
         # RecordWriter accumulates inspector messages and metrics until maxresultrows are written.
         # RecordWriter gives consumers the ability to write partial results by calling RecordWriter.flush.
         # RecordWriter gives consumers the ability to finish early by calling RecordWriter.flush.
