@@ -341,7 +341,7 @@ class RecordWriter(object):
 
     def write_metric(self, name, value):
         self._ensure_validity()
-        self._inspector['metric.{0}'.format(name)] = value
+        self._inspector['metric.' + name] = value
 
     def write_record(self, record):
         self._ensure_validity()
@@ -380,10 +380,10 @@ class RecordWriter(object):
                 return item
             if isinstance(item, Number):
                 return str(item)
-            if isinstance(item, unicode):
-                return item.encode('utf-8', errors='backslashreplace')
 
-            item = self._encode_dict(item) if isinstance(item, dict) else repr(item)
+            if not isinstance(item, unicode):
+                item = self._encode_dict(item) if isinstance(item, dict) else repr(item)
+
             return item.encode('utf-8', errors='backslashreplace')
 
         if not isinstance(value, (list, tuple)):
@@ -395,15 +395,14 @@ class RecordWriter(object):
         if len(value) == 1:
             return to_string(value[0]), None
 
-        # TODO: Bug fix: If a list item contains newlines, value cannot be interpreted correctly
+        # TODO: If a list item contains newlines, its single value cannot be interpreted correctly
         # Question: Must we return a value? Is it good enough to return (None, <encoded-list>)?
         # See what other splunk commands do.
 
         value = imap(lambda item: to_string(item), value)
-        sv = b'\n'.join(value)
-        mv = b'$' + b'$;$'.join(imap(lambda item: item.replace(b'$', b'$$'), value)) + b'$'
+        sv, mv = reduce(lambda (s, m), v: (s + v + b'\n', m + v.replace(b'$', b'$$') + b'$;$'), value, (b'', b'$'))
 
-        return sv, mv
+        return sv[:-1], mv[:-2]
 
     def _ensure_validity(self):
         if self._finished is True:

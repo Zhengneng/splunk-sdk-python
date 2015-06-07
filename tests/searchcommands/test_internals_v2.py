@@ -18,13 +18,16 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from splunklib.searchcommands.internals import MetadataDecoder, MetadataEncoder, Recorder, RecordWriter
+from splunklib.searchcommands import SearchMetric
 from collections import OrderedDict
 from cStringIO import StringIO
-from itertools import imap, izip
+from glob import iglob
+from itertools import ifilter, imap, izip
 from sys import float_info, maxsize, maxunicode
 from tempfile import mktemp
 from time import time
 
+import cPickle as pickle
 import json
 import os
 import random
@@ -92,7 +95,7 @@ class TestInternals(unittest.TestCase):
 
         return
 
-    def test_record_writer(self):
+    def test_record_writer_with_random_data(self, record=False):
 
         # Confirmed: [minint, maxint) covers the full range of values that xrange allows
 
@@ -131,17 +134,25 @@ class TestInternals(unittest.TestCase):
         # Partial results are written when the record count reaches maxresultrows.
 
         writer = RecordWriter(StringIO(), maxresultrows=10)  # small for the purposes of this unit test
+        test_data = OrderedDict()
 
         fieldnames = ['_serial', '_time', 'random_bytes', 'random_dict', 'random_integers', 'random_unicode']
+        test_data['fieldnames'] = fieldnames
+        test_data['values'] = []
+
         write_record = writer.write_record
 
         for serial_number in xrange(0, 31):
-            values = [serial_number, time(), random_bytes(), random_dict(), random_unicode(), random_integers()]
+            values = [serial_number, time(), random_bytes(), random_dict(), random_integers(), random_unicode()]
             record = OrderedDict(izip(fieldnames, values))
             try:
                 write_record(record)
             except Exception as error:
                 self.fail(error)
+            test_data['values'].append(values)
+
+        # RecordWriter accumulates inspector messages and metrics until maxresultrows are written, a partial result
+        # is produced or we're finished
 
         messages = [
             ('debug', random_unicode()),
@@ -150,8 +161,20 @@ class TestInternals(unittest.TestCase):
             ('info', random_unicode()),
             ('warn', random_unicode())]
 
+        test_data['messages'] = messages
+
         for message_type, message_text in messages:
             writer.write_message(message_type, '{}', message_text)
+
+        metrics = {
+            'metric-1': SearchMetric(1, 2, 3, 4),
+            'metric-2': SearchMetric(5, 6, 7, 8)
+        }
+
+        test_data['metrics'] = metrics
+
+        for name, metric in metrics.iteritems():
+            writer.write_metric(name, metric)
 
         self.assertEqual(writer._chunk_count, 3)
         self.assertEqual(writer._record_count, 1)
@@ -159,6 +182,10 @@ class TestInternals(unittest.TestCase):
         self.assertEqual(writer._total_record_count, 30)
         self.assertListEqual(writer._fieldnames, fieldnames)
         self.assertListEqual(writer._inspector['messages'], messages)
+
+        self.assertDictEqual(
+            dict(ifilter(lambda (k, v): k.startswith('metric.'), writer._inspector.iteritems())),
+            dict(imap(lambda (k, v): ('metric.' + k, v), metrics.iteritems())))
 
         writer.flush(finished=True)
 
@@ -174,10 +201,63 @@ class TestInternals(unittest.TestCase):
         self.assertIsNone(writer._fieldnames)
         self.assertDictEqual(writer._inspector, OrderedDict())
 
-        # RecordWriter accumulates inspector messages and metrics until maxresultrows are written.
-        # RecordWriter gives consumers the ability to write partial results by calling RecordWriter.flush.
-        # RecordWriter gives consumers the ability to finish early by calling RecordWriter.flush.
-        pass
+        # TODO: RecordWriter gives consumers the ability to write partial results by calling RecordWriter.flush.
+        # TODO: RecordWriter gives consumers the ability to finish early by calling RecordWriter.flush.
+
+        if record:
+
+            # TODO: pickle test functions--which must be defined at module level--or test function names
+            # Prefer pickling the functions because they can outlive the code in this module
+            # See https://docs.python.org/3.4/library/pickle.html
+
+            cls = self.__class__
+            method = cls.test_record_writer_with_recordings
+            base_path = os.path.join(self._recordings_path, '.'.join((cls.__name__, method.__name__, unicode(time()))))
+
+            with open(base_path + '.input', 'wb') as f:
+                pickle.dump(test_data, f)
+
+            with open(base_path + '.output', 'wb') as f:
+                f.write(writer._ofile.getvalue())
+
+        return
+
+    def test_record_writer_with_recordings(self):
+
+        cls = self.__class__
+        method = cls.test_record_writer_with_recordings
+        base_path = os.path.join(self._recordings_path, '.'.join((cls.__name__, method.__name__)))
+
+        for input_file in iglob(base_path + '*.input'):
+
+            with open(input_file, 'rb') as f:
+                test_data = pickle.load(f)
+
+            writer = RecordWriter(StringIO(), maxresultrows=10)  # small for the purposes of this unit test
+            write_record = writer.write_record
+            fieldnames = test_data['fieldnames']
+
+            for values in test_data['values']:
+                record = OrderedDict(izip(fieldnames, values))
+                try:
+                    write_record(record)
+                except Exception as error:
+                    self.fail(error)
+
+            for message_type, message_text in test_data['messages']:
+                writer.write_message(message_type, '{}', message_text)
+
+            for name, metric in test_data['metrics'].iteritems():
+                writer.write_metric(name, metric)
+
+            writer.flush(finished=True)
+
+            with open(os.path.splitext(input_file)[0] + '.output', 'rb') as f:
+                expected = f.read()
+
+            self.assertEqual(writer._ofile.getvalue(), expected)
+
+        return
 
     _dictionary = {
         'a': 1,
@@ -200,7 +280,7 @@ class TestInternals(unittest.TestCase):
 
     _json_input = unicode(json.dumps(_dictionary, separators=(',', ':')))
     _package_path = os.path.dirname(os.path.abspath(__file__))
-
+    _recordings_path = os.path.join(_package_path, 'recordings', 'v2', 'Splunk-6.3')
 
 if __name__ == "__main__":
     unittest.main()
