@@ -20,11 +20,14 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from splunklib.searchcommands.internals import MetadataDecoder, MetadataEncoder, Recorder, RecordWriter
 from collections import OrderedDict
 from cStringIO import StringIO
-from itertools import izip
+from itertools import imap, izip
+from sys import float_info, maxsize, maxunicode
 from tempfile import mktemp
+from time import time
 
 import json
 import os
+import random
 import unittest
 
 
@@ -91,32 +94,85 @@ class TestInternals(unittest.TestCase):
 
     def test_record_writer(self):
 
+        # Confirmed: [minint, maxint) covers the full range of values that xrange allows
+
+        minint = (-maxsize - 1) // 2
+        maxint = maxsize // 2
+
+        max_length = 1 * 1024
+
+        def random_integers():
+            return random.sample(xrange(minint, maxint), random.randint(0, max_length))
+
+        def random_bytes():
+            return os.urandom(random.randint(0, max_length))
+
+        def random_dict():
+
+            # We do not call random_bytes because the JSONDecoder raises this UnicodeDecodeError when it encounters
+            # bytes outside the UTF-8 character set:
+            #
+            #   'utf8' codec can't decode byte 0x8d in position 2: invalid start byte
+            #
+            # One might be tempted to select an alternative encoding, but picking one that works for all bytes is a
+            # lost cause. The burden is on the customer to ensure that the strings in the dictionaries they serialize
+            # contain utf-8 encoded byte strings or--better still--unicode strings. This is because the json package
+            # converts all bytes strings to unicode strings before serializing them.
+
+            return {'a': random_float(), 'b': random_unicode(), '福 酒吧': {'fu': random_float(), 'bar': random_float()}}
+
+        def random_float():
+            return random.uniform(float_info.min, float_info.max)
+
+        def random_unicode():
+            return ''.join(imap(lambda x: unichr(x), random.sample(xrange(maxunicode), random.randint(0, max_length))))
+
         # RecordWriter writes data in units of maxresultrows records. Default: 50,0000.
         # Partial results are written when the record count reaches maxresultrows.
 
-        writer = RecordWriter(StringIO(), maxresultrows=1000)  # small for the purposes of this unit test
+        writer = RecordWriter(StringIO(), maxresultrows=10)  # small for the purposes of this unit test
 
-        fieldnames = ['_serial', '_time', 'text']
-        records = [
-            [0, 1380899494, 'excellent review my friend loved it yours always guppyman @GGreeny62... http://t.co/fcvq7NDHxl'],
-            [1, 1380899494, 'Tú novia te ama mucho'],
-            [2, 1380899494, 'RT @Cindystaysjdm: @MannyYHT girls are like the Feds, they always watching 👀'],
-            [3, 1380899494, 'no me alcanza las palabras para el verbo amar..♫'],
-            [4, 1380899494, '@__AmaT  요즘은 곡안쓰시고 귀농하시는군요 ㅋㅋ'],
-            [5, 1380899494, 'melhor geração #DiaMundialDeRBD'],
-            [6, 1380899494, '@mariam_n_k من أي ناحية مين أنا ؟ ، إذا كان السؤال هل اعرفك او لا الجواب : ل'],
-            [7, 1380899494, 'Oreka Sud lance #DEMplus un logiciel de simulation du démantèlement d\'un réacteur #nucléaire http://t.co/lyC9nWxnWk'],
-            [8, 1380899494, '@gusosama そんなことないですよ(｡•́︿•̀｡)でも有難うございま'],
-            [9, 1380899494, '11:11 pwede pwends ta? HAHAHA']]
-
-        # Expectation: 5 blocks of 1000 records representing partial results (5 blocks * (100 * 10 records) = 5,000)
-
+        fieldnames = ['_serial', '_time', 'random_bytes', 'random_dict', 'random_integers', 'random_unicode']
         write_record = writer.write_record
 
-        for i in xrange(0, 5):
-            for j in xrange(0, 100):
-                for record in records:
-                    write_record(OrderedDict(izip(fieldnames, record)))
+        for serial_number in xrange(0, 31):
+            values = [serial_number, time(), random_bytes(), random_dict(), random_unicode(), random_integers()]
+            record = OrderedDict(izip(fieldnames, values))
+            try:
+                write_record(record)
+            except Exception as error:
+                self.fail(error)
+
+        messages = [
+            ('debug', random_unicode()),
+            ('error', random_unicode()),
+            ('fatal', random_unicode()),
+            ('info', random_unicode()),
+            ('warn', random_unicode())]
+
+        for message_type, message_text in messages:
+            writer.write_message(message_type, '{}', message_text)
+
+        self.assertEqual(writer._chunk_count, 3)
+        self.assertEqual(writer._record_count, 1)
+        self.assertGreater(writer._buffer.tell(), 0)
+        self.assertEqual(writer._total_record_count, 30)
+        self.assertListEqual(writer._fieldnames, fieldnames)
+        self.assertListEqual(writer._inspector['messages'], messages)
+
+        writer.flush(finished=True)
+
+        self.assertEqual(writer._chunk_count, 4)
+        self.assertEqual(writer._record_count, 0)
+        self.assertEqual(writer._buffer.tell(), 0)
+        self.assertEqual(writer._buffer.getvalue(), '')
+        self.assertEqual(writer._total_record_count, 31)
+
+        self.assertRaises(RuntimeError, writer.write_record, {})
+        self.assertRaises(RuntimeError, writer.flush)
+        self.assertFalse(writer._ofile.closed)
+        self.assertIsNone(writer._fieldnames)
+        self.assertDictEqual(writer._inspector, OrderedDict())
 
         # RecordWriter accumulates inspector messages and metrics until maxresultrows are written.
         # RecordWriter gives consumers the ability to write partial results by calling RecordWriter.flush.

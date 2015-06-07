@@ -279,16 +279,19 @@ class Recorder(object):
 class RecordWriter(object):
 
     def __init__(self, ofile, maxresultrows=None):
+
         self._maxresultrows = 50000 if maxresultrows is None else maxresultrows
         self._ofile = ofile
         self._fieldnames = None
         self._inspector = OrderedDict()
+
         self._chunk_count = 0
         self._record_count = 0
         self._total_record_count = 0L
+
         self._buffer = StringIO()
         self._writer = csv.writer(self._buffer, dialect=CsvDialect)
-        self._encode_metadata = MetadataEncoder().encode
+
         self._writerow = self._writer.writerow
         self._finished = False
 
@@ -326,7 +329,7 @@ class RecordWriter(object):
 
     def write_message(self, message_type, message_text, *args, **kwargs):
         self._ensure_validity()
-        self._inspector.get('messages', []).append([message_type, message_text.format(args, kwargs)])
+        self._inspector.setdefault('messages', []).append((message_type, message_text.format(*args, **kwargs)))
 
     def write_metadata(self, configuration):
         self._ensure_validity()
@@ -344,10 +347,14 @@ class RecordWriter(object):
         self._ensure_validity()
 
         if self._fieldnames is None:
-            self._fieldnames = list(chain.from_iterable(imap(lambda k: (k, '__mv_' + k), record)))
-            self._writer.writerow(self._fieldnames)
+            fieldnames = imap(lambda key: unicode(key).encode('utf-8'), record.iterkeys())
+            fieldnames = imap(lambda fieldname: (fieldname, b'__mv_' + fieldname), fieldnames)
+            fieldnames = list(chain.from_iterable(fieldnames))
+            self._writer.writerow(fieldnames)
+            self._fieldnames = record.keys()
 
-        values = list(chain.from_iterable(imap(lambda v: self._encode_value(v), imap(lambda k: record[k], record))))
+        values = imap(lambda fieldname: self._encode_value(record.get(fieldname, None)), self._fieldnames)
+        values = list(chain.from_iterable(values))
         self._writerow(values)
         self._record_count += 1
 
@@ -356,17 +363,28 @@ class RecordWriter(object):
 
     def _clear(self):
         self._buffer.reset()
+        self._buffer.truncate()
         self._fieldnames = None
         self._inspector.clear()
         self._record_count = 0
 
-    @staticmethod
-    def _encode_value(value):
+    def _encode_value(self, value):
 
         def to_string(item):
-            # TODO: Consider trying a json dump before producing a repr(item)
-            item = unicode(item) if isinstance(item, (bytes, unicode, Number)) else unicode(repr(item))
-            return item.encode('utf8')
+
+            if item is None:
+                return b''
+            if isinstance(item, bool):
+                return b't' if item else b'f'
+            if isinstance(item, bytes):
+                return item
+            if isinstance(item, Number):
+                return str(item)
+            if isinstance(item, unicode):
+                return item.encode('utf-8', errors='backslashreplace')
+
+            item = self._encode_dict(item) if isinstance(item, dict) else repr(item)
+            return item.encode('utf-8', errors='backslashreplace')
 
         if not isinstance(value, (list, tuple)):
             return to_string(value), None
@@ -381,13 +399,16 @@ class RecordWriter(object):
         # Question: Must we return a value? Is it good enough to return (None, <encoded-list>)?
         # See what other splunk commands do.
 
-        value = imap(lambda item: (item, item.replace('$', '$$')), imap(lambda item: to_string(item), value))
-        return '\n'.join(imap(lambda item: item[0], value)), '$' + '$;$'.join(imap(lambda item: item[1], value)) + '$'
+        value = imap(lambda item: to_string(item), value)
+        sv = b'\n'.join(value)
+        mv = b'$' + b'$;$'.join(imap(lambda item: item.replace(b'$', b'$$'), value)) + b'$'
+
+        return sv, mv
 
     def _ensure_validity(self):
         if self._finished is True:
             assert self._record_count == 0 and len(self._inspector) == 0
-            raise ValueError('I/O operation on closed record writer')
+            raise RuntimeError('I/O operation on closed record writer')
 
     def _write_chunk(self, metadata, body):
 
@@ -409,3 +430,7 @@ class RecordWriter(object):
         write(metadata)
         write(body)
         self._ofile.flush()
+
+    _encode_dict = JSONEncoder(separators=(',', ':')).encode
+    _encode_metadata = MetadataEncoder().encode
+
