@@ -21,11 +21,13 @@ from splunklib.searchcommands.internals import MetadataDecoder, MetadataEncoder,
 from splunklib.searchcommands import SearchMetric
 from collections import deque, OrderedDict
 from cStringIO import StringIO
+from functools import wraps
 from glob import iglob
 from itertools import chain, ifilter, imap, izip
 from sys import float_info, maxsize, maxunicode
 from tempfile import mktemp
 from time import time
+from types import MethodType
 
 import cPickle as pickle
 import json
@@ -81,160 +83,6 @@ def random_unicode():
     return ''.join(imap(lambda x: unichr(x), random.sample(xrange(maxunicode), random.randint(0, max_length))))
 
 # endregion
-
-# region Functions for producing random data sets
-
-class Test(object):
-
-    def __init__(self, fieldnames, data_generators):
-        self._data_generators = list(chain((lambda: self._serial_number, time), data_generators))
-        self._fieldnames = list(chain(('_serial', '_time'), fieldnames))
-        self._serial_number = None
-
-    @property
-    def fieldnames(self):
-        return self._fieldnames
-
-    @property
-    def row(self):
-        return [data_generator.__call__() for data_generator in self._data_generators]
-
-    @property
-    def serial_number(self):
-        return self._serial_number
-
-    def run(self, recorder):
-
-        writer = RecordWriter(recorder.output, maxresultrows=10)  # small for the purposes of this unit test
-        write_record = writer.write_record
-        names = recorder.fieldnames
-
-        for serial_number in xrange(0, 31):
-            self._serial_number = serial_number
-            record = OrderedDict(izip(names, recorder.row))
-            write_record(record)
-
-        return
-
-# endregion
-
-
-class TestRecorder(object):
-
-    def __init__(self):
-        self._delegate = {}
-        self._test = None
-        self._output = None
-        self._recording = None
-        self._recording_part = None
-
-    def __getattr__(self, name):
-        try:
-            delegate = self._delegate[name]
-        except KeyError:
-            raise AttributeError('\'{}\' object has no attribute \'{}\''.format(self.__class__.__name__, name))
-        return delegate.fget(self)
-
-    @property
-    def output(self):
-        return self._output
-
-    def playback(self, path):
-
-        self._delegate['fieldnames'] = TestRecorder._playback_fieldnames
-        self._delegate['message'] = TestRecorder._playback_message
-        self._delegate['metric'] = TestRecorder._playback_metric
-        self._delegate['row'] = TestRecorder._playback_row
-
-        with open(path, 'rb') as f:
-            test = pickle.load(f)
-
-        self._test = test['class'](*test['args'], **test['kwargs'])
-        self._output = StringIO()
-        self._recording = test['data']
-        self._recording_part = self._recording.popleft()
-
-        self._test.run(self)
-
-        # TODO: Compare results
-        return
-
-    def record(self, test_class, path, *args, **kwargs):
-        
-        self._delegate['fieldnames'] = TestRecorder._record_fieldnames
-        self._delegate['message'] = TestRecorder._record_message
-        self._delegate['metric'] = TestRecorder._record_metric
-        self._delegate['row'] = TestRecorder._record_row
-
-        self._test = test_class(*args, **kwargs)
-        self._output = StringIO()
-        self._recording = deque()
-        self._recording_part = OrderedDict()
-        self._recording.append(self._recording_part)
-
-        self._test.run(self)
-
-        with open(path, 'wb') as f:
-            test = OrderedDict((
-                ('class', test_class), ('args', args), ('kwargs', kwargs), ('data', self._recording),
-                ('results', self._output.getvalue())))
-            pickle.dump(test, f)
-
-        return
-
-    @property
-    def _playback_fieldnames(self):
-        return self._recording_part['fieldnames'].popleft()
-
-    @property
-    def _playback_message(self):
-        return self._recording_part['messages'].popleft()
-
-    @property
-    def _playback_metric(self):
-        name, metric = self._test.metric()
-        self._recording_part.setdefault('metric.' + 'metric', {})[name] = metric
-        return name, metric
-
-    @property
-    def _playback_row(self):
-        return self._recording_part['rows'].popleft()
-
-    @property
-    def _record_fieldnames(self):
-        names = self._test.fieldnames
-        self._recording_part.setdefault('fieldnames', deque()).append(names)
-        return names
-
-    @property
-    def _record_message(self):
-        message = self._test.message
-        self._recording_part.setdefault('messages', deque()).append(message)
-        return message
-
-    @property
-    def _record_metric(self):
-        name, metric = self._test.metric
-        self._recording_part.setdefault('metric.' + 'metric', {})[name] = metric
-        return name, metric
-
-    @property
-    def _record_row(self):
-        row = self._test.row
-        try:
-            rows = self._recording_part['rows']
-        except KeyError:
-            self._recording_part['rows'] = rows = deque()
-        rows.append(row)
-        return row
-
-    def _playback_next_part(self):
-        self._recording_part = self._recording.popleft()
-
-    def _record_next_part(self):
-        part = OrderedDict()
-        self._recording_part = part
-        self._recording.append(part)
 
 
 class TestInternals(unittest.TestCase):
@@ -454,10 +302,154 @@ class TestInternals(unittest.TestCase):
     _package_path = os.path.dirname(os.path.abspath(__file__))
     _recordings_path = os.path.join(_package_path, 'recordings', 'v2', 'Splunk-6.3')
 
-path = os.path.join(TestInternals._package_path, 'TestRecorder.recording')
-recorder = TestRecorder()
-recorder.record(Test, path, ['random_bytes', 'random_unicode'], [random_bytes, random_unicode])
-recorder.playback(path)
+
+class TestRecorder(object):
+
+    def __init__(self, test_case):
+
+        self._test_case = test_case
+        self._output = None
+        self._recording = None
+        self._recording_part = None
+
+        def _not_implemented(self):
+            raise NotImplementedError('class {} is not in playback or record mode'.format(self.__class__.__name__))
+
+        self.get = self.next_part = self.stop = MethodType(_not_implemented, self, self.__class__)
+        return
+
+    @property
+    def output(self):
+        return self._output
+
+    def playback(self, path):
+
+        with open(path, 'rb') as f:
+            test_data = pickle.load(f)
+
+        self._output = StringIO()
+        self._recording = test_data['inputs']
+        self._recording_part = self._recording.popleft()
+
+        def get(self, method, *args, **kwargs):
+            return self._recording_part[method.__name__].popleft()
+
+        self.get = MethodType(get, self, self.__class__)
+
+        def next_part(self):
+            self._recording_part = self._recording.popleft()
+
+        self.next_part = MethodType(next_part, self, self.__class__)
+
+        def stop(self):
+            self._test_case.assertEqual(test_data['results'], self._output.getvalue())
+
+        self.stop = MethodType(stop, self, self.__class__)
+        return
+
+    def record(self, path):
+
+        self._output = StringIO()
+        self._recording = deque()
+        self._recording_part = OrderedDict()
+        self._recording.append(self._recording_part)
+
+        def get(self, method, *args, **kwargs):
+            result = method(*args, **kwargs)
+            part = self._recording_part
+            key = method.__name__
+            try:
+                results = part[key]
+            except KeyError:
+                part[key] = results = deque()
+            results.append(result)
+            return result
+
+        self.get = MethodType(get, self, self.__class__)
+
+        def next_part(self):
+            part = OrderedDict()
+            self._recording_part = part
+            self._recording.append(part)
+
+        self.next_part = MethodType(next_part, self, self.__class__)
+
+        def stop(self):
+            with open(path, 'wb') as f:
+                test = OrderedDict((('inputs', self._recording), ('results', self._output.getvalue())))
+                pickle.dump(test, f)
+
+        self.stop = MethodType(stop, self, self.__class__)
+        return
+
+
+def recorded(method):
+
+    @wraps(method)
+    def _record(*args, **kwargs):
+        return args[0].recorder.get(method, *args, **kwargs)
+
+    return _record
+
+
+class Test(unittest.TestCase):
+
+    def __init__(self, fieldnames, data_generators):
+
+        unittest.TestCase.__init__(self)
+
+        self._data_generators = list(chain((lambda: self._serial_number, time), data_generators))
+        self._fieldnames = list(chain(('_serial', '_time'), fieldnames))
+        self._recorder = TestRecorder(self)
+        self._serial_number = None
+
+    @property
+    @recorded
+    def fieldnames(self):
+        return self._fieldnames
+
+    @property
+    @recorded
+    def row(self):
+        return [data_generator.__call__() for data_generator in self._data_generators]
+
+    @property
+    def recorder(self):
+        return self._recorder
+
+    @property
+    def serial_number(self):
+        return self._serial_number
+
+    def playback(self):
+        self.recorder.playback(os.path.join(TestInternals._package_path, 'TestRecorder.recording'))
+        self._run()
+        self.recorder.stop()
+
+    def record(self):
+        self.recorder.record(os.path.join(TestInternals._package_path, 'TestRecorder.recording'))
+        self._run()
+        self.recorder.stop()
+
+    def runTest(self):
+        pass  # We'll adopt the new test recording mechanism a little later
+
+    def _run(self):
+
+        writer = RecordWriter(self.recorder.output, maxresultrows=10)
+        write_record = writer.write_record
+        names = self.fieldnames
+
+        for self._serial_number in xrange(0, 31):
+            record = OrderedDict(izip(names, self.row))
+            write_record(record)
+
+        return
+
+
+# test = Test(['random_bytes', 'random_unicode'], [random_bytes, random_unicode])
+# test.record()
+# test.playback()
 
 if __name__ == "__main__":
     unittest.main()
