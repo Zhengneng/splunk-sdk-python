@@ -199,46 +199,6 @@ class ConfigurationSettingsType(type):
             b'supported_by_protocol_version_2'))
 
     _specification_matrix = {
-        'streaming': _specification(
-            type=bool,
-            constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
-        'retainsevents': _specification(
-            type=bool,
-            constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
-        'generating': _specification(
-            type=bool,
-            constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
-        'generates_timeorder': _specification(
-            type=bool,
-            constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
-        'overrides_timeorder': _specification(
-            type=bool,
-            constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
-        'requires_preop': _specification(
-            type=bool,
-            constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
-        'streaming_preop': _specification(
-            type=(str, unicode),
-            constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
-        'required_fields': _specification(
-            type=(list, set, tuple),
-            constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
         'clear_required_fields': _specification(
             type=bool,
             constraint=None,
@@ -249,13 +209,53 @@ class ConfigurationSettingsType(type):
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
+        'generates_timeorder': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'generating': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
         'maxinputs': _specification(
             type='int',
             constraint=lambda value: 0 <= value < sys.maxsize,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
+        'overrides_timeorder': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'required_fields': _specification(
+            type=(list, set, tuple),
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'requires_preop': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'retainsevents': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
         'run_in_preview': _specification(
             type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'streaming': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'streaming_preop': _specification(
+            type=(str, unicode),
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
