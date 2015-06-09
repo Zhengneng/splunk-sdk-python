@@ -63,17 +63,17 @@ class Configuration(object):
             # o.ConfigurationSettings.fix_up(o) in the elif clause of this code block.
             o._settings = self.settings
         elif isclass(o):
+            # Compute command name
             name = o.__name__
             if name.endswith(b'Command'):
                 name = name[:-len(b'Command')]
             o.name = name.lower()
-
+            # Construct ConfigurationSettings instance for the command class
             o.ConfigurationSettings = ConfigurationSettingsType(
                 module=o.__module__ + b'.' + o.__name__,
                 name=b'ConfigurationSettings',
                 bases=(o.ConfigurationSettings,),
                 settings=self.settings)
-
             o.ConfigurationSettings.fix_up(o)
             Option.fix_up(o)
         else:

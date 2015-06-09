@@ -174,14 +174,96 @@ class ConfigurationSettingsType(type):
 
         for name, value in settings.iteritems():
             try:
-                prop, backing_field = configuration_settings[name]
+                specification = cls._specification_matrix[name]
             except KeyError:
-                raise AttributeError('{0} has no {1} configuration setting'.format(cls, name))
-            if backing_field is None:
-                raise AttributeError('The value of configuration setting {0} is managed'.format(name))
-            setattr(cls, backing_field, value)
+                raise AttributeError('Unknown configuration setting: {}={}'.format(name, value))
+            if not isinstance(value, specification.type):
+                raise AttributeError('Expected {} value, not {}={}'.format(specification.type.__name__, name, value))
+            if specification.constraint and not specification.constraint(value):
+                raise AttributeError('Illegal value for configuration setting {}: {}'.format(name, value))
+            try:
+                prop, backing_field_name = configuration_settings[name]
+            except KeyError:
+                raise AttributeError('Inapplicable configuration setting: {}={}'.format(name, value))
+            if backing_field_name is None:
+                raise AttributeError('The value of configuration setting {} is fixed'.format(name))
+            setattr(cls, backing_field_name, value)
 
         cls.__module__ = module
+
+    _specification = namedtuple(
+        b'ConfigurationSettingSpecification', (
+            b'type',
+            b'constraint',
+            b'supported_by_protocol_version_1',
+            b'supported_by_protocol_version_2'))
+
+    _specification_matrix = {
+        'streaming': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'retainsevents': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'generating': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'generates_timeorder': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'overrides_timeorder': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'requires_preop': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'streaming_preop': _specification(
+            type=(str, unicode),
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'required_fields': _specification(
+            type=(list, set, tuple),
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'clear_required_fields': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'distributed': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'maxinputs': _specification(
+            type='int',
+            constraint=lambda value: 0 <= value < sys.maxsize,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'run_in_preview': _specification(
+            type=bool,
+            constraint=None,
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False),
+        'type': _specification(
+            type=(str, unicode),
+            constraint=lambda value: value in ('events', 'reporting', 'streaming'),
+            supported_by_protocol_version_1=True,
+            supported_by_protocol_version_2=False)}
 
 
 class CsvDialect(csv.Dialect):

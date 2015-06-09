@@ -747,13 +747,10 @@ class SearchCommand(object):
 
             """
             if not hasattr(cls, '_settings'):
-                def map_attribute(name):
-                    attr = getattr(cls, name)
-                    if isinstance(attr, property):
-                        backing_field = '_' + name
-                        return name, (attr, backing_field if hasattr(cls, backing_field) else None)
-                    return None
-                cls._settings = OrderedDict(ifilter(None, imap(map_attribute, dir(cls))))
+                attributes = imap(lambda name: (name, getattr(cls, name)), dir(cls))
+                properties = ifilter(lambda (name, value): isinstance(value, property), attributes)
+                properties = imap(lambda (name, value): (name, (value, getattr(cls, '_' + name))), properties)
+                cls._settings = OrderedDict(properties)
             return cls._settings
 
         @classmethod
@@ -779,82 +776,6 @@ class SearchCommand(object):
 
             """
             return ifilter(lambda item: item[1] is not None, self.iteritems())
-
-        _specification = namedtuple(
-            b'ConfigurationSettingSpecification', (
-                b'name',
-                b'type',
-                b'constraint',
-                b'supported_by_protocol_version_1',
-                b'supported_by_protocol_version_2'))
-
-        _matrix = frozenset((
-
-            _specification(name='streaming',
-                           type=bool,
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='retainsevents',
-                           type=bool,
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='generating',
-                           type=bool,
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='generates_timeorder',
-                           type=bool,
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='overrides_timeorder',
-                           type=bool,
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='requires_preop',
-                           type=bool,
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='streaming_preop',
-                           type=(str, unicode),
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='required_fields',
-                           type=(list, set, tuple),
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='clear_required_fields',
-                           type=bool,
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='distributed',
-                           type=bool,
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='maxinputs',
-                           type='int',
-                           constraint=lambda value: 0 <= value < sys.maxsize,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='run_in_preview',
-                           type=bool,
-                           constraint=None,
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False),
-            _specification(name='type',
-                           type=(str, unicode),
-                           constraint=lambda value: value in ('events', 'reporting', 'streaming'),
-                           supported_by_protocol_version_1=True,
-                           supported_by_protocol_version_2=False)))
 
         # endregion
 
