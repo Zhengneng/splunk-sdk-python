@@ -29,40 +29,56 @@ from .validators import OptionName
 class Configuration(object):
     """ Defines the configuration settings for a search command.
 
-    Documents, validates, and ensures that only relevant configuration settings
-    are applied. Adds a :code:`name` class variable to search command classes
-    that don't have one. The :code:`name` is derived from the name of the class.
-    By convention command class names end with the word "Command". To derive
-    :code:`name` the word "Command" is removed from the end of the class name
-    and then converted to lower case for conformance with the `Search command
-    style guide <http://docs.splunk.com/Documentation/Splunk/6.0/Search/Searchcommandstyleguide>`_
+    Documents, validates, and ensures that only relevant configuration settings are applied. Adds a :code:`name` class
+    variable to search command classes that don't have one. The :code:`name` is derived from the name of the class.
+    By convention command class names end with the word "Command". To derive :code:`name` the word "Command" is removed
+    from the end of the class name and then converted to lower case for conformance with the `Search command style guide
+    <http://docs.splunk.com/Documentation/Splunk/latest/Search/Searchcommandstyleguide>`_
 
     """
-    def __init__(self, **kwargs):
+    def __init__(self, o=None, **kwargs):
+        #
+        # The o argument enables the configuration decorator to be used with or without parentheses. For example, it
+        # enables you to write code that looks like this:
+        #
+        #   @Configuration
+        #   class Foo(SearchCommand):
+        #       ...
+        #
+        #   @Configuration()
+        #   class Bar(SearchCommand):
+        #       ...
+        #
+        # Without the o argument, the Python compiler will complain about the first form. With the o argument, both
+        # forms work. The first form provides a value for o: Foo. The second form does does not provide a value for o.
+        # The class or method decorated is not passed to the constructor. A value of None is passed instead.
+        #
         self.settings = kwargs
 
     def __call__(self, o):
+
         if isfunction(o):
-            # We must wait to finalize configuration as the class containing
-            # this function is under construction at the time this call to
-            # decorate a member function. This will be handled in the call to
-            # o.ConfigurationSettings.fix_up(o), below.
+            # We must wait to finalize configuration as the class containing this function is under construction
+            # at the time this call to decorate a member function. This will be handled in the call to
+            # o.ConfigurationSettings.fix_up(o) in the elif clause of this code block.
             o._settings = self.settings
         elif isclass(o):
             name = o.__name__
             if name.endswith(b'Command'):
                 name = name[:-len(b'Command')]
             o.name = name.lower()
-            if self.settings is not None:
-                o.ConfigurationSettings = ConfigurationSettingsType(
-                    module=o.__module__ + b'.' + o.__name__,
-                    name=b'ConfigurationSettings',
-                    bases=(o.ConfigurationSettings,),
-                    settings=self.settings)
+
+            o.ConfigurationSettings = ConfigurationSettingsType(
+                module=o.__module__ + b'.' + o.__name__,
+                name=b'ConfigurationSettings',
+                bases=(o.ConfigurationSettings,),
+                settings=self.settings)
+
             o.ConfigurationSettings.fix_up(o)
             Option.fix_up(o)
         else:
             raise TypeError('Incorrect usage: Configuration decorator applied to {0}'.format(type(o), o.__name__))
+
         return o
 
 

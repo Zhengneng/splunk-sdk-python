@@ -17,13 +17,12 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from splunklib.searchcommands.search_command import SearchCommand
 from splunklib.searchcommands import Configuration, Option, validators
+from splunklib.searchcommands.search_command import SearchCommand
 
+from unittest import TestCase
 import os
-import unittest
-
-# [O] TODO: Test a variety of configuration settings
+import sys
 
 @Configuration()
 class StubbedSearchCommand(SearchCommand):
@@ -141,10 +140,44 @@ class StubbedSearchCommand(SearchCommand):
         def fix_up(cls, command_class):
             pass
 
-class TestDecorators(unittest.TestCase):
+class TestDecorators(TestCase):
 
     def setUp(self):
-        unittest.TestCase.setUp(self)
+        TestCase.setUp(self)
+
+    def test_configuration(self):
+
+        for setting, values in (
+            ('clear_required_fields',
+             (True, False)),
+            ('distributed',
+             (True, False)),
+            ('generates_timeorder',
+             (True, False)),
+            ('generating',
+             (True, False)),
+            ('maxinputs',
+             (0, 50000, sys.maxsize)),
+            ('overrides_timeorder',
+             (True, False)),
+            ('required_fields',
+             (['field_1', 'field_2'], {'field_1', 'field_2'}, ('field_1', 'field_2'))),
+            ('requires_preop',
+             (True, False)),
+            ('retainsevents',
+             (True, False)),
+            ('run_in_preview',
+              (True, False)),
+            ('streaming',
+             (True, False)),
+            ('streaming_preop',
+             ('some unicode string', b'some byte string')),
+            ('type',
+             ('events', 'reporting', 'streaming', b'events', b'reporting', b'streaming'))):
+            for value in values:
+                @Configuration(**{setting: value})
+                class ConfiguredSearchCommand(SearchCommand):
+                    pass
 
     def test_option(self):
 

@@ -20,7 +20,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from splunklib.client import Service
 
-from collections import OrderedDict
+from collections import namedtuple, OrderedDict
 from cStringIO import StringIO
 from itertools import ifilter, imap, islice, izip
 from logging import _levelNames, getLevelName, getLogger
@@ -747,7 +747,6 @@ class SearchCommand(object):
 
             """
             if not hasattr(cls, '_settings'):
-                # TODO: Do we really need an OrderedDict? Can't we use a list instead?
                 def map_attribute(name):
                     attr = getattr(cls, name)
                     if isinstance(attr, property):
@@ -762,9 +761,9 @@ class SearchCommand(object):
             """ Adjusts and checks this class and its search command class.
 
             Derived classes must override this method. It is used by the :decorator:`Configuration` decorator to fix up
-            the :class:`SearchCommand` classes it adorns. This method is overridden by :class:`EventingCommand`,
-            :class:`GeneratingCommand`, :class:`ReportingCommand`, and :class:`StreamingCommand`, the base types for all
-            other search commands.
+            the :class:`SearchCommand` class it adorns. This method is overridden by :class:`EventingCommand`,
+            :class:`GeneratingCommand`, :class:`ReportingCommand`, and :class:`StreamingCommand`, the base types for
+            all other search commands.
 
             :param command_class: Command class targeted by this class
 
@@ -780,6 +779,82 @@ class SearchCommand(object):
 
             """
             return ifilter(lambda item: item[1] is not None, self.iteritems())
+
+        _specification = namedtuple(
+            b'ConfigurationSettingSpecification', (
+                b'name',
+                b'type',
+                b'constraint',
+                b'supported_by_protocol_version_1',
+                b'supported_by_protocol_version_2'))
+
+        _matrix = frozenset((
+
+            _specification(name='streaming',
+                           type=bool,
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='retainsevents',
+                           type=bool,
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='generating',
+                           type=bool,
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='generates_timeorder',
+                           type=bool,
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='overrides_timeorder',
+                           type=bool,
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='requires_preop',
+                           type=bool,
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='streaming_preop',
+                           type=(str, unicode),
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='required_fields',
+                           type=(list, set, tuple),
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='clear_required_fields',
+                           type=bool,
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='distributed',
+                           type=bool,
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='maxinputs',
+                           type='int',
+                           constraint=lambda value: 0 <= value < sys.maxsize,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='run_in_preview',
+                           type=bool,
+                           constraint=None,
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False),
+            _specification(name='type',
+                           type=(str, unicode),
+                           constraint=lambda value: value in ('events', 'reporting', 'streaming'),
+                           supported_by_protocol_version_1=True,
+                           supported_by_protocol_version_2=False)))
 
         # endregion
 
