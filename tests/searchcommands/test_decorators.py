@@ -17,8 +17,7 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from splunklib.searchcommands import Configuration, Option, validators
-from splunklib.searchcommands.decorators import configuration_setting
+from splunklib.searchcommands import Configuration, ConfigurationSetting, Option, validators
 from splunklib.searchcommands.search_command import SearchCommand
 from unittest import main, TestCase
 import os
@@ -253,10 +252,28 @@ class TestDecorators(TestCase):
 
         return
 
-    def test_configuration_setting(self):
+    def test_new_configuration_setting(self):
 
         class Test(object):
-            generating = configuration_setting('generating')
+            generating = ConfigurationSetting()
+
+            @ConfigurationSetting
+            def required_fields(self):
+                pass
+
+            @required_fields.setter
+            def required_fields(self, value):
+                pass
+
+            @ConfigurationSetting()
+            def streaming_preop(self):
+                pass
+
+            @streaming_preop.setter
+            def streaming_preop(self, value):
+                pass
+
+        ConfigurationSetting.fix_up(Test)
 
         test = Test()
         self.assertFalse(hasattr(Test, '_generating'))
@@ -272,6 +289,7 @@ class TestDecorators(TestCase):
         self.assertIs(test._generating, False)
 
         self.assertRaises(ValueError, Test.generating.fset, test, 'any type other than bool')
+
 
     def test_option(self):
 

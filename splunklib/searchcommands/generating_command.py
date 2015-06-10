@@ -17,7 +17,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from .search_command import SearchCommand
-from . import configuration_setting
+from . import ConfigurationSetting
 
 from itertools import imap, ifilterfalse
 
@@ -97,7 +97,7 @@ class GeneratingCommand(SearchCommand):
         """
         # region Properties
 
-        distributed = configuration_setting('distributed', value=False, doc='''
+        distributed = ConfigurationSetting(value=False, doc='''
             True, if this command should be distributed to indexers.
 
             This value is ignored unless :meth:`type` is equal to :const:`streaming`. It is only this command type that
@@ -107,7 +107,7 @@ class GeneratingCommand(SearchCommand):
 
             ''')
 
-        generating = configuration_setting('generating', readonly=True, value=True, doc='''
+        generating = ConfigurationSetting(readonly=True, value=True, doc='''
             Tells Splunk that this command generates events, but does not process inputs.
 
             Generating commands must appear at the front of the search pipeline identified by :meth:`type`.
@@ -119,7 +119,7 @@ class GeneratingCommand(SearchCommand):
         # TODO: Ensure that when type == 'streaming' and distributed is True we serialize type='stateful'
         # TODO: Ensure that when type == 'eventing' we serialize type='events'
 
-        type = configuration_setting('type', value='streaming', doc='''
+        type = ConfigurationSetting(value='streaming', doc='''
             A command type name.
 
             ====================  ======================================================================================

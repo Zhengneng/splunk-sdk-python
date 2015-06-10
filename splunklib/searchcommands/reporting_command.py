@@ -19,7 +19,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from .internals import ConfigurationSettingsType
 from .streaming_command import StreamingCommand
 from .search_command import SearchCommand
-from . import configuration_setting
+from . import ConfigurationSetting
 from .decorators import Option
 
 # TODO: Edit ReportingCommand class documentation
@@ -123,7 +123,7 @@ class ReportingCommand(SearchCommand):
         """
         # region Properties
 
-        maxinputs = configuration_setting('maxinputs', doc='''
+        maxinputs = ConfigurationSetting(doc='''
             Specifies the maximum number of events that can be passed to the command for each invocation.
 
             This limit cannot exceed the value of `maxresultrows` in `limits.conf`.
@@ -132,7 +132,7 @@ class ReportingCommand(SearchCommand):
 
             ''')
 
-        requires_preop = configuration_setting('requires_preop', doc='''
+        requires_preop = ConfigurationSetting(doc='''
             Indicates whether :meth:`ReportingCommand.map` is required for proper command execution.
 
             If :const:`True`, :meth:`ReportingCommand.map` is guaranteed to be called. If :const:`False`, Splunk
@@ -142,7 +142,7 @@ class ReportingCommand(SearchCommand):
 
             ''')
 
-        run_in_preview = configuration_setting('run_in_preview', doc='''
+        run_in_preview = ConfigurationSetting(doc='''
             :const:`True`, if this command should be run to generate results for preview; not wait for final output.
 
             This may be important for commands that have side effects (e.g. outputlookup)
@@ -151,14 +151,14 @@ class ReportingCommand(SearchCommand):
 
             ''')
 
-        streaming_preop = configuration_setting('streaming_preop', doc='''
+        streaming_preop = ConfigurationSetting(doc='''
             Denotes the requested streaming preop search string.
 
             Computed.
 
             ''')
 
-        type = configuration_setting('type', readonly=True, value='reporting', doc='''
+        type = ConfigurationSetting(readonly=True, value='reporting', doc='''
             Command type name.
 
             Fixed: :const:`'reporting'`.

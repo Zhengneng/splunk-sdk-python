@@ -17,7 +17,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from .search_command import SearchCommand
-from . import configuration_setting
+from . import ConfigurationSetting
 from itertools import ifilter
 
 # TODO: Edit StreamingCommand class documentation
@@ -64,14 +64,14 @@ class StreamingCommand(SearchCommand):
         """
         # region Properties
 
-        distributed = configuration_setting('distributed', doc='''
+        distributed = ConfigurationSetting('distributed', doc='''
             True, if this command should be distributed to indexers.
 
             Default: :const:`True`
 
             ''')
 
-        maxinputs = configuration_setting('maxinputs', doc='''
+        maxinputs = ConfigurationSetting(doc='''
             Specifies the maximum number of events that can be passed to the command for each invocation.
 
             This limit cannot exceed the value of `maxresultrows` in `limits.conf`.
@@ -80,7 +80,7 @@ class StreamingCommand(SearchCommand):
 
             ''')
 
-        required_fields = configuration_setting('required_fields', doc='''
+        required_fields = ConfigurationSetting(doc='''
             List of required fields for this search (back-propagates to the generating search).
 
             Setting this value enables selected fields mode.
@@ -91,7 +91,7 @@ class StreamingCommand(SearchCommand):
 
         # TODO: Ensure that when type == 'streaming' and distributed is True, we serialize type='stateful':
 
-        type = configuration_setting('type', readonly=True, value='streaming', doc='''
+        type = ConfigurationSetting(readonly=True, value='streaming', doc='''
             Command type name.
 
             Fixed: :const:`'streaming'`

@@ -16,7 +16,7 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 from .search_command import SearchCommand
-from . import configuration_setting
+from . import ConfigurationSetting
 
 
 # TODO: Edit EventingCommand class documentation
@@ -56,7 +56,7 @@ class EventingCommand(SearchCommand):
 
         # TODO: Centralize setting documentation
 
-        maxinputs = configuration_setting('maxinputs', doc='''
+        maxinputs = ConfigurationSetting(doc='''
             Specifies the maximum number of events that can be passed to the command for each invocation.
 
             This limit cannot exceed the value of `maxresultrows` in `limits.conf`.
@@ -65,7 +65,7 @@ class EventingCommand(SearchCommand):
 
             ''')
 
-        required_fields = configuration_setting('required_fields', doc='''
+        required_fields = ConfigurationSetting(doc='''
             List of required fields for this search (back-propagates to the generating search).
 
             Setting this value enables selected fields mode.
@@ -77,7 +77,7 @@ class EventingCommand(SearchCommand):
         # TODO: Request renaming this type as 'eventing'. Eventing commands process records on the events pipeline.
         # This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
 
-        type = configuration_setting('type', readonly=True, value='eventing', doc='''
+        type = ConfigurationSetting(readonly=True, value='eventing', doc='''
             Command type
 
             Fixed: :const:`'eventing'`.

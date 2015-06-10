@@ -25,49 +25,6 @@ from itertools import imap
 from .internals import ConfigurationSettingsType
 from .validators import OptionName
 
-def configuration_setting(name, doc=None, readonly=None, value=None):
-    """ Generates a :class:`property` representing the named configuration setting
-
-    This is a convenience function designed to reduce the amount of boiler-plate code you must write; most notably for
-    property setters.
-
-    :param name: Configuration setting name.
-    :type name: str or unicode
-
-    :param doc: A documentation string.
-    :type doc: bytes, unicode or NoneType
-
-    :param readonly: If true, specifies that the configuration setting is fixed.
-    :type name: bool or NoneType
-
-    :param value: Configuration setting value.
-
-    :return: A :class:`property` instance representing the configuration setting.
-    :rtype: property
-
-    """
-    try:
-        specification = ConfigurationSettingsType.specification_matrix[name]
-    except KeyError:
-        raise AttributeError('Unknown configuration setting: {}={}'.format(name, repr(value)))
-
-    validate = ConfigurationSettingsType.validate_configuration_setting
-
-    if readonly:
-        validate(specification, name, value)
-        return property(lambda self: value, doc=doc)
-
-    if value is not None:
-        validate(specification, name, value)
-
-    backing_field_name = '_' + name
-
-    named_property = property(
-        lambda self: getattr(self, backing_field_name, getattr(type(self), backing_field_name, value)),
-        lambda self, value: setattr(self, backing_field_name, validate(specification, name, value)), doc=doc)
-
-    return named_property
-
 
 class Configuration(object):
     """ Defines the configuration settings for a search command.
@@ -117,12 +74,127 @@ class Configuration(object):
                 name=b'ConfigurationSettings',
                 bases=(o.ConfigurationSettings,),
                 settings=self.settings)
+            ConfigurationSetting.fix_up(o.ConfigurationSettings)
+            self.fix_up(o.ConfigurationSettings)
             o.ConfigurationSettings.fix_up(o)
             Option.fix_up(o)
         else:
             raise TypeError('Incorrect usage: Configuration decorator applied to {0}'.format(type(o), o.__name__))
 
         return o
+
+    def fix_up(self, settings_class):
+
+        specification_matrix = ConfigurationSettingsType.specification_matrix
+        validate = ConfigurationSettingsType.validate_configuration_setting
+
+        for name, setting in settings_class.configuration_setting_definitions:
+
+            try:
+                value = self.settings[name]
+            except KeyError:
+                continue
+
+            if setting.fset is None:
+                raise ValueError('The value of configuration setting {} is fixed'.format(name))
+
+            setattr(settings_class, setting.backing_field_name, validate(specification_matrix[name], name, value))
+            del self.settings[name]
+
+        if len(self.settings) > 0:
+            settings = sorted(list(self.settings.iteritems()))
+            settings = imap(lambda (name, value): '{}={}'.format(name, repr(value)), settings)
+            raise AttributeError('Inapplicable configuration settings: ' + ', '.join(settings))
+
+
+class ConfigurationSetting(property):
+    """ Generates a :class:`property` representing the named configuration setting
+
+    This is a convenience function designed to reduce the amount of boiler-plate code you must write; most notably for
+    property setters.
+
+    :param name: Configuration setting name.
+    :type name: str or unicode
+
+    :param doc: A documentation string.
+    :type doc: bytes, unicode or NoneType
+
+    :param readonly: If true, specifies that the configuration setting is fixed.
+    :type name: bool or NoneType
+
+    :param value: Configuration setting value.
+
+    :return: A :class:`property` instance representing the configuration setting.
+    :rtype: property
+
+    """
+    def __init__(self, fget=None, fset=None, fdel=None, doc=None, name=None, readonly=None, value=None):
+        property.__init__(self, fget=fget, fset=fset, fdel=fdel, doc=doc)
+        self._readonly = readonly
+        self._value = value
+        self._name = name
+
+    def __call__(self, function):
+        return self.getter(function)
+
+    @staticmethod
+    def fix_up(cls):
+
+        is_configuration_setting = lambda attribute: isinstance(attribute, ConfigurationSetting)
+        definitions = getmembers(cls, is_configuration_setting)
+        i = 0
+
+        for name, setting in definitions:
+
+            if setting._name is None:
+                setting._name = name
+            else:
+                name = setting._name
+
+            backing_field_name = '_' + name
+
+            if setting.fget is None and setting.fset is None and setting.fdel is None:
+
+                validate, specification = setting._get_specification()
+                value = setting._value
+
+                if setting._readonly or value is not None:
+                    validate(value)
+
+                def fget(bfn, value):
+                     return lambda this: getattr(this, bfn, value)
+
+                setting = setting.getter(fget(backing_field_name, value))
+
+                if not setting._readonly:
+
+                    def fset(bfn, validate, specification, name):
+                        return lambda this, value: setattr(this, bfn, validate(specification, name, value))
+
+                    setting = setting.setter(fset(backing_field_name, validate, specification, name))
+
+                setattr(cls, name, setting)
+            else:
+                setting._get_specification()  # verifies this setting is specked
+
+            del setting._name, setting._value, setting._readonly
+            setting.backing_field_name = '_' + name
+            definitions[i] = name, setting
+            i += 1
+
+        cls.configuration_setting_definitions = definitions
+        return definitions  # as a courtesy
+
+    def _get_specification(self):
+
+        name = self._name
+
+        try:
+            specification = ConfigurationSettingsType.specification_matrix[name]
+        except KeyError:
+            raise AttributeError('Unknown configuration setting: {}={}'.format(name, repr(self._value)))
+
+        return ConfigurationSettingsType.validate_configuration_setting, specification
 
 
 class Option(property):

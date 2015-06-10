@@ -170,24 +170,6 @@ class ConfigurationSettingsType(type):
     def __init__(cls, module, name, bases, settings):
 
         super(ConfigurationSettingsType, cls).__init__(name, bases, None)
-        configuration_settings = cls.configuration_settings()
-
-        for name, value in settings.iteritems():
-            try:
-                specification = cls.specification_matrix[name]
-            except KeyError:
-                raise AttributeError('Unknown configuration setting: {}={}'.format(name, repr(value)))
-
-            try:
-                named_property, backing_field_name = configuration_settings[name]
-            except KeyError:
-                raise AttributeError('Inapplicable configuration setting: {}={}'.format(name, repr(value)))
-
-            if named_property.fset is None:
-                raise ValueError('The value of configuration setting {} is fixed'.format(name))
-
-            setattr(cls, backing_field_name, cls.validate_configuration_setting(specification, name, value))
-
         cls.__module__ = module
 
     @staticmethod
