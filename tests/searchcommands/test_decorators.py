@@ -20,7 +20,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from splunklib.searchcommands import Configuration, Option, validators
 from splunklib.searchcommands.decorators import configuration_setting
 from splunklib.searchcommands.search_command import SearchCommand
-from unittest import TestCase
+from unittest import main, TestCase
 import os
 import sys
 
@@ -210,8 +210,8 @@ class TestDecorators(TestCase):
              ('some unicode string', b'some byte string'),
              (None, 0xdead)),
             ('type',
-             ('events', 'reporting', 'streaming', b'events', b'reporting', b'streaming'),
-             ('eventing', 0xdead))):
+             ('eventing', 'reporting', 'streaming', b'eventing', b'reporting', b'streaming'),
+             ('events', 0xdead))):
 
             for value in values:
 
@@ -330,4 +330,4 @@ class TestDecorators(TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    main()

@@ -266,12 +266,12 @@ class ConfigurationSettingsType(type):
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
         'streaming_preop': specification(
-            type=(str, unicode),
+            type=(bytes, unicode),
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
         'type': specification(
-            type=(str, unicode),
+            type=(bytes, unicode),
             constraint=lambda value: value in ('eventing', 'reporting', 'streaming'),
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False)}

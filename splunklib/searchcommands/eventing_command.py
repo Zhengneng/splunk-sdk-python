@@ -77,7 +77,7 @@ class EventingCommand(SearchCommand):
         # TODO: Request renaming this type as 'eventing'. Eventing commands process records on the events pipeline.
         # This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
 
-        type = configuration_setting('type', readonly=True, value='events', doc='''
+        type = configuration_setting('type', readonly=True, value='eventing', doc='''
             Command type
 
             Fixed: :const:`'eventing'`.

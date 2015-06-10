@@ -35,7 +35,7 @@ def configuration_setting(name, doc=None, readonly=None, value=None):
     :type name: str or unicode
 
     :param doc: A documentation string.
-    :type doc: str, unicode or NoneType
+    :type doc: bytes, unicode or NoneType
 
     :param readonly: If true, specifies that the configuration setting is fixed.
     :type name: bool or NoneType
