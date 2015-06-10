@@ -16,6 +16,7 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 from .search_command import SearchCommand
+from . import configuration_setting
 
 
 # TODO: Edit EventingCommand class documentation
@@ -53,52 +54,35 @@ class EventingCommand(SearchCommand):
         """
         # region Properties
 
-        @property
-        def maxinputs(self):
-            """ Specifies the maximum number of events that can be passed to the command for each invocation.
+        # TODO: Centralize setting documentation
+
+        maxinputs = configuration_setting('maxinputs', doc='''
+            Specifies the maximum number of events that can be passed to the command for each invocation.
 
             This limit cannot exceed the value of `maxresultrows` in `limits.conf`.
 
             Default: The value of maxresultrows.
 
-            """
-            return getattr(self, '_maxinputs', type(self)._maxinputs)
+            ''')
 
-        @maxinputs.setter
-        def maxinputs(self, value):
-            setattr(self, '_maxinputs', value)
-
-        _maxinputs = None
-
-        @property
-        def required_fields(self):
-            """ List of required fields for this search (back-propagates to the generating search).
+        required_fields = configuration_setting('required_fields', doc='''
+            List of required fields for this search (back-propagates to the generating search).
 
             Setting this value enables selected fields mode.
 
             Default: :const:`['*']`
 
-            """
-            return getattr(self, '_required_fields', type(self)._required_fields)
+            ''')
 
-        @required_fields.setter
-        def required_fields(self, value):
-            if not (value is None or isinstance(value, (list, tuple))):
-                raise ValueError('Expected a list or tuple of field names or None, not {0}.'.format(repr(value)))
-            setattr(self, '_required_fields', value)
+        # TODO: Request renaming this type as 'eventing'. Eventing commands process records on the events pipeline.
+        # This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
 
-        _required_fields = None
-
-        @property
-        def type(self):
-            """ Command type
+        type = configuration_setting('type', readonly=True, value='events', doc='''
+            Command type
 
             Fixed: :const:`'eventing'`.
 
-            """
-            # TODO: Request renaming this type as 'eventing'. Eventing commands process records on the events pipeline.
-            # This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
-            return 'events'
+            ''')
 
         # endregion
 

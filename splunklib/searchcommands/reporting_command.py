@@ -19,6 +19,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from .internals import ConfigurationSettingsType
 from .streaming_command import StreamingCommand
 from .search_command import SearchCommand
+from . import configuration_setting
 from .decorators import Option
 
 # TODO: Edit ReportingCommand class documentation
@@ -122,79 +123,47 @@ class ReportingCommand(SearchCommand):
         """
         # region Properties
 
-        @property
-        def maxinputs(self):
-            """ Specifies the maximum number of events that can be passed to the command for each invocation.
+        maxinputs = configuration_setting('maxinputs', doc='''
+            Specifies the maximum number of events that can be passed to the command for each invocation.
 
             This limit cannot exceed the value of `maxresultrows` in `limits.conf`.
 
             Default: The value of maxresultrows.
 
-            """
-            return getattr(self, '_maxinputs', type(self)._maxinputs)
+            ''')
 
-        @maxinputs.setter
-        def maxinputs(self, value):
-            setattr(self, '_maxinputs', value)
-
-        _maxinputs = None
-
-        @property
-        def requires_preop(self):
-            """ Indicates whether :meth:`ReportingCommand.map` is required for proper command execution.
+        requires_preop = configuration_setting('requires_preop', doc='''
+            Indicates whether :meth:`ReportingCommand.map` is required for proper command execution.
 
             If :const:`True`, :meth:`ReportingCommand.map` is guaranteed to be called. If :const:`False`, Splunk
             considers it to be an optimization that may be skipped.
 
             Default: :const:`False`
 
-            """
-            return type(self)._requires_preop
+            ''')
 
-        @requires_preop.setter
-        def requires_preop(self, value):
-            if not (value is None or isinstance(value, bool)):
-                raise ValueError('Expected True, False, or None, not {0}.'.format(repr(value)))
-            setattr(self, '_requires_preop', value)
-
-        _requires_preop = None
-
-        @property
-        def run_in_preview(self):
-            """ :const:`True`, if this command should be run to generate results for preview; not wait for final output.
+        run_in_preview = configuration_setting('run_in_preview', doc='''
+            :const:`True`, if this command should be run to generate results for preview; not wait for final output.
 
             This may be important for commands that have side effects (e.g. outputlookup)
 
             Default: :const:`True`
 
-            """
-            return self._run_in_preview
+            ''')
 
-        @run_in_preview.setter
-        def run_in_preview(self, value):
-            if not (value is None or isinstance(value, bool)):
-                raise ValueError('Expected True, False, or None, not {0}.'.format(repr(value)))
-            setattr(self, '_run_in_preview', value)
-
-        _run_in_preview = None
-
-        @property
-        def streaming_preop(self):
-            """ Denotes the requested streaming preop search string.
+        streaming_preop = configuration_setting('streaming_preop', doc='''
+            Denotes the requested streaming preop search string.
 
             Computed.
 
-            """
-            return str(self.command) + ' phase=map'
+            ''')
 
-        @property
-        def type(self):
-            """ Command type string indicating that this is a command that runs in the reports pipeline.
+        type = configuration_setting('type', readonly=True, value='reporting', doc='''
+            Command type name.
 
             Fixed: :const:`'reporting'`.
 
-            """
-            return 'reporting'
+            ''')
 
         # endregion
 
@@ -202,13 +171,11 @@ class ReportingCommand(SearchCommand):
 
         @classmethod
         def fix_up(cls, command):
-            """ Verifies :code:`command` class structure and configures the
-            :code:`command.map` method.
+            """ Verifies :code:`command` class structure and configures the :code:`command.map` method.
 
-            Verifies that :code:`command` derives from :code:`ReportingCommand`
-            and overrides :code:`ReportingCommand.reduce`. It then configures
-            :code:`command.reduce`, if an overriding implementation of
-            :code:`ReportingCommand.reduce` has been provided.
+            Verifies that :code:`command` derives from :class:`ReportingCommand` and overrides
+            :code:`ReportingCommand.reduce`. It then configures :code:`command.reduce`, if an overriding implementation
+            of :code:`ReportingCommand.reduce` has been provided.
 
             :param command: :code:`ReportingCommand` class
 

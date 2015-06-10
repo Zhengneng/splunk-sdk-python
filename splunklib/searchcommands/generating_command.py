@@ -15,7 +15,10 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
+
 from .search_command import SearchCommand
+from . import configuration_setting
+
 from itertools import imap, ifilterfalse
 
 # TODO: Create pipeline option that may be set to 'events', 'reports', or 'streams' and set type option to a constant:
@@ -94,40 +97,30 @@ class GeneratingCommand(SearchCommand):
         """
         # region Properties
 
-        @property
-        def distributed(self):
-            """ True, if this command should be distributed to indexers.
+        distributed = configuration_setting('distributed', value=False, doc='''
+            True, if this command should be distributed to indexers.
 
-            This value is ignored unless :meth:`type` is equal to :const:`streaming`. It is only these command types
-            that may be distributed.
+            This value is ignored unless :meth:`type` is equal to :const:`streaming`. It is only this command type that
+            may be distributed.
 
             Default: :const:`False`
 
-            """
-            return getattr(self, '_distributed', type(self)._distributed)
+            ''')
 
-        @distributed.setter
-        def distributed(self, value):
-            if not (value is None or isinstance(value, bool)):
-                raise ValueError('Expected True, False, or None, not {0}.'.format(repr(value)))
-            setattr(self, '_distributed', value)
-
-        _distributed = None
-
-        @property
-        def generating(self):
-            """ Tells Splunk that this command generates events, but does not process inputs.
+        generating = configuration_setting('generating', readonly=True, value=True, doc='''
+            Tells Splunk that this command generates events, but does not process inputs.
 
             Generating commands must appear at the front of the search pipeline identified by :meth:`type`.
 
             Fixed: :const:`True`
 
-            """
-            return True
+            ''')
 
-        @property
-        def type(self):
-            """ One of the strings that represent the command type.
+        # TODO: Ensure that when type == 'streaming' and distributed is True we serialize type='stateful'
+        # TODO: Ensure that when type == 'eventing' we serialize type='events'
+
+        type = configuration_setting('type', value='streaming', doc='''
+            A command type name.
 
             ====================  ======================================================================================
             Value                 Description
@@ -139,17 +132,7 @@ class GeneratingCommand(SearchCommand):
 
             Default: :const:`'streaming'`
 
-            """
-            return type(self)._type
-
-        @type.setter
-        def type(self, value):
-            if not (isinstance(value, (bytes, unicode)) and value in ('events', 'reporting', 'streaming')):
-                raise ValueError('Expected a value of "eventing", "reporting", or "streaming"; not {}.'.format(
-                    repr(value)))
-            self._type = value
-
-        _type = 'streaming'
+            ''')
 
         # endregion
 

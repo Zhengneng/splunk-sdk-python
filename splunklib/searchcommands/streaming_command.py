@@ -17,6 +17,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from .search_command import SearchCommand
+from . import configuration_setting
 from itertools import ifilter
 
 # TODO: Edit StreamingCommand class documentation
@@ -63,67 +64,39 @@ class StreamingCommand(SearchCommand):
         """
         # region Properties
 
-        @property
-        def distributed(self):
-            """ True, if this command should be distributed to indexers
+        distributed = configuration_setting('distributed', doc='''
+            True, if this command should be distributed to indexers.
 
             Default: :const:`True`
 
-            """
-            return getattr(self, '_distributed', type(self)._distributed)
+            ''')
 
-        @distributed.setter
-        def distributed(self, value):
-            if not (value is None or isinstance(value, bool)):
-                raise ValueError('Expected True, False, or None, not {0}.'.format(repr(value)))
-            setattr(self, '_distributed', value)
-
-        _distributed = None
-
-        @property
-        def maxinputs(self):
-            """ Specifies the maximum number of events that can be passed to the command for each invocation.
+        maxinputs = configuration_setting('maxinputs', doc='''
+            Specifies the maximum number of events that can be passed to the command for each invocation.
 
             This limit cannot exceed the value of `maxresultrows` in `limits.conf`.
 
             Default: The value of maxresultrows.
 
-            """
-            return getattr(self, '_maxinputs', type(self)._maxinputs)
+            ''')
 
-        @maxinputs.setter
-        def maxinputs(self, value):
-            setattr(self, '_maxinputs', value)
-
-        _maxinputs = None
-
-        @property
-        def required_fields(self):
-            """ List of required fields for this search (back-propagates to the generating search).
+        required_fields = configuration_setting('required_fields', doc='''
+            List of required fields for this search (back-propagates to the generating search).
 
             Setting this value enables selected fields mode.
 
             Default: :const:`['*']`
 
-            """
-            return getattr(self, '_required_fields', type(self)._required_fields)
+            ''')
 
-        @required_fields.setter
-        def required_fields(self, value):
-            if not (value is None or isinstance(value, (list, tuple))):
-                raise ValueError('Expected a list or tuple of field names or None, not {0}.'.format(repr(value)))
-            setattr(self, '_required_fields', value)
+        # TODO: Ensure that when type == 'streaming' and distributed is True, we serialize type='stateful':
 
-        _required_fields = None
+        type = configuration_setting('type', readonly=True, value='streaming', doc='''
+            Command type name.
 
-        @property
-        def type(self):
-            """ Command type
+            Fixed: :const:`'streaming'`
 
-            Computed: :const:`'streaming'`, if :code:`distributed` is :const:`False`; otherwise :const:`'stateful'`.
-
-            """
-            return 'stateful' if self.distributed is False else 'streaming'
+            ''')
 
         # endregion
 
