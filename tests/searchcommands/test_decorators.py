@@ -18,8 +18,8 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from splunklib.searchcommands import Configuration, Option, validators
+from splunklib.searchcommands.decorators import configuration_setting
 from splunklib.searchcommands.search_command import SearchCommand
-
 from unittest import TestCase
 import os
 import sys
@@ -147,37 +147,131 @@ class TestDecorators(TestCase):
 
     def test_configuration(self):
 
-        for setting, values in (
+        def new_configuration_settings_class(setting_name=None, setting_value=None):
+
+            @Configuration(**{} if setting_name is None else {setting_name: setting_value})
+            class ConfiguredSearchCommand(SearchCommand):
+                class ConfigurationSettings(SearchCommand.ConfigurationSettings):
+                    clear_required_fields = configuration_setting('clear_required_fields')
+                    distributed = configuration_setting('distributed')
+                    generates_timeorder = configuration_setting('generates_timeorder')
+                    generating = configuration_setting('generating')
+                    maxinputs = configuration_setting('maxinputs')
+                    overrides_timeorder = configuration_setting('overrides_timeorder')
+                    required_fields = configuration_setting('required_fields')
+                    requires_preop = configuration_setting('requires_preop')
+                    retainsevents = configuration_setting('retainsevents')
+                    run_in_preview = configuration_setting('run_in_preview')
+                    streaming = configuration_setting('streaming')
+                    streaming_preop = configuration_setting('streaming_preop')
+                    type = configuration_setting('type')
+
+                    @classmethod
+                    def fix_up(cls, command_class):
+                        return
+
+            return ConfiguredSearchCommand.ConfigurationSettings
+
+        for name, values, error_values in (
             ('clear_required_fields',
-             (True, False)),
+             (True, False),
+             (None, 'anything other than a bool')),
             ('distributed',
-             (True, False)),
+             (True, False),
+             (None, 'anything other than a bool')),
             ('generates_timeorder',
-             (True, False)),
+             (True, False),
+             (None, 'anything other than a bool')),
             ('generating',
-             (True, False)),
+             (True, False),
+             (None, 'anything other than a bool')),
             ('maxinputs',
-             (0, 50000, sys.maxsize)),
+             (0, 50000, sys.maxsize),
+             (None, -1, sys.maxsize + 1, 'anything other than an int')),
             ('overrides_timeorder',
-             (True, False)),
+             (True, False),
+             (None, 'anything other than a bool')),
             ('required_fields',
-             (['field_1', 'field_2'], {'field_1', 'field_2'}, ('field_1', 'field_2'))),
+             (['field_1', 'field_2'], {'field_1', 'field_2'}, ('field_1', 'field_2')),
+             (None, 0xdead, {'foo': 1, 'bar': 2})),
             ('requires_preop',
-             (True, False)),
+             (True, False),
+             (None, 'anything other than a bool')),
             ('retainsevents',
-             (True, False)),
+             (True, False),
+             (None, 'anything other than a bool')),
             ('run_in_preview',
-              (True, False)),
+              (True, False),
+             (None, 'anything other than a bool')),
             ('streaming',
-             (True, False)),
+             (True, False),
+             (None, 'anything other than a bool')),
             ('streaming_preop',
-             ('some unicode string', b'some byte string')),
+             ('some unicode string', b'some byte string'),
+             (None, 0xdead)),
             ('type',
-             ('events', 'reporting', 'streaming', b'events', b'reporting', b'streaming'))):
+             ('events', 'reporting', 'streaming', b'events', b'reporting', b'streaming'),
+             ('eventing', 0xdead))):
+
             for value in values:
-                @Configuration(**{setting: value})
-                class ConfiguredSearchCommand(SearchCommand):
-                    pass
+
+                settings_class = new_configuration_settings_class(name, value)
+
+                # Setting property exists
+                self.assertIsInstance(getattr(settings_class, name), property)
+
+                # Backing field exists on the settings class and it holds the correct value
+                backing_field_name = '_' + name
+                self.assertEqual(getattr(settings_class, backing_field_name), value)
+
+                settings_instance = settings_class(command=None)
+
+                # An instance gets its value from the settings class until a value is set on the instance
+
+                self.assertNotIn(backing_field_name, settings_instance.__dict__)
+                self.assertEqual(getattr(settings_instance, name), value)
+                self.assertEqual(getattr(settings_instance, backing_field_name), value)
+
+                setattr(settings_instance, name, value)
+
+                self.assertIn(backing_field_name, settings_instance.__dict__),
+                self.assertEqual(getattr(settings_instance, name), value)
+                self.assertEqual(settings_instance.__dict__[backing_field_name], value)
+                pass
+
+            for value in error_values:
+                try:
+                    new_configuration_settings_class(name, value)
+                except Exception as error:
+                    self.assertIsInstance(error, ValueError, 'Expected ValueError, not {}({}) for {}={}'.format(type(error).__name__, error, name, repr(value)))
+                else:
+                    self.fail('Expected ValueError, not success for {}={}'.format(name, repr(value)))
+
+                settings_class = new_configuration_settings_class()
+                settings_instance = settings_class(command=None)
+                self.assertRaises(ValueError, setattr, settings_instance, name, value)
+
+        return
+
+    def test_configuration_setting(self):
+
+        class Test(object):
+            generating = configuration_setting('generating')
+
+        test = Test()
+        self.assertFalse(hasattr(Test, '_generating'))
+        self.assertFalse(hasattr(test, '_generating'))
+        self.assertIsNone(test.generating)
+
+        Test._generating = True
+        self.assertIs(test.generating, True)
+
+        test.generating = False
+        self.assertIs(test.generating, False)
+        self.assertIs(Test._generating, True)
+        self.assertIs(test._generating, False)
+
+        self.assertRaises(ValueError, Test.generating.fset, test, 'any type other than bool')
 
     def test_option(self):
 

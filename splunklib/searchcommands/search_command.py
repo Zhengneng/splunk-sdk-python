@@ -721,10 +721,36 @@ class SearchCommand(object):
             :return: String representation of this instance
 
             """
-            text = ', '.join(imap(lambda key: key + '=' + repr(getattr(self, key)), type(self).configuration_settings()))
+            settings = type(self).configuration_settings()
+            text = ', '.join(imap(lambda (name, value): name + '=' + repr(value[0].fget(self)), settings.iteritems()))
             return text
 
         # region Methods
+
+        @classmethod
+        def configuration_settings(cls):
+            """ Represents this class as a dictionary of :class:`property` instances and backing field names keyed by
+            configuration setting name.
+
+            This method is used by the :class:`ConfigurationSettingsType` meta-class to construct new
+            :class:`ConfigurationSettings` classes as well as :meth:`__str__` and :meth:`iteritems`.
+
+            :rtype: OrderedDict
+
+            """
+            if cls._configuration_settings is None:
+
+                def backing_field_name(name, value):
+                    return None if value.fset is None else '_' + name
+
+                attributes = imap(lambda name: (name, getattr(cls, name)), dir(cls))
+                properties = ifilter(lambda (name, value): isinstance(value, property), attributes)
+                properties = imap(lambda (name, value): (name, (value, backing_field_name(name, value))), properties)
+                cls._configuration_settings = OrderedDict(properties)
+
+            return cls._configuration_settings
+
+        _configuration_settings = None
 
         def iteritems(self):
             """ Represents this instance as an iterable over the ordered set of configuration items in this object.
@@ -736,22 +762,6 @@ class SearchCommand(object):
 
             """
             return imap(lambda key: (key, getattr(self, key)), type(self).configuration_settings())
-
-        @classmethod
-        def configuration_settings(cls):
-            """ Represents this class as a dictionary of :class:`property` instances and :code:`backing_field` names
-            keyed by configuration setting name.
-
-            This method is used by the :class:`ConfigurationSettingsType` meta-class to construct new
-            :class:`ConfigurationSettings` classes.
-
-            """
-            if not hasattr(cls, '_settings'):
-                attributes = imap(lambda name: (name, getattr(cls, name)), dir(cls))
-                properties = ifilter(lambda (name, value): isinstance(value, property), attributes)
-                properties = imap(lambda (name, value): (name, (value, getattr(cls, '_' + name))), properties)
-                cls._settings = OrderedDict(properties)
-            return cls._settings
 
         @classmethod
         def fix_up(cls, command_class):

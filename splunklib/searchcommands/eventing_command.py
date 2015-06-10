@@ -111,5 +111,6 @@ class EventingCommand(SearchCommand):
             """
             if command.transform == EventingCommand.transform:
                 raise AttributeError('No EventingCommand.transform override')
+            SearchCommand.ConfigurationSettings.fix_up(command)
 
         # endregion

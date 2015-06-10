@@ -25,6 +25,49 @@ from itertools import imap
 from .internals import ConfigurationSettingsType
 from .validators import OptionName
 
+def configuration_setting(name, doc=None, readonly=None, value=None):
+    """ Generates a :class:`property` representing the named configuration setting
+
+    This is a convenience function designed to reduce the amount of boiler-plate code you must write; most notably for
+    property setters.
+
+    :param name: Configuration setting name.
+    :type name: str or unicode
+
+    :param doc: A documentation string.
+    :type doc: str, unicode or NoneType
+
+    :param readonly: If true, specifies that the configuration setting is fixed.
+    :type name: bool or NoneType
+
+    :param value: Configuration setting value.
+
+    :return: A :class:`property` instance representing the configuration setting.
+    :rtype: property
+
+    """
+    try:
+        specification = ConfigurationSettingsType.specification_matrix[name]
+    except KeyError:
+        raise AttributeError('Unknown configuration setting: {}={}'.format(name, repr(value)))
+
+    validate = ConfigurationSettingsType.validate_configuration_setting
+
+    if readonly:
+        validate(specification, name, value)
+        return property(lambda self: value, doc=doc)
+
+    if value is not None:
+        validate(specification, name, value)
+
+    backing_field_name = '_' + name
+
+    named_property = property(
+        lambda self: getattr(self, backing_field_name, getattr(type(self), backing_field_name, value)),
+        lambda self, value: setattr(self, backing_field_name, validate(specification, name, value)), doc=doc)
+
+    return named_property
+
 
 class Configuration(object):
     """ Defines the configuration settings for a search command.
@@ -63,7 +106,7 @@ class Configuration(object):
             # o.ConfigurationSettings.fix_up(o) in the elif clause of this code block.
             o._settings = self.settings
         elif isclass(o):
-            # Compute command name
+            # Set command name
             name = o.__name__
             if name.endswith(b'Command'):
                 name = name[:-len(b'Command')]

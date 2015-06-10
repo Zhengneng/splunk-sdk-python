@@ -174,92 +174,103 @@ class ConfigurationSettingsType(type):
 
         for name, value in settings.iteritems():
             try:
-                specification = cls._specification_matrix[name]
+                specification = cls.specification_matrix[name]
             except KeyError:
-                raise AttributeError('Unknown configuration setting: {}={}'.format(name, value))
-            if not isinstance(value, specification.type):
-                raise AttributeError('Expected {} value, not {}={}'.format(specification.type.__name__, name, value))
-            if specification.constraint and not specification.constraint(value):
-                raise AttributeError('Illegal value for configuration setting {}: {}'.format(name, value))
+                raise AttributeError('Unknown configuration setting: {}={}'.format(name, repr(value)))
+
             try:
-                prop, backing_field_name = configuration_settings[name]
+                named_property, backing_field_name = configuration_settings[name]
             except KeyError:
-                raise AttributeError('Inapplicable configuration setting: {}={}'.format(name, value))
-            if backing_field_name is None:
-                raise AttributeError('The value of configuration setting {} is fixed'.format(name))
-            setattr(cls, backing_field_name, value)
+                raise AttributeError('Inapplicable configuration setting: {}={}'.format(name, repr(value)))
+
+            if named_property.fset is None:
+                raise ValueError('The value of configuration setting {} is fixed'.format(name))
+
+            setattr(cls, backing_field_name, cls.validate_configuration_setting(specification, name, value))
 
         cls.__module__ = module
 
-    _specification = namedtuple(
+    @staticmethod
+    def validate_configuration_setting(specification, name, value):
+        if not isinstance(value, specification.type):
+            if isinstance(specification.type, type):
+                type_names = specification.type.__name__
+            else:
+                type_names = ', '.join(imap(lambda t: t.__name__, specification.type))
+            raise ValueError('Expected {} value, not {}={}'.format(type_names, name, repr(value)))
+        if specification.constraint and not specification.constraint(value):
+            raise ValueError('Illegal value: {}={}'.format(name, repr(value)))
+        return value
+
+    specification = namedtuple(
         b'ConfigurationSettingSpecification', (
             b'type',
             b'constraint',
             b'supported_by_protocol_version_1',
             b'supported_by_protocol_version_2'))
 
-    _specification_matrix = {
-        'clear_required_fields': _specification(
+    specification_matrix = {
+        'clear_required_fields': specification(
             type=bool,
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'distributed': _specification(
+        'distributed': specification(
             type=bool,
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'generates_timeorder': _specification(
+        'generates_timeorder': specification(
             type=bool,
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'generating': _specification(
+        'generating': specification(
             type=bool,
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'maxinputs': _specification(
-            type='int',
-            constraint=lambda value: 0 <= value < sys.maxsize,
+        'maxinputs': specification(
+            type=int,
+            constraint=lambda value: 0 <= value <= sys.maxsize,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'overrides_timeorder': _specification(
+        'overrides_timeorder': specification(
             type=bool,
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'required_fields': _specification(
+        'required_fields': specification(
             type=(list, set, tuple),
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'requires_preop': _specification(
+        'requires_preop': specification(
             type=bool,
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'retainsevents': _specification(
+        'retainsevents': specification(
             type=bool,
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'run_in_preview': _specification(
+        'run_in_preview': specification(
             type=bool,
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'streaming': _specification(
+        'streaming': specification(
             type=bool,
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'streaming_preop': _specification(
+        'streaming_preop': specification(
             type=(str, unicode),
             constraint=None,
             supported_by_protocol_version_1=True,
             supported_by_protocol_version_2=False),
-        'type': _specification(
+        'type': specification(
             type=(str, unicode),
             constraint=lambda value: value in ('events', 'reporting', 'streaming'),
             supported_by_protocol_version_1=True,
@@ -332,6 +343,8 @@ class Recorder(object):
     def __init__(self, path, f):
         self._recording = io.open(path, 'wb')
         self._file = f
+
+    # TODO: Implement __dir__ because we delegate to self._file (?)
 
     def __getattr__(self, name):
         return getattr(self._file, name)
