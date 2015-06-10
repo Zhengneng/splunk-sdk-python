@@ -151,19 +151,19 @@ class TestDecorators(TestCase):
             @Configuration(**{} if setting_name is None else {setting_name: setting_value})
             class ConfiguredSearchCommand(SearchCommand):
                 class ConfigurationSettings(SearchCommand.ConfigurationSettings):
-                    clear_required_fields = configuration_setting('clear_required_fields')
-                    distributed = configuration_setting('distributed')
-                    generates_timeorder = configuration_setting('generates_timeorder')
-                    generating = configuration_setting('generating')
-                    maxinputs = configuration_setting('maxinputs')
-                    overrides_timeorder = configuration_setting('overrides_timeorder')
-                    required_fields = configuration_setting('required_fields')
-                    requires_preop = configuration_setting('requires_preop')
-                    retainsevents = configuration_setting('retainsevents')
-                    run_in_preview = configuration_setting('run_in_preview')
-                    streaming = configuration_setting('streaming')
-                    streaming_preop = configuration_setting('streaming_preop')
-                    type = configuration_setting('type')
+                    clear_required_fields = ConfigurationSetting()
+                    distributed = ConfigurationSetting()
+                    generates_timeorder = ConfigurationSetting()
+                    generating = ConfigurationSetting()
+                    maxinputs = ConfigurationSetting()
+                    overrides_timeorder = ConfigurationSetting()
+                    required_fields = ConfigurationSetting()
+                    requires_preop = ConfigurationSetting()
+                    retainsevents = ConfigurationSetting()
+                    run_in_preview = ConfigurationSetting()
+                    streaming = ConfigurationSetting()
+                    streaming_preop = ConfigurationSetting()
+                    type = ConfigurationSetting()
 
                     @classmethod
                     def fix_up(cls, command_class):
