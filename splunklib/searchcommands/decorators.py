@@ -18,7 +18,6 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from collections import OrderedDict  # must be python 2.7
 from inspect import getmembers, isclass, isfunction
-from types import FunctionType, MethodType
 from json import JSONEncoder
 from itertools import imap
 
@@ -112,6 +111,15 @@ class ConfigurationSetting(property):
     def __call__(self, function):
         return self.getter(function)
 
+    def deleter(self, function):
+        return self._copy_extra_attributes(property.deleter(self, function))
+
+    def getter(self, function):
+        return self._copy_extra_attributes(property.getter(self, function))
+
+    def setter(self, function):
+        return self._copy_extra_attributes(property.setter(self, function))
+
     @staticmethod
     def fix_up(cls, values):
 
@@ -137,7 +145,7 @@ class ConfigurationSetting(property):
                     validate(value)
 
                 def fget(bfn, value):
-                     return lambda this: getattr(this, bfn, value)
+                    return lambda this: getattr(this, bfn, value)
 
                 setting = setting.getter(fget(backing_field_name, value))
 
@@ -170,10 +178,16 @@ class ConfigurationSetting(property):
 
         if len(values) > 0:
             settings = sorted(list(values.iteritems()))
-            settings = imap(lambda (name, value): '{}={}'.format(name, repr(value)), settings)
+            settings = imap(lambda (n, v): '{}={}'.format(n, repr(v)), settings)
             raise AttributeError('Inapplicable configuration settings: ' + ', '.join(settings))
 
         cls.configuration_setting_definitions = definitions
+
+    def _copy_extra_attributes(self, other):
+        other._readonly = self._readonly
+        other._value = self._value
+        other._name = self._name
+        return other
 
     def _get_specification(self):
 
@@ -194,25 +208,23 @@ class Option(property):
 
     **Example:**
 
-    Short form (recommended). When you are satisfied with built-in or custom
-    validation behaviors.
+    Short form (recommended). When you are satisfied with built-in or custom validation behaviors.
 
     .. code-block:: python
         :linenos:
-
+        from splunklib.searchcommands.validators import Fieldname
         total = Option(
             doc=''' **Syntax:** **total=***<fieldname>*
             **Description:** Name of the field that will hold the computed
             sum''',
-            require=True, validate=validator.Fieldname())
+            require=True, validate=Fieldname())
 
     **Example:**
 
-    Long form. Useful when you wish to manage the option value and its deleter/
-    getter/setter side-effects yourself. You must provide a getter and a
-    setter. If your :code:`Option` requires `destruction <http://docs.python.org/reference/datamodel.html#object.__del__>`_
-    you must also provide a deleter. You must be prepared to accept a value of
-    :const:`None` which indicates that your :code:`Option` is unset.
+    Long form. Useful when you wish to manage the option value and its deleter/getter/setter side-effects yourself. You
+    must provide a getter and a setter. If your :code:`Option` requires `destruction <http://goo.gl/4VSm1c>`_ you must
+    also provide a deleter. You must be prepared to accept a value of :const:`None` which indicates that your
+    :code:`Option` is unset.
 
     .. code-block:: python
         :linenos:
@@ -240,67 +252,70 @@ class Option(property):
     """
     def __init__(self, fget=None, fset=None, fdel=None, doc=None, name=None, default=None, require=None, validate=None):
         property.__init__(self, fget, fset, fdel, doc)
-        self.name = None if name is None else OptionName()(name)
+        self.name = name
         self.default = default
-        self.require = bool(require)
         self.validate = validate
+        self.require = bool(require)
 
     def __call__(self, function):
         return self.getter(function)
 
     # region Methods
 
-    @classmethod
-    def fix_up(cls, command):
-
-        is_option = lambda attribute: isinstance(attribute, Option)
-        command.option_definitions = getmembers(command, is_option)
-        member_number = 0
-
-        for member_name, option in command.option_definitions:
-            if option.name is None:
-                option.name = member_name
-            if option.fget is None and option.fset is None:
-                field_name = '_' + member_name
-
-                def new_getter(name):
-                    def getter(self):
-                        return getattr(self, name, None)
-                    return getter
-
-                fget = new_getter(field_name)
-                fget = FunctionType(fget.func_code, fget.func_globals, member_name, None, fget.func_closure)
-                fget = MethodType(fget, None, command)
-                option = option.getter(fget)
-
-                def new_setter(name):
-                    def setter(self, value):
-                        setattr(self, name, value)
-                    return setter
-
-                fset = new_setter(field_name)
-                fset = FunctionType(fset.func_code, fset.func_globals, member_name, None, fset.func_closure)
-                fset = MethodType(fset, None, command)
-                option = option.setter(fset)
-
-                setattr(command, member_name, option)
-                command.option_definitions[member_number] = member_name, option
-            member_number += 1
-
     def deleter(self, function):
-        deleter = property.deleter(self, function)
-        return self._reset(deleter)
+        return self._copy_extra_attributes(property.deleter(self, function))
 
     def getter(self, function):
-        getter = property.getter(self, function)
-        return self._reset(getter)
+        return self._copy_extra_attributes(property.getter(self, function))
 
     def setter(self, function):
-        f = lambda s, v: function(s, self.validate(v) if self.validate else v)
-        setter = property.setter(self, f)
-        return self._reset(setter)
+        return self._copy_extra_attributes(property.setter(self, function))
 
-    def _reset(self, other):
+    @classmethod
+    def fix_up(cls, command_class):
+
+        is_option = lambda attribute: isinstance(attribute, Option)
+        definitions = getmembers(command_class, is_option)
+        validate_option_name = OptionName()
+        i = 0
+
+        for name, option in definitions:
+
+            if option.name is None:
+                option.name = name  # no validation required
+            else:
+                validate_option_name(option.name)
+
+            if option.fget is None and option.fset is None and option.fdel is None:
+                backing_field_name = '_' + name
+
+                def fget(bfn):
+                    return lambda this: getattr(this, bfn, None)
+
+                option = option.getter(fget(backing_field_name))
+
+                def fset(bfn, validate):
+                    if validate is None:
+                        return lambda this, value: setattr(this, bfn, value)
+                    return lambda this, value: setattr(this, bfn, validate(value))
+
+                option = option.setter(fset(backing_field_name, option.validate))
+                setattr(command_class, name, option)
+
+            elif option.validate is not None:
+
+                def fset(function, validate):
+                    return lambda this, value: function(this, validate(value))
+
+                option = option.setter(fset(option.fset, option.validate))
+                setattr(command_class, name, option)
+
+            definitions[i] = name, option
+            i += 1
+
+        command_class.option_definitions = definitions
+
+    def _copy_extra_attributes(self, other):
         other.name = self.name
         other.default = self.default
         other.require = self.require

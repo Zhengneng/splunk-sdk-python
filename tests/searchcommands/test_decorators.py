@@ -257,15 +257,15 @@ class TestDecorators(TestCase):
         class Test(object):
             generating = ConfigurationSetting()
 
+            @ConfigurationSetting(name='required_fields')
+            def some_name_than_required_fields(self):
+                pass
+
+            @some_name_than_required_fields.setter
+            def required_fields_(self, value):
+                pass
+
             @ConfigurationSetting
-            def required_fields(self):
-                pass
-
-            @required_fields.setter
-            def required_fields(self, value):
-                pass
-
-            @ConfigurationSetting()
             def streaming_preop(self):
                 pass
 
