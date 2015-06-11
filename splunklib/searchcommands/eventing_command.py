@@ -54,8 +54,6 @@ class EventingCommand(SearchCommand):
         """
         # region Properties
 
-        # TODO: Centralize setting documentation
-
         maxinputs = ConfigurationSetting(doc='''
             Specifies the maximum number of events that can be passed to the command for each invocation.
 

@@ -72,39 +72,14 @@ class Configuration(object):
             o.ConfigurationSettings = ConfigurationSettingsType(
                 module=o.__module__ + b'.' + o.__name__,
                 name=b'ConfigurationSettings',
-                bases=(o.ConfigurationSettings,),
-                settings=self.settings)
-            ConfigurationSetting.fix_up(o.ConfigurationSettings)
-            self.fix_up(o.ConfigurationSettings)
+                bases=(o.ConfigurationSettings,))
+            ConfigurationSetting.fix_up(o.ConfigurationSettings, self.settings)
             o.ConfigurationSettings.fix_up(o)
             Option.fix_up(o)
         else:
             raise TypeError('Incorrect usage: Configuration decorator applied to {0}'.format(type(o), o.__name__))
 
         return o
-
-    def fix_up(self, settings_class):
-
-        specification_matrix = ConfigurationSettingsType.specification_matrix
-        validate = ConfigurationSettingsType.validate_configuration_setting
-
-        for name, setting in settings_class.configuration_setting_definitions:
-
-            try:
-                value = self.settings[name]
-            except KeyError:
-                continue
-
-            if setting.fset is None:
-                raise ValueError('The value of configuration setting {} is fixed'.format(name))
-
-            setattr(settings_class, setting.backing_field_name, validate(specification_matrix[name], name, value))
-            del self.settings[name]
-
-        if len(self.settings) > 0:
-            settings = sorted(list(self.settings.iteritems()))
-            settings = imap(lambda (name, value): '{}={}'.format(name, repr(value)), settings)
-            raise AttributeError('Inapplicable configuration settings: ' + ', '.join(settings))
 
 
 class ConfigurationSetting(property):
@@ -138,7 +113,7 @@ class ConfigurationSetting(property):
         return self.getter(function)
 
     @staticmethod
-    def fix_up(cls):
+    def fix_up(cls, values):
 
         is_configuration_setting = lambda attribute: isinstance(attribute, ConfigurationSetting)
         definitions = getmembers(cls, is_configuration_setting)
@@ -151,11 +126,11 @@ class ConfigurationSetting(property):
             else:
                 name = setting._name
 
+            validate, specification = setting._get_specification()
             backing_field_name = '_' + name
 
             if setting.fget is None and setting.fset is None and setting.fdel is None:
 
-                validate, specification = setting._get_specification()
                 value = setting._value
 
                 if setting._readonly or value is not None:
@@ -178,12 +153,27 @@ class ConfigurationSetting(property):
                 setting._get_specification()  # verifies this setting is specked
 
             del setting._name, setting._value, setting._readonly
-            setting.backing_field_name = '_' + name
+            setting.backing_field_name = backing_field_name
             definitions[i] = name, setting
             i += 1
 
+            try:
+                value = values[name]
+            except KeyError:
+                continue
+
+            if setting.fset is None:
+                raise ValueError('The value of configuration setting {} is fixed'.format(name))
+
+            setattr(cls, setting.backing_field_name, validate(specification, name, value))
+            del values[name]
+
+        if len(values) > 0:
+            settings = sorted(list(values.iteritems()))
+            settings = imap(lambda (name, value): '{}={}'.format(name, repr(value)), settings)
+            raise AttributeError('Inapplicable configuration settings: ' + ', '.join(settings))
+
         cls.configuration_setting_definitions = definitions
-        return definitions  # as a courtesy
 
     def _get_specification(self):
 

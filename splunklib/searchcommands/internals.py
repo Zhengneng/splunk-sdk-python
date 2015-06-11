@@ -163,11 +163,11 @@ class ConfigurationSettingsType(type):
       Adds a ConfigurationSettings attribute to a :meth:`ReportingCommand.map` method, if there is one.
 
     """
-    def __new__(mcs, module, name, bases, settings):
+    def __new__(mcs, module, name, bases):
         mcs = super(ConfigurationSettingsType, mcs).__new__(mcs, name, bases, {})
         return mcs
 
-    def __init__(cls, module, name, bases, settings):
+    def __init__(cls, module, name, bases):
 
         super(ConfigurationSettingsType, cls).__init__(name, bases, None)
         cls.__module__ = module

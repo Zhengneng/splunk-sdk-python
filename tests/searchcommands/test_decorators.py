@@ -273,7 +273,7 @@ class TestDecorators(TestCase):
             def streaming_preop(self, value):
                 pass
 
-        ConfigurationSetting.fix_up(Test)
+        ConfigurationSetting.fix_up(Test, {})
 
         test = Test()
         self.assertFalse(hasattr(Test, '_generating'))
