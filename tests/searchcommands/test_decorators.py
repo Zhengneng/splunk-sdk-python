@@ -290,7 +290,6 @@ class TestDecorators(TestCase):
 
         self.assertRaises(ValueError, Test.generating.fset, test, 'any type other than bool')
 
-
     def test_option(self):
 
         presets = ['logging_level="WARNING"', 'record="f"', 'show_configuration="f"']

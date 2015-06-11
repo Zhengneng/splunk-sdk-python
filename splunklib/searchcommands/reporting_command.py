@@ -121,7 +121,21 @@ class ReportingCommand(SearchCommand):
         """ Represents the configuration settings for a :code:`ReportingCommand`.
 
         """
-        # region Properties
+        # region SCP v1 Properties
+
+        clear_required_fields = ConfigurationSetting(value=True, doc='''
+            :const:`True`, if required_fields represent the *only* fields required.
+
+            If :const:`False`, required_fields are additive to any fields that may be required by subsequent commands.
+            In most cases, :const:`True` is appropriate for reporting commands.
+
+            Default: :const:`True`
+
+            ''')
+
+        # endregion
+
+        # region SCP v2 Properties
 
         maxinputs = ConfigurationSetting(doc='''
             Specifies the maximum number of events that can be passed to the command for each invocation.

@@ -62,7 +62,35 @@ class StreamingCommand(SearchCommand):
         """ Represents the configuration settings that apply to a :class:`StreamingCommand`.
 
         """
-        # region Properties
+        # region SCP v1 properties
+
+        clear_required_fields = ConfigurationSetting(value=False, doc='''
+            :const:`True`, if required_fields represent the *only* fields required.
+
+            If :const:`False`, required_fields are additive to any fields that may be required by subsequent commands.
+            In most cases, :const:`False` is appropriate for streaming commands.
+
+            Default: :const:`False`
+
+            ''')
+
+        overrides_timeorder = ConfigurationSetting(doc='''
+            :const:`True`, if the command changes the order of events with respect to time.
+
+            Default: :const:`False`
+
+            ''')
+
+        streaming = ConfigurationSetting(readonly=True, value=True, doc='''
+            Specifies that the command is streamable.
+
+            Fixed: :const:`True`
+
+            ''')
+
+        # endregion
+
+        # region SCP v2 Properties
 
         distributed = ConfigurationSetting('distributed', doc='''
             True, if this command should be distributed to indexers.

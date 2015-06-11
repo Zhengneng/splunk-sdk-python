@@ -52,7 +52,30 @@ class EventingCommand(SearchCommand):
         """ Represents the configuration settings that apply to a :class:`EventingCommand`.
 
         """
-        # region Properties
+        # region SCP v1 properties
+
+        clear_required_fields = ConfigurationSetting(value=False, doc='''
+            :const:`True`, if required_fields represent the *only* fields required.
+
+            If :const:`False`, required_fields are additive to any fields that may be required by subsequent commands.
+            In most cases, :const:`False` is appropriate for eventing commands.
+
+            Default: :const:`False`
+
+            ''')
+
+        retainsevents = ConfigurationSetting(readonly=True, value=True, doc='''
+            :const:`True`, if the command retains events the way the sort/dedup/cluster commands do.
+
+            If :const:`False`, the command transforms events the way the stats command does.
+
+            Fixed: :const:`True`
+
+            ''')
+
+        # endregion
+
+        # region SCP v2 properties
 
         maxinputs = ConfigurationSetting(doc='''
             Specifies the maximum number of events that can be passed to the command for each invocation.

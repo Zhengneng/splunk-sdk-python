@@ -95,7 +95,25 @@ class GeneratingCommand(SearchCommand):
         """ Represents the configuration settings for a :code:`GeneratingCommand` class.
 
         """
-        # region Properties
+        # region SCP v1 Properties
+
+        generates_timeorder = ConfigurationSetting(value=False, doc='''
+            :const:`True`, if the command generates new events.
+
+            Default: :const:`True`
+
+            ''')
+
+        streaming = ConfigurationSetting(value=False, doc='''
+            :const:`True`, if the command is streamable.
+
+            Default: :const:`False`
+
+            ''')
+
+        # endregion
+
+        # region SCP v2 Properties
 
         distributed = ConfigurationSetting(value=False, doc='''
             True, if this command should be distributed to indexers.
