@@ -14,7 +14,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from distutils.core import setup, Command
+from setuptools import setup, Command
 from contextlib import closing
 from fnmatch import fnmatch
 
@@ -211,8 +211,7 @@ setup(
 
     packages = ["splunklib",
                 "splunklib.modularinput",
-                "splunklib.searchcommands",
-                "splunklib.searchcommands.splunk_csv"],
+                "splunklib.searchcommands"],
 
     url="http://github.com/splunk/splunk-sdk-python",
 

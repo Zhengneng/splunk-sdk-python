@@ -200,7 +200,7 @@ class ReportingCommand(SearchCommand):
 
             """
             if not issubclass(command, ReportingCommand):
-                raise TypeError('{0} is not a ReportingCommand'.format( command))
+                raise TypeError('{} is not a ReportingCommand'.format( command))
 
             if command.reduce == ReportingCommand.reduce:
                 raise AttributeError('No ReportingCommand.reduce override')
