@@ -18,8 +18,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from collections import OrderedDict  # must be python 2.7
 from inspect import getmembers, isclass, isfunction
-from json import JSONEncoder
 from itertools import imap
+from json.encoder import encode_basestring as encode_string
 
 from .internals import ConfigurationSettingsType
 from .validators import OptionName
@@ -212,7 +212,9 @@ class Option(property):
 
     .. code-block:: python
         :linenos:
+        from splunklib.searchcommands.decorators import Option
         from splunklib.searchcommands.validators import Fieldname
+
         total = Option(
             doc=''' **Syntax:** **total=***<fieldname>*
             **Description:** Name of the field that will hold the computed
@@ -228,14 +230,14 @@ class Option(property):
 
     .. code-block:: python
         :linenos:
+        from splunklib.searchcommands import Option
 
         @Option()
         def logging_configuration(self):
             \""" **Syntax:** logging_configuration=<path>
-            **Description:** Loads an alternative logging configuration file for
-            a command invocation. The logging configuration file must be in
-            Python ConfigParser-format. The *<path>* name and all path names
-            specified in configuration are relative to the app root directory.
+            **Description:** Loads an alternative logging configuration file for a command invocation. The logging
+            configuration file must be in Python ConfigParser-format. The *<path>* name and all path names specified in
+            configuration are relative to the app root directory.
 
             \"""
             return self._logging_configuration
@@ -326,35 +328,28 @@ class Option(property):
 
     # region Types
 
-    class Encoder(JSONEncoder):
-        def __init__(self, item):
-            JSONEncoder.__init__(self)
-            self.item = item
-
-        def default(self, o):
-            # Convert the value of a type unknown to the JSONEncoder
-            validator = self.item.validator
-            if validator is None:
-                return unicode(o)
-            return validator.format(o)
+    # TODO: Consider adding these Item capabilities to Option itself
 
     class Item(object):
         """ Presents an instance/class view over a search command `Option`.
 
+        This class is used by SearchCommand.process to parse and report on option values.
+
         """
+        from json.encoder import encode_basestring as encode_string
+
         def __init__(self, command, option):
             self._command = command
             self._option = option
             self._is_set = False
+            self._format = unicode if self._option.validate is None else self._option.validate.format
 
         def __repr__(self):
             return str(self)
 
         def __str__(self):
-            value = self.value if self.validator is None else self.validator.format(self.value)
-            encoder = Option.Encoder(self)
-            text = '='.join([self.name, encoder.encode(value)])
-            return text
+            value = 'None' if self.value is None else encode_string(self._format(self.value))
+            return self.name + '=' + value
 
         # region Properties
 
@@ -393,7 +388,9 @@ class Option(property):
         # endregion
 
     class View(object):
-        """ Presents a view of the set of :class:`Option` arguments to a search command.
+        """ Presents an ordered dictionary view of the set of :class:`Option` arguments to a search command.
+
+        This class is used by SearchCommand.process to parse and report on option values.
 
         """
         def __init__(self, command):

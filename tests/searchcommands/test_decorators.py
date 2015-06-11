@@ -258,11 +258,11 @@ class TestDecorators(TestCase):
             generating = ConfigurationSetting()
 
             @ConfigurationSetting(name='required_fields')
-            def some_name_than_required_fields(self):
+            def some_name__other_than_required_fields(self):
                 pass
 
-            @some_name_than_required_fields.setter
-            def required_fields_(self, value):
+            @some_name__other_than_required_fields.setter
+            def some_name__other_than_required_fields(self, value):
                 pass
 
             @ConfigurationSetting
@@ -302,7 +302,7 @@ class TestDecorators(TestCase):
         missing = options.get_missing()
         self.assertListEqual(missing, [option.name for option in itervalues() if option.is_required])
         self.assertListEqual(presets, [str(option) for option in itervalues() if option.value is not None])
-        self.assertListEqual(presets, [str(option) for option in itervalues() if str(option) != option.name + '=null'])
+        self.assertListEqual(presets, [str(option) for option in itervalues() if str(option) != option.name + '=None'])
 
         test_option_values = {
             validators.Boolean: ('0', 'non-boolean value'),

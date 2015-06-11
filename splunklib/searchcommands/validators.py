@@ -299,7 +299,7 @@ class RegularExpression(Validator):
         try:
             value = re.compile(unicode(value))
         except re.error as error:
-            raise ValueError('{0}: {1}'.format(unicode(error).capitalize(), value))
+            raise ValueError('{}: {}'.format(unicode(error).capitalize(), value))
         return value
 
     def format(self, value):
@@ -318,7 +318,7 @@ class Set(Validator):
             return None
         value = unicode(value)
         if value not in self.membership:
-            raise ValueError('Unrecognized value: {0}'.format(value))
+            raise ValueError('Unrecognized value: {}'.format(value))
         return value
 
     def format(self, value):
