@@ -341,6 +341,14 @@ class TestDecorators(TestCase):
             else:
                 self.assertFalse('Expected ValueError for {}={}, not a pass.'.format(option.name, illegal_value))
 
+        expected = "Option.View([('boolean', u'f'),('duration', u'24:59:59'),('fieldname', u'some.field_name'),('file', u'" + __file__ + "'),('integer', u'100'),('logging_configuration', u'None'),('logging_level', u'WARNING'),('map', 'foo'),('optionname', u'some_option_name'),('record', u'f'),('regularexpression', u'\\\\s+'),('required_boolean', u'f'),('required_duration', u'24:59:59'),('required_fieldname', u'some.field_name'),('required_file', u'" + __file__ + "'),('required_integer', u'100'),('required_map', 'foo'),('required_optionname', u'some_option_name'),('required_regularexpression', u'\\\\s+'),('required_set', u'bar'),('set', u'bar'),('show_configuration', u'f')])"
+        observed = repr(command.options)
+        self.assertEqual(observed, expected)
+
+        expected = 'boolean="f" duration="24:59:59" fieldname="some.field_name" file="' + __file__ + '" integer="100" map="foo" optionname="some_option_name" record="f" regularexpression="\\\\s+" required_boolean="f" required_duration="24:59:59" required_fieldname="some.field_name" required_file="' + __file__ + '" required_integer="100" required_map="foo" required_optionname="some_option_name" required_regularexpression="\\\\s+" required_set="bar" set="bar" show_configuration="f"'
+        observed = str(command.options)
+        self.assertEqual(observed, expected)
+
         return
 
     _package_directory = os.path.dirname(__file__)

@@ -130,7 +130,7 @@ class ConfigurationSetting(property):
         for name, setting in definitions:
 
             if setting._name is None:
-                setting._name = name
+                setting._name = name = unicode(name)
             else:
                 name = setting._name
 
@@ -163,6 +163,7 @@ class ConfigurationSetting(property):
             del setting._name, setting._value, setting._readonly
             setting.backing_field_name = backing_field_name
             definitions[i] = name, setting
+            setting.name = name
             i += 1
 
             try:
@@ -173,7 +174,7 @@ class ConfigurationSetting(property):
             if setting.fset is None:
                 raise ValueError('The value of configuration setting {} is fixed'.format(name))
 
-            setattr(cls, setting.backing_field_name, validate(specification, name, value))
+            setattr(cls, backing_field_name, validate(specification, name, value))
             del values[name]
 
         if len(values) > 0:
@@ -328,27 +329,25 @@ class Option(property):
 
     # region Types
 
-    # TODO: Consider adding these Item capabilities to Option itself
-
     class Item(object):
         """ Presents an instance/class view over a search command `Option`.
 
         This class is used by SearchCommand.process to parse and report on option values.
 
         """
-        from json.encoder import encode_basestring as encode_string
-
         def __init__(self, command, option):
             self._command = command
             self._option = option
             self._is_set = False
-            self._format = unicode if self._option.validate is None else self._option.validate.format
+            validator = self.validator
+            self._format = unicode if validator is None else validator.format
 
         def __repr__(self):
-            return str(self)
+            return '(' + repr(self.name) + ', ' + repr(self._format(self.value)) + ')'
 
         def __str__(self):
-            value = 'None' if self.value is None else encode_string(self._format(self.value))
+            value = self.value
+            value = 'None' if value is None else encode_string(self._format(value))
             return self.name + '=' + value
 
         # region Properties
@@ -381,36 +380,29 @@ class Option(property):
             self._option.__set__(self._command, value)
             self._is_set = True
 
+        # endregion
+
+        # region Methods
+
         def reset(self):
             self._option.__set__(self._command, self._option.default)
             self._is_set = False
 
         # endregion
 
-    class View(object):
+    class View(OrderedDict):
         """ Presents an ordered dictionary view of the set of :class:`Option` arguments to a search command.
 
         This class is used by SearchCommand.process to parse and report on option values.
 
         """
         def __init__(self, command):
-            self._items = OrderedDict(
-                [(member, Option.Item(command, option)) for member, option in type(command).option_definitions])
-
-        def __contains__(self, name):
-            return name in self._items
-
-        def __getitem__(self, name):
-            return self._items[name]
-
-        def __iter__(self):
-            return self._items.__iter__()
-
-        def __len__(self):
-            return len(self._items)
+            definitions = type(command).option_definitions
+            item_class = Option.Item
+            OrderedDict.__init__(self, imap(lambda (name, option): (name, item_class(command, option)), definitions))
 
         def __repr__(self):
-            text = ''.join(('Option.View(', ','.join(imap(lambda item: repr(item), self.itervalues())), ')'))
+            text = 'Option.View([' + ','.join(imap(lambda item: repr(item), self.itervalues())) + '])'
             return text
 
         def __str__(self):
@@ -420,17 +412,8 @@ class Option(property):
         # region Methods
 
         def get_missing(self):
-            missing = [item.name for item in self._items.itervalues() if item.is_required and not item.is_set]
+            missing = [item.name for item in self.itervalues() if item.is_required and not item.is_set]
             return missing if len(missing) > 0 else None
-
-        def iteritems(self):
-            return self._items.iteritems()
-
-        def iterkeys(self):
-            return self.__iter__()
-
-        def itervalues(self):
-            return self._items.itervalues()
 
         def reset(self):
             for value in self.itervalues():
