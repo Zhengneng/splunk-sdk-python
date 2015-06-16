@@ -139,7 +139,7 @@ class TestSearchCommand(unittest.TestCase):
         result = StringIO()
 
         try:
-            command.process(args=['foo.py', '__EXECUTE__'], ifile=StringIO(''), ofile=result)
+            command.process(argv=['foo.py', '__EXECUTE__'], ifile=StringIO(''), ofile=result)
         except SystemExit as e:
             result.reset()
             observed = result.read()
@@ -240,7 +240,7 @@ class TestSearchCommand(unittest.TestCase):
 
         info_path = os.path.join(TestSearchCommand._package_directory, 'data', 'input', 'externSearchResultsInfo.csv')
         input = StringIO('infoPath:%s\n\nAction\r\naccess_search_results_info' % info_path)
-        SearchCommand().process(args=['foo.py', '__EXECUTE__'], ifile=input, ofile=result)
+        SearchCommand().process(argv=['foo.py', '__EXECUTE__'], ifile=input, ofile=result)
 
         observed = re.sub(
             '''vix_families=<Element '?root'? at [^>]+>''', '''vix_families=<Element 'root' at 0x103a7e410>''',

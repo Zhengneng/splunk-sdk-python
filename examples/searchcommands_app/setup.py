@@ -60,11 +60,11 @@ if os.name == 'nt':
     del locals()['patch_os']  # since this function has done its job
 
 
-from subprocess import CalledProcessError, check_call, STDOUT
-from distutils.core import setup, Command
 from collections import OrderedDict
 from glob import glob
 from itertools import chain
+from setuptools import setup, Command
+from subprocess import CalledProcessError, check_call, STDOUT
 
 import requests
 import shutil

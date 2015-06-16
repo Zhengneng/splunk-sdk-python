@@ -19,6 +19,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from .search_command import SearchCommand
 from . import ConfigurationSetting
 
+from collections import OrderedDict
 from itertools import imap, ifilterfalse
 
 # TODO: Create pipeline option that may be set to 'events', 'reports', or 'streams' and set type option to a constant:
@@ -164,15 +165,15 @@ class GeneratingCommand(SearchCommand):
             if command.generate == GeneratingCommand.generate:
                 raise AttributeError('No GeneratingCommand.generate override')
 
-        def render(self):
+        def _items(self):
 
-            sequence = ifilterfalse(
-                lambda item: item[0] == 'distributed', SearchCommand.ConfigurationSettings.render(self))
+            sequence = ifilterfalse(lambda (name, value): name == 'distributed' or value is None, self._iter())
 
             if not (self.distributed and self.type == 'streaming'):
                 return sequence
 
-            return imap(lambda item: item if item[0] != 'type' else (item[0], 'stateful'), sequence)
+            sequence = imap(lambda (name, value): (name, value) if name != 'type' else (name, 'stateful'), sequence)
+            return OrderedDict(sequence)
 
         # endregion
 

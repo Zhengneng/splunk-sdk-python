@@ -62,16 +62,21 @@ class Configuration(object):
             # o.ConfigurationSettings.fix_up(o) in the elif clause of this code block.
             o._settings = self.settings
         elif isclass(o):
+
             # Set command name
+
             name = o.__name__
             if name.endswith(b'Command'):
                 name = name[:-len(b'Command')]
             o.name = name.lower()
+
             # Construct ConfigurationSettings instance for the command class
+
             o.ConfigurationSettings = ConfigurationSettingsType(
                 module=o.__module__ + b'.' + o.__name__,
                 name=b'ConfigurationSettings',
                 bases=(o.ConfigurationSettings,))
+
             ConfigurationSetting.fix_up(o.ConfigurationSettings, self.settings)
             o.ConfigurationSettings.fix_up(o)
             Option.fix_up(o)
@@ -142,7 +147,7 @@ class ConfigurationSetting(property):
                 value = setting._value
 
                 if setting._readonly or value is not None:
-                    validate(value)
+                    validate(specification, name, value)
 
                 def fget(bfn, value):
                     return lambda this: getattr(this, bfn, value)
@@ -157,13 +162,22 @@ class ConfigurationSetting(property):
                     setting = setting.setter(fset(backing_field_name, validate, specification, name))
 
                 setattr(cls, name, setting)
-            else:
-                setting._get_specification()  # verifies this setting is specked
+
+            def is_supported_by_protocol(supporting_protocols):
+
+                def is_supported_by_protocol(version):
+                    return version in supporting_protocols
+
+                return is_supported_by_protocol
 
             del setting._name, setting._value, setting._readonly
+
+            setting.is_supported_by_protocol = is_supported_by_protocol(specification.supporting_protocols)
+            setting.supporting_protocols = specification.supporting_protocols
             setting.backing_field_name = backing_field_name
-            definitions[i] = name, setting
+            definitions[i] = setting
             setting.name = name
+
             i += 1
 
             try:

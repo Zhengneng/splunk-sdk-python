@@ -20,7 +20,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from splunklib.client import Service
 
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict
 from cStringIO import StringIO
 from itertools import ifilter, imap, islice, izip
 from logging import _levelNames, getLevelName, getLogger
@@ -38,14 +38,30 @@ import traceback
 
 # Relative imports
 
-from .internals import CsvDialect, MetadataDecoder, MetadataEncoder, Message, ObjectView, Recorder, RecordWriter
-from .internals import configure_logging
-from .validators import Boolean
-from .decorators import Option
+from .internals import (
+    configure_logging,
+    CommandLineParser,
+    CsvDialect,
+    InputHeader,
+    Message,
+    MetadataDecoder,
+    MetadataEncoder,
+    ObjectView,
+    Recorder,
+    RecordWriterV1,
+    RecordWriterV2)
+
 from . import globals
+from .decorators import Option
+from .validators import Boolean
 
+# [ ] TODO: Map SearchCommand.input_header to metadata items, if possible
 
-# [ ] TODO: Validate class-level settings provided by the @Configuration decorator
+# [ ] TODO: Use saved dispatch dir to mock tests that depend on its contents (?)
+# To make records more generally useful to application developers we should provide/demonstrate how to mock
+# self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived dispatch directories.
+
+# [X] TODO: Validate class-level settings provided by the @Configuration decorator
 # At present we have property setters that validate instance-level configuration, but we do not do any validation on
 # the class-level configuration settings that are provided by way of the @Configuration decorator
 
@@ -56,18 +72,19 @@ from . import globals
 #   self.metadata.searchinfo.splunk_uri
 #   self.metadata.searchinfo.splunk_version
 
-# [ ] TODO: Use saved dispatch dir to mock tests that depend on its contents (?)
-# To make records more generally useful to application developers we should provide/demonstrate how to mock
-# self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived dispatch directories.
-
 
 class SearchCommand(object):
     """ Represents a custom search command.
 
     """
 
-    # TODO: In SearchCommand.__init__ change app_root parameter to app_file because both app_file is required and
+    # [ ] TODO: In SearchCommand.__init__ change app_root parameter to app_file because app_file is required and
     # app_root can be computed from it. See globals.py and SearchCommand.__init__.
+
+    # [ ] TODO: RecordWriter.mv_delimiter to support protocol_v1
+    # writer = splunk_csv.DictWriter(output_file, self, self.configuration.keys(), mv_delimiter=',')
+
+    # [ ] TODO: Add protocol_v1 support for recording
 
     def __init__(self, app_root=None):
         """
@@ -101,11 +118,13 @@ class SearchCommand(object):
         # Variables backing option/property values
 
         self._app_root = globals.app_root if app_root is None else app_root
-        self._configuration = None
+        self._configuration = self.ConfigurationSettings(self)
+        self._input_header = InputHeader()
         self._fieldnames = None
         self._finished = None
         self._metadata = None
         self._options = None
+        self._protocol_version = None
         self._search_results_info = None
         self._service = None
 
@@ -113,6 +132,7 @@ class SearchCommand(object):
 
         self._default_logging_level = self.logger.level
         self._record_writer = None
+        self._write_record = None
 
     def __str__(self):
         text = type(self).name + ' ' + str(self.options) + ' ' + ' '.join(self.fieldnames)
@@ -200,6 +220,16 @@ class SearchCommand(object):
         self._fieldnames = value
 
     @property
+    def input_header(self):
+        """ Returns the input header for this command.
+
+        :return: The input header for this command.
+        :rtype: InputHeader
+
+        """
+        return self._input_header
+
+    @property
     def logger(self):
         """ Returns the logger for this command.
 
@@ -221,6 +251,10 @@ class SearchCommand(object):
         if self._options is None:
             self._options = Option.View(self)
         return self._options
+
+    @property
+    def protocol_version(self):
+        return self._protocol_version
 
     @property
     def search_results_info(self):
@@ -369,14 +403,79 @@ class SearchCommand(object):
         to splunkd.
 
         :return: :const:`None`
+        :rtype: NoneType
 
         """
-        return
+        pass
 
-    def process(self, args=sys.argv, ifile=sys.stdin, ofile=sys.stdout):
+    def process(self, argv=sys.argv, ifile=sys.stdin, ofile=sys.stdout):
+
+        if len(argv) <= 1:
+            self._process_protocol_v2(ifile, ofile)
+            return
+
+        debug = globals.splunklib_logger.debug
+        class_name = self.__class__.__name__
+
+        debug('%s.process started under protocol_version=1', class_name)
+        # noinspection PyBroadException
+        try:
+            if argv[1] == '__GETINFO__':
+
+                debug('Writing configuration settings')
+
+                self._prepare_protocol_v1(argv, ifile, ofile)
+                record = self._configuration.items()
+                self._write_record(record)
+                self.finish()
+
+            elif argv[1] == '__EXECUTE__':
+
+                debug('Executing')
+
+                self._prepare_protocol_v1(argv, ifile, ofile)
+                self._execute(ifile, None)
+                self.finish()
+
+            else:
+                message = (
+                    'Command {0} appears to be statically configured for search command protocol version 1 and static '
+                    'configuration is unsupported by splunklib.searchcommands. Please ensure that '
+                    'default/commands.conf contains this stanza:\n'
+                    '[{0}]\n'
+                    'filename = {1}\n'
+                    'supports_getinfo = true\n'
+                    'supports_rawargs = true\n'
+                    'outputheader = true'.format(self.name, os.path.basename(argv[0])))
+                raise RuntimeError(message)
+
+        except SystemExit:
+            self.flush()
+            raise
+        except:
+            self._report_unexpected_error()
+            self.flush()
+            exit(1)
+
+        debug('%s.process finished under protocol_version=1', class_name)
+
+    def _prepare_protocol_v1(self, argv, ifile, ofile):
+        # Provide as much context as possible in advance of parsing the command line and preparing for execution
+        self._record_writer = RecordWriterV1(ofile)
+        self._input_header.read(ifile)
+        self._protocol_version = 1
+
+        CommandLineParser.parse(self, argv[2:])
+        self.prepare()  # TODO: inform command on phase; whether __GETINFO__ or __EXECUTE__
+
+        if self.show_configuration:
+            message = self.name + ' command configuration settings: ' + str(self._configuration)
+            self._record_writer.write_message('info_message', message)
+
+        self._write_record = self._record_writer.write_record
+
+    def _process_protocol_v2(self, ifile=sys.stdin, ofile=sys.stdout):
         """ Processes records on the `input stream optionally writing records to the output stream.
-
-        :param args: Unused.
 
         :param ifile: Input file object.
         :type ifile: file or InputType
@@ -387,9 +486,10 @@ class SearchCommand(object):
         :return: :const:`None`
 
         """
+        self._protocol_version = 2
         debug = globals.splunklib_logger.debug
         class_name = self.__class__.__name__
-        debug('%s.process started', class_name)
+        debug('%s.process started under protocol_version=2', class_name)
 
         # Read search command metadata from splunkd
         # noinspection PyBroadException
@@ -415,7 +515,7 @@ class SearchCommand(object):
 
             debug('  tempfile.tempdir=%r', tempfile.tempdir)
         except:
-            self._record_writer = RecordWriter(ofile)
+            self._record_writer = RecordWriterV2(ofile)
             self._report_unexpected_error()
             self._record_writer.flush(finished=True)
             exit(1)
@@ -423,7 +523,7 @@ class SearchCommand(object):
         # Write search command configuration for consumption by splunkd
         # noinspection PyBroadException
         try:
-            self._record_writer = RecordWriter(ofile, getattr(self._metadata, 'maxresultrows', None))
+            self._record_writer = RecordWriterV2(ofile, getattr(self._metadata, 'maxresultrows', None))
             self.fieldnames = []
             self.options.reset()
 
@@ -519,18 +619,17 @@ class SearchCommand(object):
         # Execute search command on data passing through the pipeline
         # noinspection PyBroadException
         try:
-            debug('Executing')
+            debug('Executing under protocol_version=2')
             self._execute(ifile, None)
         except SystemExit:
-            self._record_writer.flush(finished=True)
+            self.flush()
             raise
         except:
             self._report_unexpected_error()
-            self._record_writer.flush(finished=True)
+            self.flush()
             exit(1)
 
         debug('%s.process completed', class_name)
-        return
 
     def write_debug(self, message, *args):
         self._record_writer.write_message('DEBUG', message, *args)
@@ -712,30 +811,33 @@ class SearchCommand(object):
         def __init__(self, command):
             self.command = command
 
-        def __str__(self):
+        def __repr__(self):
             """ Converts the value of this instance to its string representation.
 
-            The value of this ConfigurationSettings instance is represented as a
-            string of newline-separated :code:`name=value` pairs.
+            The value of this ConfigurationSettings instance is represented as a string of comma-separated
+            :code:`(name, value)` pairs.
 
             :return: String representation of this instance
 
             """
-            text = ', '.join(imap(lambda (name, value): name + '=' + repr(value[0].fget(self)), self.iteritems()))
-            return text
+            definitions = type(self).configuration_setting_definitions
+            settings = imap(
+                lambda setting: repr((setting.name, setting.__get__(self), setting.supporting_protocols)), definitions)
+            return '[' + ', '.join(settings) + ']'
 
-        # region Methods
+        def __str__(self):
+            """ Converts the value of this instance to its string representation.
 
-        def iteritems(self):
-            """ Represents this instance as an iterable over the ordered set of configuration items in this object.
+            The value of this ConfigurationSettings instance is represented as a string of comma-separated
+            :code:`name=value` pairs. Items with values of :const:`None` are filtered from the list.
 
-            This method is used by :meth:`SearchCommand.process` to report configuration settings to splunkd during
-            the :code:`getInfo` exchange of the request to process search results.
-
-            :return: :class:`OrderedDict` containing setting values keyed by name.
+            :return: String representation of this instance
 
             """
-            return imap(lambda name, setting: (name, setting(self)), type(self).configuration_setting_definitions)
+            items = imap(lambda (name, value): name + '=' + repr(value), self.iteritems())
+            return ', '.join(items)
+
+        # region Methods
 
         @classmethod
         def fix_up(cls, command_class):
@@ -751,17 +853,25 @@ class SearchCommand(object):
             """
             raise NotImplementedError('SearchCommand.Configuration.fix_up method must be overridden')
 
-        def render(self):
-            """ Renders settings for presentation to splunkd.
+        def items(self):
+            """ Represents this instance as an :class:`OrderedDict`.
 
-            Only items with values that have been set are rendered.
+            This method is used by :meth:`SearchCommand.process` to werite configuration settings to splunkd during
+            the :code:`getInfo` or :code:`__GETINFO__` exchange of the request to process search results. Only items
+            with values that have been set are rendered.
 
-            :return: Sequence of settings for presentation to splunkd.
+            :return: :class:`dict` containing setting values keyed by name.
 
             """
-            return ifilter(lambda item: item[1] is not None, self.iteritems())
+            return OrderedDict(self.iteritems())
 
-        configuration_setting_definitions = []
+        def iteritems(self):
+            definitions = type(self).configuration_setting_definitions
+            version = self.command.protocol_version
+            return ifilter(
+                lambda (name, value): value is not None, imap(
+                    lambda setting: (setting.name, setting.__get__(self)), ifilter(
+                        lambda setting: setting.is_supported_by_protocol(version), definitions)))
 
         # endregion
 

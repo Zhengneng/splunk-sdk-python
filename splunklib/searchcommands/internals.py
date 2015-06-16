@@ -23,10 +23,12 @@ from json import JSONDecoder, JSONEncoder
 from logging import getLogger, root, StreamHandler
 from logging.config import fileConfig
 from numbers import Number
+from urllib import unquote
 
 import csv
 import io
 import os
+import re
 import sys
 
 csv.field_size_limit(10485760)  # The default value is 128KB; upping to 10MB. See SPL-12117 for background on this issue
@@ -143,6 +145,176 @@ def configure_logging(name, app_root, path=None):
     return None if name is None else getLogger(name), path
 
 
+class CommandLineParser(object):
+    """ Parses the arguments to a search command.
+
+    A search command line is described by the following syntax.
+
+    **Syntax**::
+
+       command       = command-name *[wsp option] *[wsp [dquote] field-name [dquote]]
+       command-name  = alpha *( alpha / digit )
+       option        = option-name [wsp] "=" [wsp] option-value
+       option-name   = alpha *( alpha / digit / "_" )
+       option-value  = word / quoted-string
+       word          = 1*( %01-%08 / %0B / %0C / %0E-1F / %21 / %23-%FF ) ; Any character but DQUOTE and WSP
+       quoted-string = dquote *( word / wsp / "\" dquote / dquote dquote ) dquote
+       field-name    = ( "_" / alpha ) *( alpha / digit / "_" / "." / "-" )
+
+    **Note:**
+
+    This syntax is constrained to an 8-bit character set.
+
+    **Note:**
+
+    This syntax does not show that `field-name` values may be comma-separated
+    when in fact they can be. This is because Splunk strips commas from the
+    command line. A custom search command will never see them.
+
+    **Example:**
+    countmatches fieldname = word_count pattern = \w+ some_text_field
+
+    Option names are mapped to properties in the targeted ``SearchCommand``. It
+    is the responsibility of the property setters to validate the values they
+    receive. Property setters may also produce side effects. For example,
+    setting the built-in `log_level` immediately changes the `log_level`.
+
+    """
+    @classmethod
+    def parse(cls, command, argv):
+        """ Splits an argument list into an options dictionary and a fieldname
+        list.
+
+        The argument list, `argv`, must be of the form::
+
+            *[option]... *[<field-name>]
+
+        Options are validated and assigned to items in `command.options`. Field
+        names are validated and stored in the list of `command.fieldnames`.
+
+        #Arguments:
+
+        :param command: Search command instance.
+        :type command: ``SearchCommand``
+        :param argv: List of search command arguments.
+        :type argv: ``list``
+        :return: ``None``
+
+        #Exceptions:
+
+        ``SyntaxError``: Argument list is incorrectly formed.
+        ``ValueError``: Unrecognized option/field name, or an illegal field value.
+
+        """
+        # Prepare
+
+        command.logger.debug('Parsing %s command line: %s', type(command).__name__, repr(argv))
+
+        command_args = ' '.join(argv)
+        command.fieldnames = None
+        command.options.reset()
+
+        command_args = cls._arguments_re.match(command_args)
+
+        if command_args is None:
+            raise SyntaxError("Syntax error: {}".format(command_args))
+
+        # Parse options
+
+        for option in cls._options_re.finditer(command_args.group('options')):
+            name, value = option.group(1), option.group(2)
+            if name not in command.options:
+                raise ValueError('Unrecognized option: {}={}'.format(name, repr(value)))
+            command.options[name].value = cls.unquote(value)
+
+        missing = command.options.get_missing()
+
+        if missing is not None:
+            if len(missing) == 1:
+                raise ValueError('A value for "{}" is required'.format(missing[0]))
+            raise ValueError('Values for these options are required: {}'.format(', '.join(missing)))
+
+        # Parse field names
+
+        command.fieldnames = command_args.group('fieldnames').split()
+
+        command.logger.debug('    %s: %s', type(command).__name__, command)
+
+    @classmethod
+    def unquote(cls, string):
+        """ Removes quotes from a quoted string.
+
+        Splunk search command quote rules are applied. The enclosing
+        double-quotes, if present, are removed. Escaped double-quotes ('\"' or
+        '""') are replaced by a single double-quote ('"').
+
+        **NOTE**
+
+        We are not using a json.JSONDecoder because Splunk quote rules are
+        different than JSON quote rules. A json.JSONDecoder does not recognize
+        a pair of double-quotes ('""') as an escaped quote ('"') and will decode
+        single-quoted strings ("'") in addition to double-quoted ('"') strings.
+
+        """
+        if len(string) == 0:
+            return ''
+
+        if string[0] != '"':
+            return string
+
+        if len(string) == 1:
+            return string
+
+        if string[-1] != '"':
+            raise ValueError("Poorly formed string literal: %s" % string)
+
+        def replace(match):
+            value = match.group(0)
+            if value == '\\\\':
+                return '\\'
+            if value == '\\"':
+                return '"'
+            if value == '""':
+                return '"'
+            if len(value) != 2:
+                raise ValueError("Poorly formed string literal: %s" % string)
+            return value  # consistent with python handling
+
+        result = re.sub(cls._escaped_quote_re, replace, string[1:-1])
+        return result
+
+    # region Class variables
+
+    _arguments_re = re.compile(r"""
+        ^\s*
+        (?P<options>    # Match a leading set of name/value pairs
+            (?:
+                (?:[_a-zA-Z][_a-zA-Z0-9]+)          # name
+                \s*=\s*                             # =
+                (?:[^\s"]+|"(?:[^"]+|""|\\")*")\s*? # value
+            )*
+        )
+        \s*
+        (?P<fieldnames> # Match a trailing set of field names
+            (?:(?:[_a-zA-Z][_.a-zA-Z0-9-]+|"[_a-zA-Z][_.a-zA-Z0-9-]+")\s*)*
+        )
+        \s*$
+        """, re.VERBOSE)
+
+    _escaped_quote_re = re.compile(r"""(\\\\|\\"|""|\\."|\\)""")
+
+    _name_re = re.compile(r"""[_a-zA-Z][[_a-zA-Z0-9]+""")
+
+    _options_re = re.compile(r"""
+        # Captures a set of name/value pairs when used with re.finditer
+        ([_a-zA-Z][_a-zA-Z0-9]+)         # name
+        \s*=\s*                          # =
+        ([^\s"]+|"(?:[^\\"]+|\\.|"")*")  # value
+        """, re.VERBOSE)
+
+    # endregion
+
+
 class ConfigurationSettingsType(type):
     """ Metaclass for constructing ConfigurationSettings classes.
 
@@ -188,75 +360,63 @@ class ConfigurationSettingsType(type):
         b'ConfigurationSettingSpecification', (
             b'type',
             b'constraint',
-            b'supported_by_protocol_version_1',
-            b'supported_by_protocol_version_2'))
+            b'supporting_protocols'))
+
+    # TODO: Review specification_matrix
 
     specification_matrix = {
         'clear_required_fields': specification(
             type=bool,
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1]),
         'distributed': specification(
             type=bool,
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[2]),
         'generates_timeorder': specification(
             type=bool,
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1]),
         'generating': specification(
             type=bool,
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1]),
         'maxinputs': specification(
             type=int,
             constraint=lambda value: 0 <= value <= sys.maxsize,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[2]),
         'overrides_timeorder': specification(
             type=bool,
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1]),
         'required_fields': specification(
             type=(list, set, tuple),
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1, 2]),
         'requires_preop': specification(
             type=bool,
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1, 2]),
         'retainsevents': specification(
             type=bool,
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1]),
         'run_in_preview': specification(
             type=bool,
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1, 2]),
         'streaming': specification(
             type=bool,
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1]),
         'streaming_preop': specification(
             type=(bytes, unicode),
             constraint=None,
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False),
+            supporting_protocols=[1, 2]),
         'type': specification(
             type=(bytes, unicode),
             constraint=lambda value: value in ('eventing', 'reporting', 'streaming'),
-            supported_by_protocol_version_1=True,
-            supported_by_protocol_version_2=False)}
+            supporting_protocols=[2])}
 
 
 class CsvDialect(csv.Dialect):
@@ -267,6 +427,37 @@ class CsvDialect(csv.Dialect):
     skipinitialspace = False
     lineterminator = b'\r\n'
     quoting = csv.QUOTE_MINIMAL
+
+
+class InputHeader(dict):
+    """ Represents a Splunk input header as a collection of name/value pairs.
+
+    """
+    def read(self, ifile):
+        """ Reads an input header from an input file.
+
+        The input header is read as a sequence of *<name>***:***<value>* pairs separated by a newline. The end of the
+        input header is signalled by an empty line or an end-of-file.
+
+        :param ifile: File-like object that supports iteration over lines.
+
+        """
+        name, value = None, None
+
+        for line in ifile:
+            if line == '\n':
+                break
+            item = line.split(':', 1)
+            if len(item) == 2:
+                # start of a new item
+                if name is not None:
+                    self[name] = value[:-1]  # value sans trailing newline
+                name, value = item[0], unquote(item[1])
+            elif name is not None:
+                # continuation of the current item
+                value += unquote(line)
+
+        if name is not None: self[name] = value[:-1] if value[-1] == '\n' else value
 
 
 Message = namedtuple(b'Message', (b'type', b'text'))
@@ -356,21 +547,20 @@ class Recorder(object):
 class RecordWriter(object):
 
     def __init__(self, ofile, maxresultrows=None):
-
         self._maxresultrows = 50000 if maxresultrows is None else maxresultrows
+
         self._ofile = ofile
         self._fieldnames = None
-        self._inspector = OrderedDict()
+        self._buffer = StringIO()
 
+        self._writer = csv.writer(self._buffer, dialect=CsvDialect)
+        self._writerow = self._writer.writerow
+        self._finished = False
+
+        self._inspector = OrderedDict()
         self._chunk_count = 0
         self._record_count = 0
         self._total_record_count = 0L
-
-        self._buffer = StringIO()
-        self._writer = csv.writer(self._buffer, dialect=CsvDialect)
-
-        self._writerow = self._writer.writerow
-        self._finished = False
 
     @property
     def ofile(self):
@@ -381,44 +571,14 @@ class RecordWriter(object):
         self._ofile = value
 
     def flush(self, finished=None, partial=None):
-
         assert finished is None or isinstance(finished, bool)
         assert partial is None or isinstance(partial, bool)
         assert finished is None or partial is None
         self._ensure_validity()
 
-        if self._record_count == 0 and len(self._inspector) == 0:
-            return
-
-        # [ ] TODO: Write SearchMetric (?) Include timing (?) Anything else (?)
-
-        self._total_record_count += self._record_count
-        self._chunk_count += 1
-
-        metadata = {
-            'inspector': self._inspector if len(self._inspector) else None,
-            'finished': finished,
-            'partial': partial}
-
-        self._write_chunk(metadata, self._buffer.getvalue())
-        self._clear()
-        self._finished = finished is True
-
     def write_message(self, message_type, message_text, *args, **kwargs):
         self._ensure_validity()
         self._inspector.setdefault('messages', []).append((message_type, message_text.format(*args, **kwargs)))
-
-    def write_metadata(self, configuration):
-        self._ensure_validity()
-        metadata = OrderedDict(chain(
-            configuration.render(), (('inspector', self._inspector if self._inspector else None),)))
-        self._write_chunk(metadata, '')
-        self._ofile.write('\n')
-        self._clear()
-
-    def write_metric(self, name, value):
-        self._ensure_validity()
-        self._inspector['metric.' + name] = value
 
     def write_record(self, record):
         self._ensure_validity()
@@ -486,6 +646,76 @@ class RecordWriter(object):
             assert self._record_count == 0 and len(self._inspector) == 0
             raise RuntimeError('I/O operation on closed record writer')
 
+    _encode_dict = JSONEncoder(separators=(',', ':')).encode
+
+
+class RecordWriterV1(RecordWriter):
+
+    def flush(self, finished=None, partial=None):
+
+        RecordWriter.flush(self, finished=None, partial=None)
+
+        if self._record_count > 0 or (self._chunk_count == 0 and 'messages' in self._inspector):
+
+            write = self._ofile.write
+
+            if self._chunk_count == 0:
+
+                messages = self._inspector.get('messages')
+
+                if messages:
+
+                    for level, text in messages:
+                        write(level)
+                        write('=')
+                        write(text)
+                        write('\r\n')
+
+                write('\r\n')
+
+            write(self._buffer.getvalue())
+            self._clear()
+            self._chunk_count += 1
+            self._total_record_count += self._record_count
+
+        self._finished = finished is True
+
+
+class RecordWriterV2(RecordWriter):
+
+    def flush(self, finished=None, partial=None):
+
+        RecordWriter.flush(self, finished=None, partial=None)
+
+        if self._record_count > 0 or len(self._inspector) > 0:
+
+            # [ ] TODO: Write SearchMetric (?) Include timing (?) Anything else (?)
+
+            self._total_record_count += self._record_count
+            self._chunk_count += 1
+
+            metadata = {
+                'inspector': self._inspector if len(self._inspector) else None,
+                'finished': finished,
+                'partial': partial}
+
+            self._write_chunk(metadata, self._buffer.getvalue())
+            self._clear()
+
+        self._finished = finished is True
+
+    def write_metadata(self, configuration):
+        self._ensure_validity()
+        metadata = OrderedDict(chain(
+            configuration.items(), (('inspector', self._inspector if self._inspector else None),)))
+        self._write_chunk(metadata, '')
+        self._ofile.write('\n')
+        self._clear()
+
+    def write_metric(self, name, value):
+        self._ensure_validity()
+        self._inspector['metric.' + name] = value
+
     def _write_chunk(self, metadata, body):
 
         if metadata:
@@ -507,6 +737,5 @@ class RecordWriter(object):
         write(body)
         self._ofile.flush()
 
-    _encode_dict = JSONEncoder(separators=(',', ':')).encode
     _encode_metadata = MetadataEncoder().encode
 

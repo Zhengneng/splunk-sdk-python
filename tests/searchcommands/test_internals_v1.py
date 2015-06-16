@@ -14,151 +14,44 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from splunklib.searchcommands import Configuration, Option, ReportingCommand, StreamingCommand, validators
-from splunklib.searchcommands import internals
-from cStringIO import StringIO
+from splunklib.searchcommands.internals import CommandLineParser, InputHeader
+from splunklib.searchcommands.search_command import SearchCommand
+
+from collections import deque, OrderedDict
 from contextlib import closing
-from itertools import izip
-from json import JSONEncoder
+from cStringIO import StringIO
+from functools import wraps
+from glob import iglob
+from itertools import chain, ifilter, imap, izip
+from json.encoder import encode_basestring as encode_string
+from sys import float_info, maxsize, maxunicode
+from tempfile import mktemp
+from time import time
+from types import MethodType
 
+import cPickle as pickle
+import json
 import os
+import random
+import unittest
 
 
-@Configuration()
-class StubbedReportingCommand(ReportingCommand):
-    boolean = Option(
-        doc='''
-        **Syntax:** **boolean=***<value>*
-        **Description:** A boolean value''',
-        require=False, validate=validators.Boolean())
-
-    duration = Option(
-        doc='''
-        **Syntax:** **duration=***<value>*
-        **Description:** A length of time''',
-        validate=validators.Duration())
-
-    fieldname = Option(
-        doc='''
-        **Syntax:** **fieldname=***<value>*
-        **Description:** Name of a field''',
-        validate=validators.Fieldname())
-
-    file = Option(
-        doc='''
-        **Syntax:** **file=***<value>*
-        **Description:** Name of a file''',
-        validate=validators.File(mode='r'))
-
-    integer = Option(
-        doc='''
-        **Syntax:** **integer=***<value>*
-        **Description:** An integer value''',
-        validate=validators.Integer())
-
-    optionname = Option(
-        doc='''
-        **Syntax:** **optionname=***<value>*
-        **Description:** The name of an option (used internally)''',
-        validate=validators.OptionName())
-
-    regularexpression = Option(
-        doc='''
-        **Syntax:** **regularexpression=***<value>*
-        **Description:** Regular expression pattern to match''',
-        validate=validators.RegularExpression())
-
-    set = Option(
-        doc='''
-        **Syntax:** **set=***<value>*
-        **Description:** Regular expression pattern to match''',
-        validate=validators.Set("foo", "bar", "test"))
-
-    @Configuration()
-    def map(self, records):
-        pass
-
-    def reduce(self, records):
-        pass
-
-
-@Configuration()
-class StubbedStreamingCommand(StreamingCommand):
-    boolean = Option(
-        doc='''
-        **Syntax:** **boolean=***<value>*
-        **Description:** A boolean value''',
-        require=True, validate=validators.Boolean())
-
-    duration = Option(
-        doc='''
-        **Syntax:** **duration=***<value>*
-        **Description:** A length of time''',
-        require=True, validate=validators.Duration())
-
-    fieldname = Option(
-        doc='''
-        **Syntax:** **fieldname=***<value>*
-        **Description:** Name of a field''',
-        require=True, validate=validators.Fieldname())
-
-    file = Option(
-        doc='''
-        **Syntax:** **file=***<value>*
-        **Description:** Name of a file''',
-        require=True, validate=validators.File(mode='r'))
-
-    integer = Option(
-        doc='''
-        **Syntax:** **integer=***<value>*
-        **Description:** An integer value''',
-        require=True, validate=validators.Integer())
-
-    optionname = Option(
-        doc='''
-        **Syntax:** **optionname=***<value>*
-        **Description:** The name of an option (used internally)''',
-        require=True, validate=validators.OptionName())
-
-    regularexpression = Option(
-        doc='''
-        **Syntax:** **regularexpression=***<value>*
-        **Description:** Regular expression pattern to match''',
-        require=True, validate=validators.RegularExpression())
-
-    set = Option(
-        doc='''
-        **Syntax:** **set=***<value>*
-        **Description:** Regular expression pattern to match''',
-        require=True, validate=validators.Set("foo", "bar", "test"))
-
-    def stream(self, records):
-        pass
-
-
-class TestSearchCommandInternals(unittest.TestCase):
+class TestInternals(unittest.TestCase):
     def setUp(self):
-        super(TestSearchCommandInternals, self).setUp()
-        return
+        unittest.TestCase.setUp(self)
 
     def test_command_parser(self):
 
-        parser = internals.SearchCommandParser()
-        encoder = JSONEncoder()
-        file_path = os.path.abspath(
-            os.path.join(TestSearchCommandInternals._package_path, 'data',
-                         'input', '_empty.csv'))
+        parser = CommandLineParser()
+        file_path = os.path.abspath(os.path.join(self._package_path, 'data', 'input', '_empty.csv'))
 
         options = [
             'boolean=true',
             'duration=00:00:10',
             'fieldname=word_count',
-            'file=%s' % encoder.encode(file_path),
+            'file={}'.format(encode_string(file_path)),
             'integer=10',
             'optionname=foo_bar',
             'regularexpression="\\\\w+"',
@@ -166,7 +59,7 @@ class TestSearchCommandInternals(unittest.TestCase):
 
         fields = ['field_1', 'field_2', 'field_3']
 
-        command = StubbedStreamingCommand()  # All options except for the builtin options are required
+        command = SearchCommand()  # All options except for the builtin options are required
         parser.parse(options + fields, command)
         command_line = str(command)
 
@@ -182,7 +75,7 @@ class TestSearchCommandInternals(unittest.TestCase):
                                                                      'field_3'],
                               command)
 
-        command = StubbedReportingCommand()  # No options are required
+        command = SearchCommand()  # No options are required
         parser.parse(options + fields, command)
 
         for option in options:
@@ -218,7 +111,7 @@ class TestSearchCommandInternals(unittest.TestCase):
         return
 
     def test_command_parser_unquote(self):
-        parser = internals.SearchCommandParser()
+        parser = CommandLineParser()
 
         options = [
             'foo',
@@ -247,55 +140,50 @@ class TestSearchCommandInternals(unittest.TestCase):
         ]
 
         for i in range(0, len(options)):
-            print parser.unquote(options[i]), " ", options[i]
-            print expected[i]
+            print(parser.unquote(options[i]), " ", options[i])
+            print(expected[i])
             self.assertEqual(expected[i], parser.unquote(options[i]))
-
 
     def test_input_header(self):
 
         # No items
 
-        input_header = internals.InputHeader()
+        input_header = InputHeader()
 
-        with closing(StringIO('\r\n')) as input_file:
+        with closing(StringIO('\r\n'.encode())) as input_file:
             input_header.read(input_file)
 
         self.assertEquals(len(input_header), 0)
 
         # One unnamed single-line item (same as no items)
 
-        input_header = internals.InputHeader()
+        input_header = InputHeader()
 
-        with closing(StringIO(
-                'this%20is%20an%20unnamed%20single-line%20item\n\n')) as input_file:
+        with closing(StringIO('this%20is%20an%20unnamed%20single-line%20item\n\n'.encode())) as input_file:
             input_header.read(input_file)
 
         self.assertEquals(len(input_header), 0)
 
-        input_header = internals.InputHeader()
+        input_header = InputHeader()
 
-        with closing(StringIO(
-                'this%20is%20an%20unnamed\nmulti-\nline%20item\n\n')) as input_file:
+        with closing(StringIO('this%20is%20an%20unnamed\nmulti-\nline%20item\n\n'.encode())) as input_file:
             input_header.read(input_file)
 
         self.assertEquals(len(input_header), 0)
 
         # One named single-line item
 
-        input_header = internals.InputHeader()
+        input_header = InputHeader()
 
-        with closing(StringIO(
-                'Foo:this%20is%20a%20single-line%20item\n\n')) as input_file:
+        with closing(StringIO('Foo:this%20is%20a%20single-line%20item\n\n'.encode())) as input_file:
             input_header.read(input_file)
 
         self.assertEquals(len(input_header), 1)
         self.assertEquals(input_header['Foo'], 'this is a single-line item')
 
-        input_header = internals.InputHeader()
+        input_header = InputHeader()
 
-        with closing(
-                StringIO('Bar:this is a\nmulti-\nline item\n\n')) as input_file:
+        with closing(StringIO('Bar:this is a\nmulti-\nline item\n\n'.encode())) as input_file:
             input_header.read(input_file)
 
         self.assertEquals(len(input_header), 1)
@@ -303,10 +191,9 @@ class TestSearchCommandInternals(unittest.TestCase):
 
         # The infoPath item (which is the path to a file that we open for reads)
 
-        input_header = internals.InputHeader()
+        input_header = InputHeader()
 
-        with closing(
-                StringIO('infoPath:data/input/_empty.csv\n\n')) as input_file:
+        with closing(StringIO('infoPath:data/input/_empty.csv\n\n'.encode())) as input_file:
             input_header.read(input_file)
 
         self.assertEquals(len(input_header), 1)
@@ -321,12 +208,10 @@ class TestSearchCommandInternals(unittest.TestCase):
             'word_3': '!',
             'sentence': 'hello world!'}
 
-        input_header = internals.InputHeader()
-        text = reduce(
-            lambda value, item: value + '%s:%s\n' % (item[0], item[1]),
-            collection.iteritems(), '') + '\n'
+        input_header = InputHeader()
+        text = reduce(lambda value, item: value + '{}:{}\n'.format(item[0], item[1]), collection.iteritems(), '') + '\n'
 
-        with closing(StringIO(text)) as input_file:
+        with closing(StringIO(text.encode())) as input_file:
             input_header.read(input_file)
 
         self.assertEqual(len(input_header), len(collection))
@@ -334,56 +219,18 @@ class TestSearchCommandInternals(unittest.TestCase):
         for key, value in input_header.iteritems():
             self.assertEqual(value, collection[key])
 
-        # Set of named items with an unnamed item at the beginning (the only
-        # place that an unnamed item can appear)
+        # Set of named items with an unnamed item at the beginning (the only place that an unnamed item can appear)
 
-        with closing(StringIO('unnamed item\n' + text)) as input_file:
+        with closing(StringIO(('unnamed item\n' + text).encode())) as input_file:
             input_header.read(input_file)
 
         self.assertEqual(len(input_header), len(collection))
 
         # Test iterators, indirectly through items, keys, and values
 
-        self.assertEqual(sorted(input_header.items()),
-                         sorted(collection.items()))
+        self.assertEqual(sorted(input_header.items()), sorted(collection.items()))
         self.assertEqual(sorted(input_header.keys()), sorted(collection.keys()))
-        self.assertEqual(sorted(input_header.values()),
-                         sorted(collection.values()))
-
-        return
-
-    def test_messages_header(self):
-
-        messages_header = internals.MessagesHeader()
-        self.assertEqual(len(messages_header), 0)
-
-        messages = [
-            ('info_message', 'some information message'),
-            ('warn_message', 'some warning message'),
-            ('error_message', 'some error message'),
-            ('debug_message', 'some debug message')]
-
-        for message in messages:
-            messages_header += message
-
-        self.assertEqual(len(messages_header), len(messages))
-
-        for message in izip(messages_header, messages):
-            self.assertEqual(message[0], message[1])
-
-        for message_level, message_text in messages:
-            messages_header.append(message_level, message_text)
-
-        self.assertEqual(len(messages_header), 2 * len(messages))
-
-        for message in izip(messages_header, messages + messages):
-            self.assertEqual(message[0], message[1])
-
-        self.assertEqual(repr(messages_header),
-                         "MessagesHeader(%s)" % repr(messages + messages))
-
-        self.assertRaises(ValueError, messages_header.append,
-                          "not_a_debug_info_warn_or_error_message", "foo bar")
+        self.assertEqual(sorted(input_header.values()), sorted(collection.values()))
 
         return
 
