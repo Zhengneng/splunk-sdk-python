@@ -20,7 +20,7 @@ from .search_command import SearchCommand
 from . import ConfigurationSetting
 from itertools import ifilter
 
-# TODO: Edit StreamingCommand class documentation
+# P1 [ ] TODO: Edit StreamingCommand class documentation
 
 
 class StreamingCommand(SearchCommand):
@@ -117,7 +117,7 @@ class StreamingCommand(SearchCommand):
 
             ''')
 
-        # TODO: Ensure that when type == 'streaming' and distributed is True, we serialize type='stateful':
+        # P1 [ ] TODO: Ensure that when type == 'streaming' and distributed is True, we serialize type='stateful':
 
         type = ConfigurationSetting(readonly=True, value='streaming', doc='''
             Command type name.

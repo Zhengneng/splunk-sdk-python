@@ -22,9 +22,7 @@ from .search_command import SearchCommand
 from . import ConfigurationSetting
 from .decorators import Option
 
-# TODO: Edit ReportingCommand class documentation
-
-# TODO: Phase option should print in a more user-friendly way
+# P1 [ ] TODO: Edit ReportingCommand class documentation
 
 class ReportingCommand(SearchCommand):
     """ Processes search result records and generates a reporting data structure.
@@ -100,10 +98,6 @@ class ReportingCommand(SearchCommand):
     def _execute(self, ifile, process):
         SearchCommand._execute(self, ifile, self._phase)
 
-    # TODO: Verify that the ChunkedExternProcessor complains about saying that the streaming_preop has type='reporting'
-    # Until the following method was implemented we returned type='reporting' for the streaming_preop and it was
-    # accepted.
-
     def _new_configuration_settings(self):
         if self._phase == self.map:
             # noinspection PyUnresolvedReferences
@@ -115,7 +109,6 @@ class ReportingCommand(SearchCommand):
     # endregion
 
     # region Types
-    # TODO: Implement requires_preop in splunkd's ChunkedExternProcessor
 
     class ConfigurationSettings(SearchCommand.ConfigurationSettings):
         """ Represents the configuration settings for a :code:`ReportingCommand`.

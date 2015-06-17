@@ -100,15 +100,15 @@ class TestSearchCommandsApp(unittest.TestCase):
 
     def test_generatehello_as_unit(self):
         expected, output = self._run_command('generatehello')
-        # TODO: Smart diff that's insensitive to _time
+        # P2 [ ] TODO: Smart diff that's insensitive to _time
 
     @unittest.skipUnless(
         True, 'Skipping TestSearchCommandsApp.test_pypygeneratehello_as_unit because the PyPy compiler is not on the '
         'PATH.')
     def test_pypygeneratehello_as_unit(self):
         expected, output = self._run_command('pypygeneratehello')
-        # TODO: Smart diff that's insensitive to _time
-        # TODO: Skip unless pypy is the path
+        # P2 [ ] TODO: Smart diff that's insensitive to _time
+        # P2 [ ] TODO: Skip unless pypy is the path
 
     def test_sum_as_unit(self):
         expected, output = self._run_command('sum', 'map')
@@ -126,10 +126,11 @@ class TestSearchCommandsApp(unittest.TestCase):
         command = self._get_search_command_path(name)
         args = ['splunk', 'cmd', 'python', command]
 
-        # TODO: Test against the version of Python that ships with the version of Splunk used to produce each recording
+        # P2 [ ] TODO: Test against the version of Python that ships with the version of Splunk used to produce each
+        # recording
         # At present we use whatever version of splunk, if any, happens to be on PATH
 
-        # TODO: Examine the contents of the app and splunklib log files (?)
+        # P2 [ ] TODO: Examine the contents of the app and splunklib log files (?)
 
         for recording in Recordings(name, phase, protocol_version=2):
             with io.open(recording.input_file, 'rb') as ifile:

@@ -320,7 +320,7 @@ class TestDecorators(TestCase):
             validator = option.validator
 
             if validator is None:
-                # TODO: Consider adding validators for these two
+                # P2 [ ] TODO: Consider adding validators for these two
                 self.assertIn(option.name, ['logging_configuration', 'logging_level'])
                 continue
 

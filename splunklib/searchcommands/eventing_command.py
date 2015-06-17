@@ -19,7 +19,7 @@ from .search_command import SearchCommand
 from . import ConfigurationSetting
 
 
-# TODO: Edit EventingCommand class documentation
+# P1 [ ] TODO: Edit EventingCommand class documentation
 
 class EventingCommand(SearchCommand):
     """ Applies a transformation to search results as they travel through the events pipeline.
@@ -94,9 +94,6 @@ class EventingCommand(SearchCommand):
             Default: :const:`['*']`
 
             ''')
-
-        # TODO: Request renaming this type as 'eventing'. Eventing commands process records on the events pipeline.
-        # This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
 
         type = ConfigurationSetting(readonly=True, value='eventing', doc='''
             Command type

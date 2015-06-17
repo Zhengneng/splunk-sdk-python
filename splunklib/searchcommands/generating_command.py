@@ -22,9 +22,6 @@ from . import ConfigurationSetting
 from collections import OrderedDict
 from itertools import imap, ifilterfalse
 
-# TODO: Create pipeline option that may be set to 'events', 'reports', or 'streams' and set type option to a constant:
-# 'generating'
-
 
 class GeneratingCommand(SearchCommand):
     """ Generates events based on command arguments.
@@ -134,9 +131,6 @@ class GeneratingCommand(SearchCommand):
             Fixed: :const:`True`
 
             ''')
-
-        # TODO: Ensure that when type == 'streaming' and distributed is True we serialize type='stateful'
-        # TODO: Ensure that when type == 'eventing' we serialize type='events'
 
         type = ConfigurationSetting(value='streaming', doc='''
             A command type name.

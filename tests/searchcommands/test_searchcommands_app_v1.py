@@ -265,9 +265,8 @@ class TestSearchCommandsApp(testlib.SDKTestCase):
                 os.path.join('log', 'test_option_show_configuration.log')))
         return
 
-    # TODO: DVPL-5869 - use a generating command that doesn't do random sampling because
-    # a seed is no guarantee that the same sample is produced on every platform
-    # and all versions of python
+    # P2[ ] TODO: DVPL-5869 - use a generating command that doesn't do random sampling because a seed is no guarantee
+    # that the same sample is produced on every platform and all versions of python.
 
     def test_generating_command_configuration(self):
         self._assertCorrectConfiguration(StubbedGeneratingCommand(), 'test_generating_command_configuration')
@@ -408,7 +407,7 @@ class TestSearchCommandsApp(testlib.SDKTestCase):
         return
 
     def test_generating_command_on_server(self):
-        # TODO: DVPL-5870 - this test has inconsistent results due to random sampling
+        # P2 [ ] TODO: DVPL-5870 - this test has inconsistent results due to random sampling
         expected, actual = self._getOneshotResults(
             '| simulate csv=population.csv rate=200 interval=00:00:01 duration=00:00:02 seed=%s' % TestSearchCommandsApp._seed,
             'test_generating_command_on_server')
@@ -682,7 +681,7 @@ class TestSearchCommandsApp(testlib.SDKTestCase):
 
     @classmethod
     def _start_process(cls, args, stdin, stdout, stderr):
-        # TODO: DVPL-5871 - make a shell script to run some of these separately, check results there
+        # P2 [ ] TODO: DVPL-5871 - make a shell script to run some of these separately, check results there
         return Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cls.app_bin)
 
     package_directory = os.path.dirname(__file__)

@@ -71,7 +71,7 @@ class TestBuiltinOptions(unittest.TestCase):
         self.assertIsInstance(root_handler, logging.StreamHandler)
         self.assertEqual(root_handler.stream, sys.stderr)
 
-        # TODO: DVPL-5867 - capture this output and verify it
+        # P2 [X] TODO: DVPL-5867 - capture this output and verify it
 
         self.assertEqual(command.logging_level, logging.getLevelName(logging.WARNING))
         root_handler.stream = StringIO()

@@ -25,7 +25,7 @@
 #
 #      1 PATH=$PATH:/opt/pypy/bin
 #
-#   TODO: Verify that creating or updating /etc/sysconfig/splunk works.
+#   P1 [ ] TODO: Verify that the instructions for putting PyPy on Splunk's PATH on CentOS work
 #
 #   OS X
 #   ----

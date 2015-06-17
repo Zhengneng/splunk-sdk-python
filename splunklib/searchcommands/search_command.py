@@ -20,12 +20,13 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from splunklib.client import Service
 
-from collections import OrderedDict
+from collections import namedtuple, OrderedDict
 from cStringIO import StringIO
 from itertools import ifilter, imap, islice, izip
 from logging import _levelNames, getLevelName, getLogger
 from shutil import make_archive
 from time import time
+from urllib import unquote
 from urlparse import urlsplit
 from xml.etree import ElementTree
 
@@ -55,17 +56,108 @@ from . import globals
 from .decorators import Option
 from .validators import Boolean
 
-# [ ] TODO: Map SearchCommand.input_header to metadata items, if possible
+# ----------------------------------------------------------------------------------------------------------------------
 
-# [ ] TODO: Use saved dispatch dir to mock tests that depend on its contents (?)
+# P1 [ ] TODO: Log these issues against ChunkedExternProcessor
+#
+# 1. Implement requires_preop configuration setting.
+#    This configuration setting is currently rejected by ChunkedExternProcessor.
+#
+# 2. Rename type=events as type=eventing for symmetry with type=reporting and type=streaming.
+#    Eventing commands process records on the events pipeline.
+#    This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
+
+# P1 [ ] TODO: Is this an Ember bug? specifying filename in commands.conf disables requires_srinfo. If you specify
+# enableheader=true, requires_srinfo=true and also specify filename=generatehello.py, you do not get infoPath in the
+# input_header.
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# P1 [ ] TODO: Construct SearchCommand.metadata from SearchCommand.input_header when SearchCommand.protocol_version == 1
+#
+# Goals
+# -----
+# * SearchCommand.metadata becomes an alternative to SearchCommand.input_header that's usable under SCP v1 or SCP v2
+# * A single implementation of SearchCommand.search_results_info and SearchCommand.service
+#
+# Requirements
+# ------------
+# In short, start by mapping these nine input_header values:
+#
+#   'allowStream' = <boolean>
+#   'infoPath' = <string>
+#   'keywords' = <string>
+#   'preview' = <boolean>
+#   'realtime' = <boolean>
+#   'search' = <string>
+#   'sid' = <string>
+#   'splunkVersion' = <string>
+#   'truncated' = <boolean>
+#
+# to these metadata elements:
+#
+# metadata = <ObjectView>
+#
+#   action = {'getinfo'|'execute'}  # validate=Set('getinfo', 'execute'), get=None
+#   preview = <boolean>             # validate=Boolean(), get=lambda: self.input_header.get('preview')
+#   searchinfo = {ObjectView}
+#       app = <string>              # convert=None, get=lambda: None
+#       args = <list>               # validate=List(unicode), get=TODO: get from CommandParser
+#       dispatch_dir = <string>     # validate=None, get=lambda: dirname(self.input_header.get('infoPath'))
+#       earliest_time = <time>      # validate=Time(), get=TODO: get from srinfo file (?)
+#       latest_time = <time>        # validate=Time(), get=TODO: get from srinfo file (?)
+#       owner = <string>            # validate=None, get=TODO: get from srinfo file (?)
+#       raw_args = <list>           # validate=None, get=TODO: get from command line
+#       search = <string>           # validate=TODO: url decode '%7C%20generatehello%20count%3D10', get=lambda: self.input_header.get('search')
+#       session_key = <string>      # validate=None, get=TODO: get from srinfo file (?)
+#       sid = <string>              # validate=None, get=lambda: self.input_header.get('sid')
+#       splunk_version = <string>   # validate=None, get=lambda: self.input_header.get('splunkVersion')
+#       splunkd_uri = <string>      # validate=None, get=lambda: TODO: get from srinfo file (?)
+#       username = <string>         # validate=None, get=lambda: TODO: get from srinfo file (?)
+
+# P1 [ ] TODO: RecordWriter.mv_delimiter to support protocol_v1
+# writer = splunk_csv.DictWriter(output_file, self, self.configuration.keys(), mv_delimiter=',')
+
+# P1 [ ] TODO: Rename globals.py because while it's allowed as a module name, it's unsatisfying that globals is also the
+# name of a python builtin function. Note that global.py is not permitted as a module name because it conflicts with the
+# global keyword.
+
+# P1 [ ] TODO:Ensure that when type == 'streaming' and distributed is True we serialize type='stateful'
+
+# P1 [ ]  TODO: Ensure that when type == 'eventing' we serialize type='events'
+
+# P1 [ ] TODO: Phase option should print in a more user-friendly way
+
+# P1 [ ] TODO: Verify that ChunkedExternProcessor complains if a streaming_preop has a type other than 'streaming'
+# It once looked like sending type='reporting' for the streaming_preop was accepted.
+
+# P1 [ ] TODO: Configure external_search_command for protocol version 1 (see default/commands.conf.scpv1)
+
+# P1 [ ] TODO: Complete default/searchbnf.conf
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# P2 [ ] TODO: In SearchCommand.__init__ change app_root parameter to app_file because app_file is required and
+# app_root can be computed from it. See globals.py and SearchCommand.__init__.
+
+# P2 [ ] TODO: Add protocol_v1 support for recording
+
+# P2 [ ] TODO: Write boundary tests on RecordWriter.flush
+
+# P2 [ ] TODO: Use saved dispatch dir to mock tests that depend on its contents (?)
 # To make records more generally useful to application developers we should provide/demonstrate how to mock
 # self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived dispatch directories.
 
-# [X] TODO: Validate class-level settings provided by the @Configuration decorator
+# P2 [ ] TODO: Review and update code docs to reflect usage under protocol_version == 1 as well as protocol_version == 2
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Done
+
+# P1 [X] TODO: Validate class-level settings provided by the @Configuration decorator
 # At present we have property setters that validate instance-level configuration, but we do not do any validation on
 # the class-level configuration settings that are provided by way of the @Configuration decorator
 
-# [X] TODO: Save contents of dispatch dir for use in tests that may require it
+# P1 [X] TODO: Save contents of dispatch dir for use in tests that may require it
 # ISSUE: Some bits of data expire or change. Examples:
 #   self.metadata.searchinfo.session_key
 #   self.metadata.searchinfo.sid
@@ -77,14 +169,6 @@ class SearchCommand(object):
     """ Represents a custom search command.
 
     """
-
-    # [ ] TODO: In SearchCommand.__init__ change app_root parameter to app_file because app_file is required and
-    # app_root can be computed from it. See globals.py and SearchCommand.__init__.
-
-    # [ ] TODO: RecordWriter.mv_delimiter to support protocol_v1
-    # writer = splunk_csv.DictWriter(output_file, self, self.configuration.keys(), mv_delimiter=',')
-
-    # [ ] TODO: Add protocol_v1 support for recording
 
     def __init__(self, app_root=None):
         """
@@ -271,12 +355,20 @@ class SearchCommand(object):
         if self._search_results_info is not None:
             return self._search_results_info
 
-        try:
-            dispatch_dir = self._metadata.searchinfo.dispatch_dir
-        except AttributeError:
-            return None
+        if self._protocol_version == 1:
+            try:
+                path = self._input_header['infoPath']
+            except KeyError:
+                return None
+        else:
+            assert self._protocol_version == 2
 
-        path = os.path.join(dispatch_dir, 'info.csv')
+            try:
+                dispatch_dir = self._metadata.searchinfo.dispatch_dir
+            except AttributeError:
+                return None
+
+            path = os.path.join(dispatch_dir, 'info.csv')
 
         with open(path, 'rb') as f:
             reader = csv.reader(f, dialect=CsvDialect)
@@ -320,7 +412,8 @@ class SearchCommand(object):
         except AttributeError:
             pass
 
-        return self._search_results_info
+        self._search_results_info = info
+        return info
 
     @property
     def service(self):
@@ -375,7 +468,7 @@ class SearchCommand(object):
     # region Methods
 
     def error_exit(self, error, message=None):
-        self.write_error(error.message.capitalize() if message is None else message)
+        self.write_error(error.message if message is None else message)
         self.logger.error('Abnormal exit: %s', error)
         exit(1)
 
@@ -402,6 +495,8 @@ class SearchCommand(object):
         or option settings prior to execution. It is called during the getinfo exchange before command metadata is sent
         to splunkd.
 
+        :param action: action, either :const:`'getinfo`' or :const:`'execute'`.
+        :type action: unicode or str
         :return: :const:`None`
         :rtype: NoneType
 
@@ -409,11 +504,103 @@ class SearchCommand(object):
         pass
 
     def process(self, argv=sys.argv, ifile=sys.stdin, ofile=sys.stdout):
+        """ Process data.
 
-        if len(argv) <= 1:
+        :param argv: Command line arguments.
+        :type argv: list or tuple
+
+        :param ifile: Input data file.
+        :type ifile: file
+
+        :param ofile: Output data file.
+        :type ofile: file
+
+        :return: :const:`None`
+        :rtype: NoneType
+
+        """
+        if len(argv) > 1:
+            self._process_protocol_v1(argv, ifile, ofile)
+        else:
             self._process_protocol_v2(ifile, ofile)
-            return
 
+    def _map_metadata(self, argv):
+        source = SearchCommand._MetadataSource(argv, self._input_header, self.search_results_info)
+
+        def _map(metadata_map):
+            metadata = {}
+
+            for name, value in metadata_map.iteritems():
+                if isinstance(value, dict):
+                    value = _map(value)
+                else:
+                    transform, extract = value
+                    if extract is None:
+                        value = None
+                    else:
+                        value = extract(source)
+                        if not (value is None or transform is None):
+                            value = transform(value)
+                metadata[name] = value
+
+            return metadata
+
+        self._metadata = ObjectView(_map(SearchCommand._metadata_map))
+
+    _metadata_map = {
+        'action':
+            (lambda v: 'getinfo' if v == '__GETINFO__' else 'execute' if v == '__EXECUTE__' else None, lambda s: s.argv[1]),
+        'preview':
+            (bool, lambda s: s.input_header.get('preview')),
+        'search_info': {
+            'app':
+                (lambda v: v.ppc_app, lambda s: s.search_results_info),
+            'args':
+                (None, lambda s: s.argv),
+            'dispatch_dir':
+                (os.path.dirname, lambda s: s.input_header.get('infoPath')),
+            'earliest_time':
+                (lambda v: float(v.rt_earliest) if len(v.rt_earliest) > 0 else 0.0, lambda s: s.search_results_info),
+            'latest_time':
+                (lambda v: float(v.rt_latest) if len(v.rt_latest) > 0 else 0.0, lambda s: s.search_results_info),
+            'owner':
+                (None, None),
+            'raw_args':
+                (None, lambda s: s.argv),
+            'search':
+                (unquote, lambda s: s.input_header.get('search')),
+            'session_key':
+                (lambda v: v.auth_token, lambda s: s.search_results_info),
+            'sid':
+                (None, lambda s: s.input_header.get('sid')),
+            'splunk_version':
+                (None, lambda s: s.input_header.get('splunkVersion')),
+            'splunkd_uri':
+                (lambda v: v.splunkd_uri, lambda s: s.search_results_info),
+            'username':
+                (lambda v: v.ppc_user, lambda s: s.search_results_info)}}
+
+    _MetadataSource = namedtuple(b'Source', (b'argv', b'input_header', b'search_results_info'))
+
+    def _prepare_protocol_v1(self, argv, ifile, ofile):
+
+        # Provide as much context as possible in advance of parsing the command line and preparing for execution
+
+        self._record_writer = RecordWriterV1(ofile)
+        self._input_header.read(ifile)
+        self._protocol_version = 1
+        self._map_metadata(argv)
+
+        CommandLineParser.parse(self, argv[2:])
+        self.prepare()
+
+        if self.show_configuration:
+            message = self.name + ' command configuration settings: ' + str(self._configuration)
+            self._record_writer.write_message('info_message', message)
+
+        self._write_record = self._record_writer.write_record
+
+    def _process_protocol_v1(self, argv, ifile, ofile):
         debug = globals.splunklib_logger.debug
         class_name = self.__class__.__name__
 
@@ -435,7 +622,6 @@ class SearchCommand(object):
 
                 self._prepare_protocol_v1(argv, ifile, ofile)
                 self._execute(ifile, None)
-                self.finish()
 
             else:
                 message = (
@@ -452,6 +638,7 @@ class SearchCommand(object):
         except SystemExit:
             self.flush()
             raise
+
         except:
             self._report_unexpected_error()
             self.flush()
@@ -459,22 +646,7 @@ class SearchCommand(object):
 
         debug('%s.process finished under protocol_version=1', class_name)
 
-    def _prepare_protocol_v1(self, argv, ifile, ofile):
-        # Provide as much context as possible in advance of parsing the command line and preparing for execution
-        self._record_writer = RecordWriterV1(ofile)
-        self._input_header.read(ifile)
-        self._protocol_version = 1
-
-        CommandLineParser.parse(self, argv[2:])
-        self.prepare()  # TODO: inform command on phase; whether __GETINFO__ or __EXECUTE__
-
-        if self.show_configuration:
-            message = self.name + ' command configuration settings: ' + str(self._configuration)
-            self._record_writer.write_message('info_message', message)
-
-        self._write_record = self._record_writer.write_record
-
-    def _process_protocol_v2(self, ifile=sys.stdin, ofile=sys.stdout):
+    def _process_protocol_v2(self, ifile, ofile):
         """ Processes records on the `input stream optionally writing records to the output stream.
 
         :param ifile: Input file object.
@@ -667,7 +839,7 @@ class SearchCommand(object):
         """
         self._record_writer.write_metric(name, value)
 
-    # TODO: Support custom inspector values
+    # P2 [ ] TODO: Support custom inspector values
 
     @staticmethod
     def _decode_list(mv):
@@ -688,10 +860,10 @@ class SearchCommand(object):
         :rtype: NoneType
 
         """
-        write_record = self._record_writer.write_record
+        write_record = self._write_record
         for record in process(self._records(ifile)):
             write_record(record)
-        self._record_writer.flush(finished=True)  # TODO: boundary tests on RecordWriter.flush
+        self.finish()
 
     def _new_configuration_settings(self):
         return self.ConfigurationSettings(self)
@@ -763,8 +935,8 @@ class SearchCommand(object):
             except StopIteration:
                 return
 
-            # TODO: Consider string interning (see intern built-in) for some performance improvement in this loop should
-            # performance data back this approach
+            # P2 [ ] TODO: Consider string interning (see intern built-in) for some performance improvement in this
+            # loop should performance data back this approach
 
             mv_fieldnames = {name: name[len('__mv_'):] for name in fieldnames if name.startswith('__mv_')}
 
@@ -783,7 +955,7 @@ class SearchCommand(object):
                         record[fieldname] = value
                 yield record
 
-        # raise RuntimeError('Expected splunkd to terminate command on receipt of finished signal')
+                # raise RuntimeError('Expected splunkd to terminate command on receipt of finished signal')
 
     def _report_unexpected_error(self):
 
@@ -808,6 +980,7 @@ class SearchCommand(object):
         """ Represents the configuration settings common to all :class:`SearchCommand` classes.
 
         """
+
         def __init__(self, command):
             self.command = command
 
@@ -873,9 +1046,9 @@ class SearchCommand(object):
                     lambda setting: (setting.name, setting.__get__(self)), ifilter(
                         lambda setting: setting.is_supported_by_protocol(version), definitions)))
 
-        # endregion
+            # endregion
 
-    # endregion
+            # endregion
 
 
 def dispatch(command_class, argv=sys.argv, input_file=sys.stdin, output_file=sys.stdout, module_name=None):

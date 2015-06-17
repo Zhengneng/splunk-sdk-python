@@ -221,14 +221,13 @@ class TestInternals(unittest.TestCase):
         self.assertIsNone(writer._fieldnames)
         self.assertDictEqual(writer._inspector, OrderedDict())
 
-        # TODO: RecordWriter gives consumers the ability to write partial results by calling RecordWriter.flush.
-        # TODO: RecordWriter gives consumers the ability to finish early by calling RecordWriter.flush.
+        # P2 [ ] TODO: Verify that RecordWriter gives consumers the ability to write partial results by calling
+        # RecordWriter.flush(partial=True).
+
+        # P2 [ ] TODO: Verify that RecordWriter gives consumers the ability to finish early by calling
+        # RecordWriter.flush(finish=True).
 
         if record:
-
-            # TODO: pickle test functions--which must be defined at module level--or test function names
-            # Prefer pickling the functions because they can outlive the code in this module
-            # See https://docs.python.org/3.4/library/pickle.html
 
             cls = self.__class__
             method = cls.test_record_writer_with_recordings

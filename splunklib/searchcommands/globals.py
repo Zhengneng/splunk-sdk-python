@@ -14,9 +14,6 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-# TODO: Rename globals.py because while its allowed as a module name, it's unsatisfying that globals is also the name of
-# a python builtin function. Note that global.py is not permitted as a module name because it conflicts with a keyword.
-
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from collections import namedtuple

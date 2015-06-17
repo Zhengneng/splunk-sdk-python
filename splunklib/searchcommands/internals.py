@@ -133,7 +133,7 @@ def configure_logging(name, app_root, path=None):
         working_directory = os.getcwdu()
         os.chdir(app_root)
         try:
-            # TODO: Ensure that all existing loggers are still usable after this logging configuration file is loaded
+            # P1 [ ] TODO: Ensure that all existing loggers are still usable after loading a logging configuration file
             fileConfig(path, {'SPLUNK_HOME': _splunk_home})
         finally:
             os.chdir(working_directory)
@@ -362,7 +362,7 @@ class ConfigurationSettingsType(type):
             b'constraint',
             b'supporting_protocols'))
 
-    # TODO: Review specification_matrix
+    # P1 [ ] TODO: Review ConfigurationSettingsType.specification_matrix for completeness and correctness
 
     specification_matrix = {
         'clear_required_fields': specification(
@@ -517,7 +517,7 @@ class Recorder(object):
         self._recording = io.open(path, 'wb')
         self._file = f
 
-    # TODO: Implement __dir__ because we delegate to self._file (?)
+    # P2 [ ] TODO: Implement __dir__ because we delegate to self._file (?)
 
     def __getattr__(self, name):
         return getattr(self._file, name)
@@ -601,7 +601,6 @@ class RecordWriter(object):
     def _clear(self):
         self._buffer.reset()
         self._buffer.truncate()
-        self._fieldnames = None
         self._inspector.clear()
         self._record_count = 0
 
@@ -632,7 +631,7 @@ class RecordWriter(object):
         if len(value) == 1:
             return to_string(value[0]), None
 
-        # TODO: If a list item contains newlines, its single value cannot be interpreted correctly
+        # P1 [ ] TODO: If a list item contains newlines, its single value cannot be interpreted correctly
         # Question: Must we return a value? Is it good enough to return (None, <encoded-list>)?
         # See what other splunk commands do.
 
@@ -680,7 +679,6 @@ class RecordWriterV1(RecordWriter):
 
         self._finished = finished is True
 
-
 class RecordWriterV2(RecordWriter):
 
     def flush(self, finished=None, partial=None):
@@ -689,7 +687,7 @@ class RecordWriterV2(RecordWriter):
 
         if self._record_count > 0 or len(self._inspector) > 0:
 
-            # [ ] TODO: Write SearchMetric (?) Include timing (?) Anything else (?)
+            # P2 [ ] TODO: Write SearchMetric (?) Include timing (?) Anything else (?)
 
             self._total_record_count += self._record_count
             self._chunk_count += 1
@@ -716,6 +714,10 @@ class RecordWriterV2(RecordWriter):
         self._ensure_validity()
         self._inspector['metric.' + name] = value
 
+    def _clear(self):
+        RecordWriter._clear(self)
+        self._fieldnames = None
+
     def _write_chunk(self, metadata, body):
 
         if metadata:
@@ -738,4 +740,3 @@ class RecordWriterV2(RecordWriter):
         self._ofile.flush()
 
     _encode_metadata = MetadataEncoder().encode
-
