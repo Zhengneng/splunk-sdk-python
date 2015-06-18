@@ -67,9 +67,10 @@ from .validators import Boolean
 #    Eventing commands process records on the events pipeline.
 #    This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
 
-# P1 [ ] TODO: Is this an Ember bug? specifying filename in commands.conf disables requires_srinfo. If you specify
+# P1 [X] TODO: Is this an Ember bug? specifying filename in commands.conf disables requires_srinfo. If you specify
 # enableheader=true, requires_srinfo=true and also specify filename=generatehello.py, you do not get infoPath in the
 # input_header.
+# Resolved: You do not get search results info until the __EXECUTE__ action is invoked.
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -495,8 +496,6 @@ class SearchCommand(object):
         or option settings prior to execution. It is called during the getinfo exchange before command metadata is sent
         to splunkd.
 
-        :param action: action, either :const:`'getinfo`' or :const:`'execute'`.
-        :type action: unicode or str
         :return: :const:`None`
         :rtype: NoneType
 
@@ -524,6 +523,20 @@ class SearchCommand(object):
         else:
             self._process_protocol_v2(ifile, ofile)
 
+    def _map_input_header(self):
+        metadata = self._metadata
+        info = metadata.searchinfo
+        self._input_header.update(
+            allowStream=None,
+            infoPath=os.path.join(info.dispatch_dir, 'info.csv'),
+            keywords=None,
+            preview=metadata.preview,
+            realtime=metadata.earliest_time != 0 and metadata.latest_time != 0,
+            search=info.search,
+            sid=info.sid,
+            splunkVersion=info.splunk_version,
+            truncated=None)
+
     def _map_metadata(self, argv):
         source = SearchCommand._MetadataSource(argv, self._input_header, self.search_results_info)
 
@@ -543,16 +556,16 @@ class SearchCommand(object):
                             value = transform(value)
                 metadata[name] = value
 
-            return metadata
+            return ObjectView(metadata)
 
-        self._metadata = ObjectView(_map(SearchCommand._metadata_map))
+        self._metadata = _map(SearchCommand._metadata_map)
 
     _metadata_map = {
         'action':
             (lambda v: 'getinfo' if v == '__GETINFO__' else 'execute' if v == '__EXECUTE__' else None, lambda s: s.argv[1]),
         'preview':
             (bool, lambda s: s.input_header.get('preview')),
-        'search_info': {
+        'searchinfo': {
             'app':
                 (lambda v: v.ppc_app, lambda s: s.search_results_info),
             'args':
@@ -584,12 +597,23 @@ class SearchCommand(object):
 
     def _prepare_protocol_v1(self, argv, ifile, ofile):
 
+        debug = globals.splunklib_logger.debug
+
         # Provide as much context as possible in advance of parsing the command line and preparing for execution
 
         self._record_writer = RecordWriterV1(ofile)
         self._input_header.read(ifile)
         self._protocol_version = 1
         self._map_metadata(argv)
+
+        debug('  metadata=%r, input_header=%r', self._metadata, self._input_header)
+
+        try:
+            tempfile.tempdir = self._metadata.searchinfo.dispatch_dir
+        except AttributeError:
+            raise RuntimeError('%s.metadata.searchinfo.dispatch_dir is undefined'.format(self.__class__.__name__))
+
+        debug('  tempfile.tempdir=%r', tempfile.tempdir)
 
         CommandLineParser.parse(self, argv[2:])
         self.prepare()
@@ -678,7 +702,9 @@ class SearchCommand(object):
                 raise RuntimeError('Did not expect data for getinfo action')
 
             self._metadata = metadata
-            debug('  metadata=%r', self._metadata)
+            self._map_input_header()
+
+            debug('  metadata=%r, input_header=%r', self._metadata, self._input_header)
 
             try:
                 tempfile.tempdir = self._metadata.searchinfo.dispatch_dir
