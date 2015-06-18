@@ -244,43 +244,36 @@ class CommandLineParser(object):
     def unquote(cls, string):
         """ Removes quotes from a quoted string.
 
-        Splunk search command quote rules are applied. The enclosing
-        double-quotes, if present, are removed. Escaped double-quotes ('\"' or
-        '""') are replaced by a single double-quote ('"').
+        Splunk search command quote rules are applied. The enclosing double-quotes, if present, are removed. Escaped
+        double-quotes ('\"' or '""') are replaced by a single double-quote ('"').
 
         **NOTE**
 
-        We are not using a json.JSONDecoder because Splunk quote rules are
-        different than JSON quote rules. A json.JSONDecoder does not recognize
-        a pair of double-quotes ('""') as an escaped quote ('"') and will decode
-        single-quoted strings ("'") in addition to double-quoted ('"') strings.
+        We are not using a json.JSONDecoder because Splunk quote rules are different than JSON quote rules. A
+        json.JSONDecoder does not recognize a pair of double-quotes ('""') as an escaped quote ('"') and will
+        decode single-quoted strings ("'") in addition to double-quoted ('"') strings.
 
         """
         if len(string) == 0:
             return ''
 
-        if string[0] != '"':
-            return string
-
         if len(string) == 1:
             return string
 
-        if string[-1] != '"':
-            raise ValueError("Poorly formed string literal: %s" % string)
+        if string[0] == '"':
+            if string[-1] != '"':
+                raise ValueError("Poorly formed string literal: " + string)
+            string = string[1:-1]
 
         def replace(match):
             value = match.group(0)
-            if value == '\\\\':
-                return '\\'
-            if value == '\\"':
-                return '"'
             if value == '""':
                 return '"'
             if len(value) != 2:
-                raise ValueError("Poorly formed string literal: %s" % string)
-            return value  # consistent with python handling
+                raise ValueError("Poorly formed string literal: " + string)
+            return value[1]
 
-        result = re.sub(cls._escaped_quote_re, replace, string[1:-1])
+        result = re.sub(cls._escaped_quote_re, replace, string)
         return result
 
     # region Class variables
@@ -301,7 +294,7 @@ class CommandLineParser(object):
         \s*$
         """, re.VERBOSE)
 
-    _escaped_quote_re = re.compile(r"""(\\\\|\\"|""|\\."|\\)""")
+    _escaped_quote_re = re.compile(r'(\\.|""|[\\"])')
 
     _name_re = re.compile(r"""[_a-zA-Z][[_a-zA-Z0-9]+""")
 

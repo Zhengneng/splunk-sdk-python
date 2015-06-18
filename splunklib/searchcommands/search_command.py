@@ -28,6 +28,7 @@ from shutil import make_archive
 from time import time
 from urllib import unquote
 from urlparse import urlsplit
+from warnings import warn
 from xml.etree import ElementTree
 
 import os
@@ -36,6 +37,7 @@ import re
 import csv
 import tempfile
 import traceback
+
 
 # Relative imports
 
@@ -312,6 +314,9 @@ class SearchCommand(object):
         :rtype: InputHeader
 
         """
+        warn(
+            'SearchCommand.input_header is deprecated and will be removed in a future release. '
+            'Please use SearchCommand.metadata instead.', DeprecationWarning, stack_level=2)
         return self._input_header
 
     @property

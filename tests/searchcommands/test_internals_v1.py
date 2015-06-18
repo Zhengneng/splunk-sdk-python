@@ -114,34 +114,38 @@ class TestInternals(unittest.TestCase):
         parser = CommandLineParser()
 
         options = [
-            'foo',
-            '\"foobar\"',
-            '"""foobar1"""',
-            '"\"foobar2\""',
-            '"foo ""x"" bar"',
-            '"foo \"x\" bar"',
-            '"\\\\foobar"',
-            '"foo \\\\ bar"',
-            '"foobar\\\\"',
-            'foo\\\\\\bar'
-        ]
+            r'foo',                 # unquoted string with no escaped characters
+            r'fo\o\ b\"a\\r',       # unquoted string with some escaped characters
+            r'"foo"',               # quoted string with no special characters
+            r'"""foobar1"""',       # quoted string with quotes escaped like this: ""
+            r'"\"foobar2\""',       # quoted string with quotes escaped like this: \"
+            r'"foo ""x"" bar"',     # quoted string with quotes escaped like this: ""
+            r'"foo \"x\" bar"',     # quoted string with quotes escaped like this: \"
+            r'"\\foobar"',          # quoted string with an escaped backslash
+            r'"foo \\ bar"',        # quoted string with an escaped backslash
+            r'"foobar\\"',          # quoted string with an escaped backslash
+            r'foo\\\bar']           # quoted string with an escaped backslash and an escaped 'b'
 
         expected = [
-            'foo',
-            'foobar',
-            '"foobar1"',
-            '"foobar2"',
-            'foo "x" bar',
-            'foo "x" bar',
+            r'foo',
+            r'foo b"a\r',
+            r'foo',
+            r'"foobar1"',
+            r'"foobar2"',
+            r'foo "x" bar',
+            r'foo "x" bar',
             '\\foobar',
-            'foo \\ bar',
+            r'foo \ bar',
             'foobar\\',
-            'foo\\bar'
-        ]
+            r'foo\bar']
+
+        print('Observed:', options[-4], '=>', parser.unquote(options[-4]))
+        print('Expected:', expected[-4])
+        self.assertEqual(expected[-4], parser.unquote(options[-4]))
 
         for i in range(0, len(options)):
-            print(parser.unquote(options[i]), " ", options[i])
-            print(expected[i])
+            print(i, 'Observed:', options[i], '=>', parser.unquote(options[i]))
+            print(i, 'Expected:', expected[i])
             self.assertEqual(expected[i], parser.unquote(options[i]))
 
     def test_input_header(self):
@@ -214,17 +218,14 @@ class TestInternals(unittest.TestCase):
         with closing(StringIO(text.encode())) as input_file:
             input_header.read(input_file)
 
-        self.assertEqual(len(input_header), len(collection))
-
-        for key, value in input_header.iteritems():
-            self.assertEqual(value, collection[key])
+        self.assertDictEqual(input_header, collection)
 
         # Set of named items with an unnamed item at the beginning (the only place that an unnamed item can appear)
 
         with closing(StringIO(('unnamed item\n' + text).encode())) as input_file:
             input_header.read(input_file)
 
-        self.assertEqual(len(input_header), len(collection))
+        self.assertDictEqual(input_header, collection)
 
         # Test iterators, indirectly through items, keys, and values
 
