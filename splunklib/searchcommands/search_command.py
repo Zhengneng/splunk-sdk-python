@@ -220,6 +220,7 @@ class SearchCommand(object):
         self._default_logging_level = self.logger.level
         self._record_writer = None
         self._write_record = None
+        self._records = None
 
     def __str__(self):
         text = ' '.join(chain((type(self).name, str(self.options)), self.fieldnames))
@@ -695,6 +696,7 @@ class SearchCommand(object):
                 debug('Executing')
 
                 self._prepare_protocol_v1(argv, ifile, ofile)
+                self._records = self._records_protocol_v1
                 self._execute(ifile, None)
 
             else:
@@ -973,7 +975,32 @@ class SearchCommand(object):
 
     _header = re.compile(r'chunked\s+1.0\s*,\s*(\d+)\s*,\s*(\d+)\s*\n')
 
-    def _records(self, ifile):
+    def _records_protocol_v1(self, ifile):
+
+        reader = csv.reader(ifile, dialect=CsvDialect)
+        try:
+            fieldnames = reader.next()
+        except StopIteration:
+            return
+
+        mv_fieldnames = {name: name[len('__mv_'):] for name in fieldnames if name.startswith('__mv_')}
+
+        if len(mv_fieldnames) == 0:
+            for values in reader:
+                yield OrderedDict(izip(fieldnames, values))
+            return
+
+        for values in reader:
+            record = OrderedDict()
+            for fieldname, value in izip(fieldnames, values):
+                if fieldname.startswith('__mv_'):
+                    if len(value) > 0:
+                        record[mv_fieldnames[fieldname]] = self._decode_list(value)
+                elif fieldname not in record:
+                    record[fieldname] = value
+            yield record
+
+    def _records_protocol_v2(self, ifile):
 
         finished = None
 
