@@ -428,6 +428,9 @@ class InputHeader(dict):
     """ Represents a Splunk input header as a collection of name/value pairs.
 
     """
+    def __str__(self):
+        return '\r\n'.join([name + ':' + value for name, value in self])
+
     def read(self, ifile):
         """ Reads an input header from an input file.
 
@@ -530,8 +533,9 @@ class Recorder(object):
             self._recording.flush()
         return value
 
-    def record(self, text):
-        self._recording.write(text)
+    def record(self, *args):
+        for arg in args:
+            self._recording.write(arg)
 
     def write(self, text):
         self._recording.write(text)

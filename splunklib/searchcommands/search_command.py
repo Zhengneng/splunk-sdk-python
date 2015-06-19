@@ -623,11 +623,41 @@ class SearchCommand(object):
         CommandLineParser.parse(self, argv[2:])
         self.prepare()
 
+        if self.record:
+            ifile, ofile = self._prepare_recording(ifile, ofile)
+            self._record_writer.ofile = ofile
+
+            # Record the command line and input header received by this command after resetting the record option
+            self.record = False
+            ifile.record('SCPV1\n', argv[1], ' ', str(self), '\n', str(self._input_header), '\r\n\r\n')
+            self.record = True  # preserves the original command line for the benefit of the command author
+
         if self.show_configuration:
             message = self.name + ' command configuration settings: ' + str(self._configuration)
             self._record_writer.write_message('info_message', message)
 
         self._write_record = self._record_writer.write_record
+
+    def _prepare_recording(self, ifile, ofile):
+        # Create the recordings directory, if it doesn't already exist
+
+        recordings = os.path.join(self._splunk_home, 'var', 'run', 'splunklib.searchcommands', 'recordings')
+
+        if not os.path.isdir(recordings):
+            os.makedirs(recordings)
+
+        # Create input/output recorders from ifile and ofile
+
+        recording = os.path.join(recordings, self.__class__.__name__ + '-' + repr(time()))
+        ifile = Recorder(recording + '.input', ifile)
+        ofile = Recorder(recording + '.output', ofile)
+
+        # Archive the dispatch dir because it is useful for developing tests (use it as a baseline in mocks)
+
+        root_dir, base_dir = os.path.split(self._metadata.dispatch_dir)
+        make_archive(recording + '.dispatch_dir', 'gztar', root_dir, base_dir, logger=self.logger)
+
+        return ifile, ofile
 
     def _process_protocol_v1(self, argv, ifile, ofile):
         debug = globals.splunklib_logger.debug
@@ -778,18 +808,8 @@ class SearchCommand(object):
 
             if self.record:
 
-                # Create the recordings directory, if it doesn't already exist
-
-                recordings = os.path.join(self._splunk_home, 'var', 'run', 'splunklib.searchcommands', 'recordings')
-
-                if not os.path.isdir(recordings):
-                    os.makedirs(recordings)
-
-                # Create input/output recorders from ifile and ofile
-
-                recording = os.path.join(recordings, class_name + '-' + repr(time()))
-                ifile = Recorder(recording + '.input', ifile)
-                self._record_writer.ofile = Recorder(recording + '.output', ofile)
+                ifile, ofile = self._prepare_recording(ifile, ofile)
+                self._record_writer.ofile = ofile
 
                 # Record the metadata that initiated this command after removing the record option from args/raw_args
 
@@ -799,11 +819,7 @@ class SearchCommand(object):
                     setattr(info, attr, [arg for arg in getattr(info, attr) if not arg.startswith('record=')])
 
                 metadata = MetadataEncoder().encode(self._metadata)
-                ifile.record('chunked 1.0,' + unicode(len(metadata)) + ',0\n' + metadata)
-
-                # Archive the dispatch dir because it is useful for developing tests (use it as a baseline in mocks)
-                root_dir, base_dir = os.path.split(info.dispatch_dir)
-                make_archive(recording + '.dispatch_dir', 'gztar', root_dir, base_dir, logger=self.logger)
+                ifile.record('chunked 1.0,', unicode(len(metadata)), ',0\n', metadata)
 
             if self.show_configuration:
                 self.write_info('{} command configuration settings: {}'.format(self.name, self.configuration))
