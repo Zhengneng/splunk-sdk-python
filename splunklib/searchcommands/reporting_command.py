@@ -24,6 +24,7 @@ from .decorators import Option
 
 # P1 [ ] TODO: Edit ReportingCommand class documentation
 
+
 class ReportingCommand(SearchCommand):
     """ Processes search result records and generates a reporting data structure.
 

@@ -69,14 +69,63 @@ from .validators import Boolean
 #    Eventing commands process records on the events pipeline.
 #    This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
 
+# P1 [ ] TODO: Verify that ChunkedExternProcessor complains if a streaming_preop has a type other than 'streaming'
+# It once looked like sending type='reporting' for the streaming_preop was accepted.
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# P1 [ ] TODO: RecordWriter.mv_delimiter to support protocol_v1
+# writer = splunk_csv.DictWriter(output_file, self, self.configuration.keys(), mv_delimiter=',')
+
+# P1 [ ] TODO: Rename globals.py because while it's allowed as a module name, it's unsatisfying that globals is also the
+# name of a python builtin function. Note that global.py is not permitted as a module name because it conflicts with the
+# global keyword.
+
+# P1 [ ] TODO:Ensure that when type == 'streaming' and distributed is True we serialize type='stateful'
+
+# P1 [ ]  TODO: Ensure that when type == 'eventing' we serialize type='events'
+
+# P1 [O] TODO: Phase option should print in a more user-friendly way
+
+# P1 [ ] TODO: Configure external_search_command for protocol version 1 (see default/commands.conf.scpv1)
+
+# P1 [ ] TODO: Complete default/searchbnf.conf
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+# P2 [ ] TODO: In SearchCommand.__init__ change app_root parameter to app_file because app_file is required and
+# app_root can be computed from it. See globals.py and SearchCommand.__init__.
+
+# P2 [ ] TODO: Add protocol_v1 support for recording
+
+# P2 [ ] TODO: Write boundary tests on RecordWriter.flush
+
+# P2 [ ] TODO: Use saved dispatch dir to mock tests that depend on its contents (?)
+# To make records more generally useful to application developers we should provide/demonstrate how to mock
+# self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived dispatch directories.
+
+# P2 [ ] TODO: Review and update code docs to reflect usage under protocol_version == 1 as well as protocol_version == 2
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Done
+
+# P1 [X] TODO: Validate class-level settings provided by the @Configuration decorator
+# At present we have property setters that validate instance-level configuration, but we do not do any validation on
+# the class-level configuration settings that are provided by way of the @Configuration decorator
+
+# P1 [X] TODO: Save contents of dispatch dir for use in tests that may require it
+# ISSUE: Some bits of data expire or change. Examples:
+#   self.metadata.searchinfo.session_key
+#   self.metadata.searchinfo.sid
+#   self.metadata.searchinfo.splunk_uri
+#   self.metadata.searchinfo.splunk_version
+
 # P1 [X] TODO: Is this an Ember bug? specifying filename in commands.conf disables requires_srinfo. If you specify
 # enableheader=true, requires_srinfo=true and also specify filename=generatehello.py, you do not get infoPath in the
 # input_header.
 # Resolved: You do not get search results info until the __EXECUTE__ action is invoked.
 
-# ----------------------------------------------------------------------------------------------------------------------
-
-# P1 [ ] TODO: Construct SearchCommand.metadata from SearchCommand.input_header when SearchCommand.protocol_version == 1
+# P1 [X] TODO: Construct SearchCommand.metadata from SearchCommand.input_header when SearchCommand.protocol_version == 1
 #
 # Goals
 # -----
@@ -117,55 +166,6 @@ from .validators import Boolean
 #       splunk_version = <string>   # validate=None, get=lambda: self.input_header.get('splunkVersion')
 #       splunkd_uri = <string>      # validate=None, get=lambda: TODO: get from srinfo file (?)
 #       username = <string>         # validate=None, get=lambda: TODO: get from srinfo file (?)
-
-# P1 [ ] TODO: RecordWriter.mv_delimiter to support protocol_v1
-# writer = splunk_csv.DictWriter(output_file, self, self.configuration.keys(), mv_delimiter=',')
-
-# P1 [ ] TODO: Rename globals.py because while it's allowed as a module name, it's unsatisfying that globals is also the
-# name of a python builtin function. Note that global.py is not permitted as a module name because it conflicts with the
-# global keyword.
-
-# P1 [ ] TODO:Ensure that when type == 'streaming' and distributed is True we serialize type='stateful'
-
-# P1 [ ]  TODO: Ensure that when type == 'eventing' we serialize type='events'
-
-# P1 [ ] TODO: Phase option should print in a more user-friendly way
-
-# P1 [ ] TODO: Verify that ChunkedExternProcessor complains if a streaming_preop has a type other than 'streaming'
-# It once looked like sending type='reporting' for the streaming_preop was accepted.
-
-# P1 [ ] TODO: Configure external_search_command for protocol version 1 (see default/commands.conf.scpv1)
-
-# P1 [ ] TODO: Complete default/searchbnf.conf
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-# P2 [ ] TODO: In SearchCommand.__init__ change app_root parameter to app_file because app_file is required and
-# app_root can be computed from it. See globals.py and SearchCommand.__init__.
-
-# P2 [ ] TODO: Add protocol_v1 support for recording
-
-# P2 [ ] TODO: Write boundary tests on RecordWriter.flush
-
-# P2 [ ] TODO: Use saved dispatch dir to mock tests that depend on its contents (?)
-# To make records more generally useful to application developers we should provide/demonstrate how to mock
-# self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived dispatch directories.
-
-# P2 [ ] TODO: Review and update code docs to reflect usage under protocol_version == 1 as well as protocol_version == 2
-
-# ----------------------------------------------------------------------------------------------------------------------
-# Done
-
-# P1 [X] TODO: Validate class-level settings provided by the @Configuration decorator
-# At present we have property setters that validate instance-level configuration, but we do not do any validation on
-# the class-level configuration settings that are provided by way of the @Configuration decorator
-
-# P1 [X] TODO: Save contents of dispatch dir for use in tests that may require it
-# ISSUE: Some bits of data expire or change. Examples:
-#   self.metadata.searchinfo.session_key
-#   self.metadata.searchinfo.sid
-#   self.metadata.searchinfo.splunk_uri
-#   self.metadata.searchinfo.splunk_version
 
 
 class SearchCommand(object):
@@ -474,6 +474,8 @@ class SearchCommand(object):
     # region Methods
 
     def error_exit(self, error, message=None):
+        # P1 [ ] TODO: Verify SCPV1/SCPV2 behavior of SearchCommand.error_exit.
+        # Specifically: Is the message displayed correctly in the Splunk UI?
         self.write_error(error.message if message is None else message)
         self.logger.error('Abnormal exit: %s', error)
         exit(1)
@@ -526,7 +528,7 @@ class SearchCommand(object):
         if len(argv) > 1:
             self._process_protocol_v1(argv, ifile, ofile)
         else:
-            self._process_protocol_v2(ifile, ofile)
+            self._process_protocol_v2(argv, ifile, ofile)
 
     def _map_input_header(self):
         metadata = self._metadata
@@ -624,12 +626,13 @@ class SearchCommand(object):
         self.prepare()
 
         if self.record:
-            ifile, ofile = self._prepare_recording(ifile, ofile)
-            self._record_writer.ofile = ofile
-
-            # Record the command line and input header after resetting the record option
             self.record = False
-            ifile.record('SCPV1\n', argv[1], ' ', str(self), '\n', str(self._input_header), '\r\n\r\n')
+
+            record_argv = [argv[0], argv[1], str(self._options), ' '.join(self.fieldnames)]
+            ifile, ofile = self._prepare_recording(record_argv, ifile, ofile)
+            self._record_writer.ofile = ofile
+            ifile.record(str(self._input_header), '\r\n\r\n')
+
             self.record = True  # preserves the original record setting for the benefit of the command author
 
         if self.show_configuration:
@@ -638,7 +641,7 @@ class SearchCommand(object):
 
         self._write_record = self._record_writer.write_record
 
-    def _prepare_recording(self, ifile, ofile):
+    def _prepare_recording(self, argv, ifile, ofile):
         # Create the recordings directory, if it doesn't already exist
 
         recordings = os.path.join(self._splunk_home, 'var', 'run', 'splunklib.searchcommands', 'recordings')
@@ -656,6 +659,15 @@ class SearchCommand(object):
 
         root_dir, base_dir = os.path.split(self._metadata.dispatch_dir)
         make_archive(recording + '.dispatch_dir', 'gztar', root_dir, base_dir, logger=self.logger)
+
+        # Save a splunk command line because it is useful for developing tests
+
+        with open(recording + '.splunk_cmd', 'wb') as f:
+            f.write('splunk cmd python '.encode())
+            f.write(os.path.basename(argv[0]).encode())
+            for arg in islice(argv, 1, len(argv)):
+                f.write(' '.encode())
+                f.write(arg.encode())
 
         return ifile, ofile
 
@@ -705,7 +717,7 @@ class SearchCommand(object):
 
         debug('%s.process finished under protocol_version=1', class_name)
 
-    def _process_protocol_v2(self, ifile, ofile):
+    def _process_protocol_v2(self, argv, ifile, ofile):
         """ Processes records on the `input stream optionally writing records to the output stream.
 
         :param ifile: Input file object.
@@ -808,7 +820,7 @@ class SearchCommand(object):
 
             if self.record:
 
-                ifile, ofile = self._prepare_recording(ifile, ofile)
+                ifile, ofile = self._prepare_recording(argv, ifile, ofile)
                 self._record_writer.ofile = ofile
 
                 # Record the metadata that initiated this command after removing the record option from args/raw_args
