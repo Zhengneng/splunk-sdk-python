@@ -627,14 +627,14 @@ class SearchCommand(object):
             ifile, ofile = self._prepare_recording(ifile, ofile)
             self._record_writer.ofile = ofile
 
-            # Record the command line and input header received by this command after resetting the record option
+            # Record the command line and input header after resetting the record option
             self.record = False
             ifile.record('SCPV1\n', argv[1], ' ', str(self), '\n', str(self._input_header), '\r\n\r\n')
-            self.record = True  # preserves the original command line for the benefit of the command author
+            self.record = True  # preserves the original record setting for the benefit of the command author
 
         if self.show_configuration:
             message = self.name + ' command configuration settings: ' + str(self._configuration)
-            self._record_writer.write_message('info_message', message)
+            self.write_info(message)
 
         self._write_record = self._record_writer.write_record
 
@@ -822,7 +822,8 @@ class SearchCommand(object):
                 ifile.record('chunked 1.0,', unicode(len(metadata)), ',0\n', metadata)
 
             if self.show_configuration:
-                self.write_info('{} command configuration settings: {}'.format(self.name, self.configuration))
+                message = self.name + ' command configuration settings: ' + str(self._configuration)
+                self.write_info(message)
 
             debug('  configuration=%s', self._configuration)
             self._record_writer.write_metadata(self._configuration)
