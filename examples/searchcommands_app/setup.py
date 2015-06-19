@@ -237,13 +237,15 @@ class LinkCommand(Command):
     description = 'Create a symbolic link to the app package at $SPLUNK_HOME/etc/apps.'
 
     user_options = [
-        (b'debug-client=', None, 'Copies the specified debug client egg to package/_pydebug.egg'),
+        (b'debug-client=', None, 'Copies the specified PyCharm debug client egg to package/_pydebug.egg'),
+        (b'scp-version=', None, 'Specifies the protocol version for search commands (default: 2)'),
         (b'splunk-home=', None, 'Overrides the value of SPLUNK_HOME.')]
 
     def __init__(self, dist):
         Command.__init__(self, dist)
 
         self.debug_client = None
+        self.scp_version = 2
         self.splunk_home = os.environ['SPLUNK_HOME']
         self.app_name = self.distribution.metadata.name
         self.app_source = os.path.join(project_dir, 'package')
@@ -254,6 +256,13 @@ class LinkCommand(Command):
         pass
 
     def finalize_options(self):
+        try:
+            self.scp_version = int(self.scp_version)
+            if not (self.scp_version == 1 or self.scp_version == 2):
+                raise ValueError()
+        except ValueError:
+            raise SystemError('Expected an SCP version number of 1 or 2, not {}'.format(self.scp_version))
+
         return
 
     def run(self):
@@ -269,7 +278,15 @@ class LinkCommand(Command):
         self._copy_lookups()
         self._link_packages()
 
+        commands_conf = os.path.join(self.app_source, 'default', 'commands.conf')
+        source = commands_conf + '.scpv' + str(self.scp_version)
+
+        if os.path.exists(commands_conf):
+            os.remove(commands_conf)
+
+        os.symlink(source, commands_conf)
         os.symlink(self.app_source, target)
+
         return
 
     def _copy_debug_client(self):

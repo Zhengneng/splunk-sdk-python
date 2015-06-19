@@ -429,7 +429,7 @@ class InputHeader(dict):
 
     """
     def __str__(self):
-        return '\r\n'.join([name + ':' + value for name, value in self])
+        return '\r\n'.join([name + ':' + value for name, value in self.iteritems()])
 
     def read(self, ifile):
         """ Reads an input header from an input file.

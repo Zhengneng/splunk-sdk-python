@@ -651,14 +651,17 @@ class SearchCommand(object):
 
         # Create input/output recorders from ifile and ofile
 
-        recording = os.path.join(recordings, self.__class__.__name__ + '-' + repr(time()))
+        recording = os.path.join(recordings, self.__class__.__name__ + '-' + repr(time()) + '.' + self._metadata.action)
         ifile = Recorder(recording + '.input', ifile)
         ofile = Recorder(recording + '.output', ofile)
 
-        # Archive the dispatch dir because it is useful for developing tests (use it as a baseline in mocks)
+        # Archive the dispatch directory--if it exists--so that it can be used as a baseline in mocks)
 
-        root_dir, base_dir = os.path.split(self._metadata.dispatch_dir)
-        make_archive(recording + '.dispatch_dir', 'gztar', root_dir, base_dir, logger=self.logger)
+        dispatch_dir = self._metadata.searchinfo.dispatch_dir
+
+        if dispatch_dir is not None:  # __GETINFO__ action does not include a dispatch_dir
+            root_dir, base_dir = os.path.split(dispatch_dir)
+            make_archive(recording + '.dispatch_dir', 'gztar', root_dir, base_dir, logger=self.logger)
 
         # Save a splunk command line because it is useful for developing tests
 

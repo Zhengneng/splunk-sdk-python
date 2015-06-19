@@ -1,5 +1,4 @@
 # [commands.conf]($SPLUNK_HOME/etc/system/README/commands.conf.spec)
-[defaults]
 
 [countmatches]
 filename = countmatches.py
