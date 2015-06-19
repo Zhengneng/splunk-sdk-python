@@ -208,6 +208,8 @@ class CommandLineParser(object):
         """
         # Prepare
 
+        # P1 [ ] TODO: Switch to globals.splunklib_logger
+
         command.logger.debug('Parsing %s command line: %s', type(command).__name__, repr(argv))
 
         command_args = ' '.join(argv)
@@ -658,7 +660,7 @@ class RecordWriterV1(RecordWriter):
                 if messages:
 
                     for level, text in messages:
-                        write(level)
+                        write(RecordWriterV1._message_level[level])
                         write('=')
                         write(text)
                         write('\r\n')
@@ -671,6 +673,14 @@ class RecordWriterV1(RecordWriter):
             self._total_record_count += self._record_count
 
         self._finished = finished is True
+
+    _message_level = {
+        'DEBUG': 'debug_message',
+        'ERROR': 'error_message',
+        'FATAL': 'error_message',
+        'INFO': 'info_message',
+        'WARN': 'warn_message'
+    }
 
 class RecordWriterV2(RecordWriter):
 

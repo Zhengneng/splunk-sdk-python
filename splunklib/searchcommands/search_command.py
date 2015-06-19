@@ -22,7 +22,7 @@ from splunklib.client import Service
 
 from collections import namedtuple, OrderedDict
 from cStringIO import StringIO
-from itertools import ifilter, imap, islice, izip
+from itertools import chain, ifilter, imap, islice, izip
 from logging import _levelNames, getLevelName, getLogger
 from shutil import make_archive
 from time import time
@@ -222,7 +222,7 @@ class SearchCommand(object):
         self._write_record = None
 
     def __str__(self):
-        text = type(self).name + ' ' + str(self.options) + ' ' + ' '.join(self.fieldnames)
+        text = ' '.join(chain((type(self).name, str(self.options)), self.fieldnames))
         return text
 
     # region Options

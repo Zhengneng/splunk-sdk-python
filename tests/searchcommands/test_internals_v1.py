@@ -16,101 +16,98 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from splunklib.searchcommands.internals import CommandLineParser, InputHeader
+from splunklib.searchcommands.internals import CommandLineParser, InputHeader, RecordWriterV1
+from splunklib.searchcommands.decorators import Configuration, Option
+from splunklib.searchcommands.validators import Boolean
+
 from splunklib.searchcommands.search_command import SearchCommand
 
-from collections import deque, OrderedDict
 from contextlib import closing
 from cStringIO import StringIO
-from functools import wraps
-from glob import iglob
-from itertools import chain, ifilter, imap, izip
-from json.encoder import encode_basestring as encode_string
-from sys import float_info, maxsize, maxunicode
-from tempfile import mktemp
-from time import time
-from types import MethodType
+from unittest import main, TestCase
 
-import cPickle as pickle
-import json
 import os
-import random
-import unittest
 
 
-class TestInternals(unittest.TestCase):
+class TestInternals(TestCase):
     def setUp(self):
-        unittest.TestCase.setUp(self)
+        TestCase.setUp(self)
 
-    def test_command_parser(self):
+    def test_command_line_parser(self):
 
-        parser = CommandLineParser()
-        file_path = os.path.abspath(os.path.join(self._package_path, 'data', 'input', '_empty.csv'))
+        @Configuration()
+        class TestCommandLineParserCommand(SearchCommand):
 
-        options = [
-            'boolean=true',
-            'duration=00:00:10',
-            'fieldname=word_count',
-            'file={}'.format(encode_string(file_path)),
-            'integer=10',
-            'optionname=foo_bar',
-            'regularexpression="\\\\w+"',
-            'set=foo']
+            required_option = Option(validate=Boolean(), require=True)
+            unnecessary_option = Option(validate=Boolean(), default=True, require=False)
 
-        fields = ['field_1', 'field_2', 'field_3']
+            class ConfigurationSettings(SearchCommand.ConfigurationSettings):
 
-        command = SearchCommand()  # All options except for the builtin options are required
-        parser.parse(options + fields, command)
-        command_line = str(command)
+                @classmethod
+                def fix_up(cls, command_class): pass
 
-        self.assertEqual(
-            'stubbedstreaming boolean="t" duration="00:00:10" fieldname="word_count" file=%s integer="10" optionname="foo_bar" regularexpression="\\\\w+" set="foo" field_1 field_2 field_3' % encoder.encode(
-                file_path),
-            command_line)
+        # Command line without fieldnames
 
-        for option in options:
-            self.assertRaises(ValueError, parser.parse,
-                              [x for x in options if x != option] + ['field_1',
-                                                                     'field_2',
-                                                                     'field_3'],
-                              command)
+        options = ['required_option=true', 'unnecessary_option=false']
 
-        command = SearchCommand()  # No options are required
-        parser.parse(options + fields, command)
-
-        for option in options:
-            try:
-                parser.parse(
-                    [x for x in options if x != option] + ['field_1', 'field_2',
-                                                           'field_3'], command)
-            except Exception as e:
-                self.assertFalse("Unexpected exception: %s" % e)
-
-        try:
-            parser.parse(options, command)
-        except Exception as e:
-            self.assertFalse("Unexpected exception: %s" % e)
+        command = TestCommandLineParserCommand()
+        CommandLineParser.parse(command, options)
 
         for option in command.options.itervalues():
-            if option.name in ['show_configuration', 'logging_configuration',
-                               'logging_level']:
+            if option.name in ['logging_configuration', 'logging_level', 'record', 'show_configuration']:
+                self.assertFalse(option.is_set)
                 continue
             self.assertTrue(option.is_set)
 
-        self.assertEqual(len(command.fieldnames), 0)
+        expected = 'testcommandlineparser required_option="t" unnecessary_option="f"'
+        self.assertEqual(expected, str(command))
+        self.assertEqual(command.fieldnames, [])
 
-        try:
-            parser.parse(fields, command)
-        except Exception as e:
-            self.assertFalse("Unexpected exception: %s" % e)
+        # Command line with fieldnames
+
+        fieldnames = ['field_1', 'field_2', 'field_3']
+
+        command = TestCommandLineParserCommand()
+        CommandLineParser.parse(command, options + fieldnames)
 
         for option in command.options.itervalues():
-            self.assertFalse(option.is_set)
+            if option.name in ['logging_configuration', 'logging_level', 'record', 'show_configuration']:
+                self.assertFalse(option.is_set)
+                continue
+            self.assertTrue(option.is_set)
 
-        self.assertListEqual(fields, command.fieldnames)
+        expected = 'testcommandlineparser required_option="t" unnecessary_option="f" field_1 field_2 field_3'
+        self.assertEqual(expected, str(command))
+        self.assertEquals(command.fieldnames, fieldnames)
+
+        # Command line without any unnecessary options
+
+        command = TestCommandLineParserCommand()
+        CommandLineParser.parse(command, ['required_option=true'] + fieldnames)
+
+        for option in command.options.itervalues():
+            if option.name in ['unnecessary_option', 'logging_configuration', 'logging_level', 'record', 'show_configuration']:
+                self.assertFalse(option.is_set)
+                continue
+            self.assertTrue(option.is_set)
+
+        expected = 'testcommandlineparser required_option="t" field_1 field_2 field_3'
+        self.assertEqual(expected, str(command))
+        self.assertEquals(command.fieldnames, fieldnames)
+
+        # Command line with missing required options, with or without fieldnames or unnecessary options
+
+        options = ['unnecessary_option=true']
+        self.assertRaises(ValueError, CommandLineParser.parse, command, options + fieldnames)
+        self.assertRaises(ValueError, CommandLineParser.parse, command, options)
+        self.assertRaises(ValueError, CommandLineParser.parse, command, [])
+
+        # Command line with unrecognized options
+
+        self.assertRaises(ValueError, CommandLineParser.parse, command, ['unrecognized_option_1=foo', 'unrecognized_option_2=bar'])
         return
 
-    def test_command_parser_unquote(self):
+    def test_command_line_parser_unquote(self):
         parser = CommandLineParser()
 
         options = [
@@ -235,8 +232,46 @@ class TestInternals(unittest.TestCase):
 
         return
 
+    def test_messages_header(self):
+
+        @Configuration()
+        class TestMessagesHeaderCommand(SearchCommand):
+
+            class ConfigurationSettings(SearchCommand.ConfigurationSettings):
+
+                @classmethod
+                def fix_up(cls, command_class): pass
+
+        command = TestMessagesHeaderCommand()
+        command._protocol_version = 1
+        output_buffer = StringIO()
+        command._record_writer = RecordWriterV1(output_buffer)
+
+        messages = [
+            (command.write_debug, 'debug_message'),
+            (command.write_error, 'error_message'),
+            (command.write_fatal, 'fatal_message'),
+            (command.write_info, 'info_message'),
+            (command.write_warning, 'warning_message')]
+
+        for write, message in messages:
+            write(message)
+
+        command.finish()
+
+        expected = (
+            'debug_message=debug_message\r\n'
+            'error_message=error_message\r\n'
+            'error_message=fatal_message\r\n'
+            'info_message=info_message\r\n'
+            'warn_message=warning_message\r\n'
+            '\r\n')
+
+        self.assertEquals(output_buffer.getvalue(), expected)
+        return
+
     _package_path = os.path.dirname(__file__)
 
 
 if __name__ == "__main__":
-    unittest.main()
+    main()

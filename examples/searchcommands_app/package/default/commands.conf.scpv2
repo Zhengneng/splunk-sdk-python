@@ -1,0 +1,21 @@
+# [commands.conf]($SPLUNK_HOME/etc/system/README/commands.conf.spec)
+
+[generatehello]
+filename = generatehello.py
+chunked = true
+
+[sum]
+filename = sum.py
+chunked = true
+
+[countmatches]
+filename = countmatches.py
+chunked = true
+
+[echo]
+filename = echo.py
+chunked = true
+
+[pypygeneratehello]
+filename = pypygeneratehello.py
+chunked = true
