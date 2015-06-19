@@ -91,6 +91,8 @@ from .validators import Boolean
 
 # P1 [ ] TODO: Complete default/searchbnf.conf
 
+# P1 [ ] TODO: Ensure that SCPV1 respects finish and flush
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 # P2 [ ] TODO: In SearchCommand.__init__ change app_root parameter to app_file because app_file is required and

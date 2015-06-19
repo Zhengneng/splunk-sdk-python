@@ -1,0 +1,10 @@
+splunkVersion:20150522
+realtime:0
+preview:0
+search:| inputlookup tweets | countmatches record=t fieldname=word_count pattern="\\w+" text
+allowStream:1
+sid:1434743944.9
+truncated:0
+infoPath:/Users/david-noble/Workspace/Splunk/var/run/splunk/dispatch/1434743944.9/externSearchResultsInfo.csv
+keywords:""
+

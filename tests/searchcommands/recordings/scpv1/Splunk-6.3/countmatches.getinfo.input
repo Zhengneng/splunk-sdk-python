@@ -1,0 +1,9 @@
+keywords:""
+allowStream:1
+realtime:0
+preview:0
+sid:1434743944.9
+splunkVersion:20150522
+search:| inputlookup tweets | countmatches record=t fieldname=word_count pattern="\\w+" text
+truncated:0
+
