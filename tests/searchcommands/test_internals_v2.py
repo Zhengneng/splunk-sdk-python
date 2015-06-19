@@ -105,7 +105,7 @@ class TestInternals(unittest.TestCase):
 
         # Grab an input/output recording, the results of a prior countmatches run
 
-        recording = os.path.join(self._package_path, 'recordings', 'v2', 'Splunk-6.3', 'countmatches.')
+        recording = os.path.join(self._package_path, 'recordings', 'scpv2', 'Splunk-6.3', 'countmatches.')
 
         with open(recording + 'input', 'rb') as file_1, open(recording + 'output', 'rb') as file_2:
             ifile = StringIO(file_1.read())
@@ -299,7 +299,7 @@ class TestInternals(unittest.TestCase):
 
     _json_input = unicode(json.dumps(_dictionary, separators=(',', ':')))
     _package_path = os.path.dirname(os.path.abspath(__file__))
-    _recordings_path = os.path.join(_package_path, 'recordings', 'v2', 'Splunk-6.3')
+    _recordings_path = os.path.join(_package_path, 'recordings', 'scpv2', 'Splunk-6.3')
 
 
 class TestRecorder(object):
