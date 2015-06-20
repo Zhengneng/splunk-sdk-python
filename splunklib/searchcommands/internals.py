@@ -240,7 +240,7 @@ class CommandLineParser(object):
 
         command.fieldnames = command_args.group('fieldnames').split()
 
-        command.logger.debug('    %s: %s', type(command).__name__, command)
+        command.logger.debug('  %s: %s', type(command).__name__, command)
 
     @classmethod
     def unquote(cls, string):
@@ -610,7 +610,7 @@ class RecordWriter(object):
             if item is None:
                 return b''
             if isinstance(item, bool):
-                return b't' if item else b'f'
+                return b'1' if item else b'0'
             if isinstance(item, bytes):
                 return item
             if isinstance(item, Number):

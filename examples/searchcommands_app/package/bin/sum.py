@@ -22,7 +22,7 @@ from splunklib.searchcommands import dispatch, ReportingCommand, Configuration, 
 import sys
 
 
-@Configuration()
+@Configuration(requires_preop=True)
 class SumCommand(ReportingCommand):
     """ Computes the sum of a set of fields.
 

@@ -22,6 +22,8 @@ from .search_command import SearchCommand
 from . import ConfigurationSetting
 from .decorators import Option
 
+from itertools import chain
+
 # P1 [ ] TODO: Edit ReportingCommand class documentation
 
 
@@ -104,8 +106,10 @@ class ReportingCommand(SearchCommand):
             # noinspection PyUnresolvedReferences
             return self.map.ConfigurationSettings(self)
         if self._phase == self.reduce:
-            return self.ConfigurationSettings(self)
-        raise RuntimeError('Unrecognized reporting command phase: {0}'.format(repr(self._phase)))
+            settings = self.ConfigurationSettings(self)
+            settings.streaming_preop = ' '.join(chain((self.name, 'phase="map"', str(self._options)), self.fieldnames))
+            return settings
+        raise RuntimeError('Unrecognized reporting command phase: {}'.format(repr(self._phase)))
 
     # endregion
 
@@ -117,7 +121,7 @@ class ReportingCommand(SearchCommand):
         """
         # region SCP v1 Properties
 
-        clear_required_fields = ConfigurationSetting(value=True, doc='''
+        clear_required_fields = ConfigurationSetting(doc='''
             :const:`True`, if required_fields represent the *only* fields required.
 
             If :const:`False`, required_fields are additive to any fields that may be required by subsequent commands.
@@ -150,12 +154,26 @@ class ReportingCommand(SearchCommand):
 
             ''')
 
+        retainsevents = ConfigurationSetting(value=False, doc='''
+            Signals that :meth:`ReportingCommand.reduce` transforms _raw events to produce a reporting data structure.
+
+            Fixed: :const:`False`
+
+            ''')
+
         run_in_preview = ConfigurationSetting(doc='''
             :const:`True`, if this command should be run to generate results for preview; not wait for final output.
 
             This may be important for commands that have side effects (e.g. outputlookup)
 
             Default: :const:`True`
+
+            ''')
+
+        streaming = ConfigurationSetting(value=False, doc='''
+            Signals that :meth:`ReportingCommand.reduce` runs on the search head.
+
+            Fixed: :const:`False`
 
             ''')
 
@@ -220,7 +238,8 @@ class ReportingCommand(SearchCommand):
             name = b'ConfigurationSettings'
             bases = (StreamingCommand.ConfigurationSettings,)
 
-            f.ConfigurationSettings = ConfigurationSettingsType(module, name, bases, settings)
+            f.ConfigurationSettings = ConfigurationSettingsType(module, name, bases)
+            ConfigurationSetting.fix_up(f.ConfigurationSettings, settings)
             del f._settings
 
         # endregion

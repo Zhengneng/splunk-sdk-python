@@ -225,7 +225,7 @@ class SearchCommand(object):
         self._records = None
 
     def __str__(self):
-        text = ' '.join(chain((type(self).name, str(self.options)), self.fieldnames))
+        text = ' '.join(chain((type(self).name, str(self.options)), [] if self.fieldnames is None else self.fieldnames))
         return text
 
     # region Options
@@ -621,11 +621,13 @@ class SearchCommand(object):
         try:
             tempfile.tempdir = self._metadata.searchinfo.dispatch_dir
         except AttributeError:
-            raise RuntimeError('%s.metadata.searchinfo.dispatch_dir is undefined'.format(self.__class__.__name__))
+            raise RuntimeError('{}.metadata.searchinfo.dispatch_dir is undefined'.format(self.__class__.__name__))
 
         debug('  tempfile.tempdir=%r', tempfile.tempdir)
 
         CommandLineParser.parse(self, argv[2:])
+
+        self._configuration = self._new_configuration_settings()
         self.prepare()
 
         if self.record:
@@ -1072,7 +1074,6 @@ class SearchCommand(object):
         """ Represents the configuration settings common to all :class:`SearchCommand` classes.
 
         """
-
         def __init__(self, command):
             self.command = command
 
