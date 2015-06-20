@@ -1,0 +1,9 @@
+allowStream:1
+splunkVersion:20150522
+preview:0
+keywords:""
+realtime:0
+truncated:0
+search:| inputcsv random_data max=50000 | sum record=t total=total value1
+sid:1434830988.7
+

@@ -1,0 +1,10 @@
+realtime:0
+preview:0
+truncated:0
+keywords:""
+infoPath:/Users/david-noble/Workspace/Splunk/var/run/splunk/dispatch/1434830988.7/externSearchResultsInfo.csv
+splunkVersion:20150522
+search:| inputcsv random_data max=50000 | sum record=t total=total value1
+sid:1434830988.7
+allowStream:1
+
