@@ -98,8 +98,6 @@ from .validators import Boolean
 # P2 [ ] TODO: In SearchCommand.__init__ change app_root parameter to app_file because app_file is required and
 # app_root can be computed from it. See globals.py and SearchCommand.__init__.
 
-# P2 [ ] TODO: Add protocol_v1 support for recording
-
 # P2 [ ] TODO: Write boundary tests on RecordWriter.flush
 
 # P2 [ ] TODO: Use saved dispatch dir to mock tests that depend on its contents (?)
@@ -168,6 +166,8 @@ from .validators import Boolean
 #       splunk_version = <string>   # validate=None, get=lambda: self.input_header.get('splunkVersion')
 #       splunkd_uri = <string>      # validate=None, get=lambda: TODO: get from srinfo file (?)
 #       username = <string>         # validate=None, get=lambda: TODO: get from srinfo file (?)
+
+# P1 [X] TODO: Add protocol_v1 support for recording
 
 
 class SearchCommand(object):
@@ -645,6 +645,7 @@ class SearchCommand(object):
             self.write_info(message)
 
         self._write_record = self._record_writer.write_record
+        return ifile  # wrapped, if self.record is True
 
     def _prepare_recording(self, argv, ifile, ofile):
         # Create the recordings directory, if it doesn't already exist
@@ -690,7 +691,7 @@ class SearchCommand(object):
 
                 debug('Writing configuration settings')
 
-                self._prepare_protocol_v1(argv, ifile, ofile)
+                ifile = self._prepare_protocol_v1(argv, ifile, ofile)
                 record = self._configuration.items()
                 self._write_record(record)
                 self.finish()
@@ -699,7 +700,7 @@ class SearchCommand(object):
 
                 debug('Executing')
 
-                self._prepare_protocol_v1(argv, ifile, ofile)
+                ifile = self._prepare_protocol_v1(argv, ifile, ofile)
                 self._records = self._records_protocol_v1
                 self._execute(ifile, None)
 

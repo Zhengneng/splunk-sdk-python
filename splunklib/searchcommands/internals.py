@@ -520,6 +520,12 @@ class Recorder(object):
     def __getattr__(self, name):
         return getattr(self._file, name)
 
+    def __iter__(self):
+        for line in self._file:
+            self._recording.write(line)
+            self._recording.flush()
+            yield line
+
     def read(self, size=None):
         value = self._file.read() if size is None else self._file.read(size)
         self._recording.write(value)
