@@ -125,19 +125,18 @@ def configure_logging(name, app_root, path=None):
         raise ValueError('Logging configuration file "{}" not found'.format(path))
 
     if path is not None:
+        global _current_logging_configuration_file
         path = os.path.realpath(path)
 
-    global _current_logging_configuration_file
-
-    if path != _current_logging_configuration_file:
-        working_directory = os.getcwdu()
-        os.chdir(app_root)
-        try:
-            # P1 [ ] TODO: Ensure that all existing loggers are still usable after loading a logging configuration file
-            fileConfig(path, {'SPLUNK_HOME': _splunk_home})
-        finally:
-            os.chdir(working_directory)
-        _current_logging_configuration_file = path
+        if path != _current_logging_configuration_file:
+            working_directory = os.getcwdu()
+            os.chdir(app_root)
+            try:
+                # P1 [ ] TODO: Ensure that all existing loggers are usable after loading a logging configuration file
+                fileConfig(path, {'SPLUNK_HOME': _splunk_home})
+            finally:
+                os.chdir(working_directory)
+            _current_logging_configuration_file = path
 
     if len(root.handlers) == 0:
         root.addHandler(StreamHandler())

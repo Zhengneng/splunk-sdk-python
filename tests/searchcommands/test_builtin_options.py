@@ -23,10 +23,11 @@ from splunklib.searchcommands.internals import configure_logging
 from splunklib.searchcommands.search_command import SearchCommand
 
 from cStringIO import StringIO
+from unittest import main, TestCase
+
 import logging
 import os
 import sys
-import unittest
 
 @Configuration()
 class StubbedSearchCommand(SearchCommand):
@@ -35,10 +36,10 @@ class StubbedSearchCommand(SearchCommand):
         def fix_up(cls, command_class):
             pass
 
-class TestBuiltinOptions(unittest.TestCase):
+class TestBuiltinOptions(TestCase):
 
     def setUp(self):
-        unittest.TestCase.setUp(self)
+        TestCase.setUp(self)
 
     def test_logging_configuration(self):
 
@@ -212,3 +213,7 @@ class TestBuiltinOptions(unittest.TestCase):
         return
 
     _package_directory = os.path.dirname(os.path.abspath(__file__))
+
+
+if __name__ == "__main__":
+    main()

@@ -19,15 +19,15 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from splunklib.searchcommands import Configuration, StreamingCommand
 from splunklib.client import Service
 from cStringIO import StringIO
+from unittest import main, TestCase
 
 import os
 import re
 import sys
-import unittest
 
 
 @Configuration()
-class SearchCommand(StreamingCommand):
+class TestStreamingCommand(StreamingCommand):
     def stream(self, records):
         serial_number = 0L
         for record in records:
@@ -40,10 +40,9 @@ class SearchCommand(StreamingCommand):
         return
 
 
-class TestSearchCommand(unittest.TestCase):
+class TestSearchCommandProcess(TestCase):
     def setUp(self):
-        unittest.TestCase.setUp(self)
-        return
+        TestCase.setUp(self)
 
     def test_process_common(self):
         pass
@@ -69,9 +68,9 @@ class TestSearchCommand(unittest.TestCase):
             'outputheader = true"'
             '\r\n')
 
-        command = SearchCommand()
+        command = TestStreamingCommand()
         result = StringIO()
-        self.assertRaises(SystemExit, command.process, ['foo.py'], ofile=result)
+        self.assertRaises(SystemExit, command.process, ['foo.py', 'not__GETINFO__or__EXECUTE__', 'args'], ofile=result)
         self.assertTrue(expected_pattern.match(result.getvalue()))
 
         # Command.process should return configuration settings on Getinfo probe
@@ -87,7 +86,7 @@ class TestSearchCommand(unittest.TestCase):
             '__mv_streaming,__mv_supports_multivalues,__mv_supports_rawargs\r\n' \
             '1,0,1,0,0,0,1,1,0,0,0,,0,1,1,log,1,1,1,,,,,,,,,,,,,,,,,,,\r\n'
 
-        command = SearchCommand()
+        command = TestStreamingCommand()
         result = StringIO()
         command.process(['foo.py', '__GETINFO__'], ofile=result)
         self.assertEqual(expected, result.getvalue())
@@ -104,7 +103,7 @@ class TestSearchCommand(unittest.TestCase):
             '"", line \d\d\d : '
             'Unrecognized option: undefined_option = value"\r\n')
 
-        command = SearchCommand()
+        command = TestStreamingCommand()
         result = StringIO()
         self.assertRaises(SystemExit, command.process, ['foo.py', '__GETINFO__', 'undefined_option=value'], ofile=result)
         result.reset()
@@ -113,7 +112,7 @@ class TestSearchCommand(unittest.TestCase):
         # Command.process should produce an error message and exit on parser errors, if invoked to execute, with the
         # same error message as expected_pattern defined above
 
-        command = SearchCommand()
+        command = TestStreamingCommand()
         result = StringIO()
 
         try:
@@ -135,7 +134,7 @@ class TestSearchCommand(unittest.TestCase):
             os.path.abspath(os.path.join(os.path.dirname(__file__), '../../splunklib/searchcommands/internals.py')) +
             '"", line \d+ : \'NoneType\' object is not iterable"\r\n')
 
-        command = SearchCommand()
+        command = TestStreamingCommand()
         result = StringIO()
 
         try:
@@ -238,9 +237,9 @@ class TestSearchCommand(unittest.TestCase):
             '@1983430800 1;@1994320800 0;@2014880400 1;@2025770400 0;@2046330000 1;@2057220000 0;@2077779600 1;' \
             '@2088669600 0;@2109229200 1;@2120119200 0;@2140678800 1;$\', msgType=None, msg=None)'
 
-        info_path = os.path.join(TestSearchCommand._package_directory, 'data', 'input', 'externSearchResultsInfo.csv')
+        info_path = os.path.join(TestSearchCommandProcess._package_directory, 'data', 'input', 'externSearchResultsInfo.csv')
         input = StringIO('infoPath:%s\n\nAction\r\naccess_search_results_info' % info_path)
-        SearchCommand().process(argv=['foo.py', '__EXECUTE__'], ifile=input, ofile=result)
+        TestStreamingCommand().process(argv=['foo.py', '__EXECUTE__'], ifile=input, ofile=result)
 
         observed = re.sub(
             '''vix_families=<Element '?root'? at [^>]+>''', '''vix_families=<Element 'root' at 0x103a7e410>''',
@@ -268,7 +267,7 @@ class TestSearchCommand(unittest.TestCase):
         # Command.process should not provide access to search results info or
         # a service object when the 'infoPath' input header is unavailable
 
-        command = SearchCommand()
+        command = TestStreamingCommand()
         command.process(
             ['foo.py', '__EXECUTE__'], ifile=StringIO('\nAction\r\naccess_search_results_info'), ofile=result)
         self.assertEqual(command.search_results_info, None)
@@ -296,4 +295,4 @@ class TestSearchCommand(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    main()

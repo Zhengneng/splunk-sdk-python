@@ -19,20 +19,19 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from splunklib.searchcommands import validators
 from random import randint
+from unittest import main, TestCase
 
 import os
 import re
 import sys
-import unittest
 
 # P2 [ ] TODO: Verify that all format methods produce 'None' when value is None
 # P2 [ ] TODO: Consider bumping None formatting up to Option.Item.__str__
 
-class TestValidators(unittest.TestCase):
+class TestValidators(TestCase):
 
     def setUp(self):
-        super(TestValidators, self).setUp()
-        return
+        TestCase.setUp(self)
 
     def test_boolean(self):
 
@@ -242,4 +241,4 @@ class TestValidators(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    main()

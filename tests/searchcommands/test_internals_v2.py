@@ -28,12 +28,12 @@ from sys import float_info, maxsize, maxunicode
 from tempfile import mktemp
 from time import time
 from types import MethodType
+from unittest import main, TestCase
 
 import cPickle as pickle
 import json
 import os
 import random
-import unittest
 
 # region Functions for producing random data
 
@@ -85,10 +85,10 @@ def random_unicode():
 # endregion
 
 
-class TestInternals(unittest.TestCase):
+class TestInternals(TestCase):
 
     def setUp(self):
-        unittest.TestCase.setUp(self)
+        TestCase.setUp(self)
 
     def test_object_view(self):
 
@@ -391,11 +391,11 @@ def recorded(method):
     return _record
 
 
-class Test(unittest.TestCase):
+class Test(object):
 
     def __init__(self, fieldnames, data_generators):
 
-        unittest.TestCase.__init__(self)
+        TestCase.__init__(self)
 
         self._data_generators = list(chain((lambda: self._serial_number, time), data_generators))
         self._fieldnames = list(chain(('_serial', '_time'), fieldnames))
@@ -451,4 +451,4 @@ class Test(unittest.TestCase):
 # test.playback()
 
 if __name__ == "__main__":
-    unittest.main()
+    main()

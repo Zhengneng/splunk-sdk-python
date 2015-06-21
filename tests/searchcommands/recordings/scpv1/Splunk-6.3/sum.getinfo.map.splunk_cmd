@@ -1,1 +1,1 @@
-splunk cmd python sum.py __GETINFO__ phase="<bound method SumCommand.map of <__main__.SumCommand object at 0x106620950>>" record="f" total="total" value1
+splunk cmd python sum.py __GETINFO__ phase="map" record="f" total="total" value1
