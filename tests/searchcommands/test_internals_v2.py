@@ -17,7 +17,7 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from splunklib.searchcommands.internals import MetadataDecoder, MetadataEncoder, Recorder, RecordWriter
+from splunklib.searchcommands.internals import MetadataDecoder, MetadataEncoder, Recorder, RecordWriterV2
 from splunklib.searchcommands import SearchMetric
 from collections import deque, OrderedDict
 from cStringIO import StringIO
@@ -153,7 +153,7 @@ class TestInternals(TestCase):
         # RecordWriter writes data in units of maxresultrows records. Default: 50,0000.
         # Partial results are written when the record count reaches maxresultrows.
 
-        writer = RecordWriter(StringIO(), maxresultrows=10)  # small for the purposes of this unit test
+        writer = RecordWriterV2(StringIO(), maxresultrows=10)  # small for the purposes of this unit test
         test_data = OrderedDict()
 
         fieldnames = ['_serial', '_time', 'random_bytes', 'random_dict', 'random_integers', 'random_unicode']
@@ -252,7 +252,7 @@ class TestInternals(TestCase):
             with open(input_file, 'rb') as f:
                 test_data = pickle.load(f)
 
-            writer = RecordWriter(StringIO(), maxresultrows=10)  # small for the purposes of this unit test
+            writer = RecordWriterV2(StringIO(), maxresultrows=10)  # small for the purposes of this unit test
             write_record = writer.write_record
             fieldnames = test_data['fieldnames']
 
