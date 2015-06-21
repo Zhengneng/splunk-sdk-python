@@ -219,7 +219,7 @@ class CommandLineParser(object):
         command_args = cls._arguments_re.match(command_args)
 
         if command_args is None:
-            raise SyntaxError("Syntax error: {}".format(command_args))
+            raise SyntaxError('Syntax error: {}'.format(command_args))
 
         # Parse options
 
@@ -391,7 +391,7 @@ class ConfigurationSettingsType(type):
         'requires_preop': specification(
             type=bool,
             constraint=None,
-            supporting_protocols=[1, 2]),
+            supporting_protocols=[1]),
         'retainsevents': specification(
             type=bool,
             constraint=None,
@@ -429,7 +429,7 @@ class InputHeader(dict):
 
     """
     def __str__(self):
-        return '\r\n'.join([name + ':' + value for name, value in self.iteritems()])
+        return '\n'.join([name + ':' + value for name, value in self.iteritems()])
 
     def read(self, ifile):
         """ Reads an input header from an input file.

@@ -640,9 +640,7 @@ class SearchCommand(object):
             record_argv = [argv[0], argv[1], str(self._options), ' '.join(self.fieldnames)]
             ifile, ofile = self._prepare_recording(record_argv, ifile, ofile)
             self._record_writer.ofile = ofile
-            ifile.record(str(self._input_header), '\r\n\r\n')
-
-            self.record = True  # preserves the original record setting for the benefit of the command author
+            ifile.record(str(self._input_header), '\n\n')
 
         if self.show_configuration:
             self.write_info(self.name + ' command configuration: ' + str(self._configuration))
