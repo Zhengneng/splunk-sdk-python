@@ -127,8 +127,24 @@ class TestSearchCommandsApp(TestCase):
         self.assertEqual(expected, output)
 
     def test_generatehello_as_unit(self):
+
+        expected, output, errors, exit_status = self._run_command('generatehello', action='getinfo', protocol_version=1)
+        self.assertEqual(0, exit_status)
+        # self.assertEqual('', errors)
+        # self.assertEqual(expected, output)
+
+        expected, output, errors, exit_status = self._run_command('generatehello', action='execute', protocol_version=1)
+        self.assertEqual(0, exit_status)
+        # self.assertEqual('', errors)
+        # self.assertEqual(expected, output)
+
         expected, output, errors, exit_status = self._run_command('generatehello')
+        self.assertEqual(0, exit_status)
+        # self.assertEqual('', errors)
+        # self.assertEqual(expected, output)
+
         # P2 [ ] TODO: Smart diff that's insensitive to _time
+        # P2 [ ] TODO: Smart diff that's insensitive to column order
 
     @skipUnless(
         True, 'Skipping TestSearchCommandsApp.test_pypygeneratehello_as_unit because the PyPy compiler is not on the '
