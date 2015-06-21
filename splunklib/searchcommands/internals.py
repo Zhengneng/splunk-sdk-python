@@ -717,6 +717,7 @@ class RecordWriterV2(RecordWriter):
 
     def write_metadata(self, configuration):
         self._ensure_validity()
+        # P1 [ ] TODO: Performance: Consider that RecordWriterV2._write_chunk should require an iterable, not a dict
         metadata = OrderedDict(chain(
             configuration.iteritems(), (('inspector', self._inspector if self._inspector else None),)))
         self._write_chunk(metadata, '')

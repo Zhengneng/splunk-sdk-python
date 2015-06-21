@@ -34,3 +34,11 @@ requires_srinfo = true
 supports_getinfo = true
 supports_rawargs = true
 supports_multivalues = true
+
+[pypygeneratehello]
+enableheader = true
+outputheader = true
+requires_srinfo = true
+supports_getinfo = true
+supports_rawargs = true
+supports_multivalues = true

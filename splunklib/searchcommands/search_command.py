@@ -175,14 +175,12 @@ class SearchCommand(object):
     """ Represents a custom search command.
 
     """
-
     def __init__(self, app_root=None):
         """
         :param app_root: The root of the application directory, used primarily by tests.
         :type app_root: unicode or NoneType
 
         """
-
         # Variables that may be used, but not altered by derived classes
 
         class_name = self.__class__.__name__

@@ -18,7 +18,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 from __init__ import project_root
 
-from cStringIO import StringIO
 from itertools import ifilter, imap, izip
 from subprocess import PIPE, Popen
 from unittest import main, skipUnless, TestCase
@@ -26,6 +25,12 @@ from unittest import main, skipUnless, TestCase
 import csv
 import io
 import os
+
+def pypy():
+    process = Popen(['pypy', '--version'], stderr=PIPE, stdout=PIPE)
+    output, errors = process.communicate()
+    return process.returncode == 0
+
 
 class Recording(object):
 
@@ -146,18 +151,30 @@ class TestSearchCommandsApp(TestCase):
         # P2 [ ] TODO: Smart diff that's insensitive to _time
         # P2 [ ] TODO: Smart diff that's insensitive to column order
 
-    @skipUnless(
-        True, 'Skipping TestSearchCommandsApp.test_pypygeneratehello_as_unit because the PyPy compiler is not on the '
-        'PATH.')
+    @skipUnless(pypy(), 'Skipping TestSearchCommandsApp.test_pypygeneratehello_as_unit because pypy is not on PATH.')
     def test_pypygeneratehello_as_unit(self):
+
+        expected, output, errors, exit_status = self._run_command('pypygeneratehello', action='getinfo', protocol_version=1)
+        self.assertEqual(0, exit_status)
+        # self.assertEqual('', errors)
+        self.assertEqual(expected, output)
+
+        expected, output, errors, exit_status = self._run_command('pypygeneratehello', action='execute', protocol_version=1)
+        self.assertEqual(0, exit_status)
+        # self.assertEqual('', errors)
+        # self.assertEqual(expected, output)
+
         expected, output, errors, exit_status = self._run_command('pypygeneratehello')
-        # P2 [ ] TODO: Smart diff that's insensitive to _time
-        # P2 [ ] TODO: Skip unless pypy is the path
+        self.assertEqual(0, exit_status)
+        # self.assertEqual('', errors)
+        # self.assertEqual(expected, output)
 
     def test_sum_as_unit(self):
+
         expected, output, errors, exit_status = self._run_command('sum', phase='map')
         self.assertEqual(expected, output)
-        expected, output = self._run_command('sum', phase='reduce')
+
+        expected, output, errors, exit_status = self._run_command('sum', phase='reduce')
         self.assertEqual(expected, output)
 
     def _get_search_command_path(self, name):
