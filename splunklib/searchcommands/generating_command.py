@@ -93,9 +93,22 @@ class GeneratingCommand(SearchCommand):
         """ Represents the configuration settings for a :code:`GeneratingCommand` class.
 
         """
+        # region SCP v1/v2 Properties
+
+        generating = ConfigurationSetting(readonly=True, value=True, doc='''
+            Tells Splunk that this command generates events, but does not process inputs.
+
+            Generating commands must appear at the front of the search pipeline identified by :meth:`type`.
+
+            Fixed: :const:`True`
+
+            ''')
+
+        # endregion
+
         # region SCP v1 Properties
 
-        generates_timeorder = ConfigurationSetting(value=False, doc='''
+        generates_timeorder = ConfigurationSetting(doc='''
             :const:`True`, if the command generates new events.
 
             Default: :const:`True`
@@ -120,15 +133,6 @@ class GeneratingCommand(SearchCommand):
             may be distributed.
 
             Default: :const:`False`
-
-            ''')
-
-        generating = ConfigurationSetting(readonly=True, value=True, doc='''
-            Tells Splunk that this command generates events, but does not process inputs.
-
-            Generating commands must appear at the front of the search pipeline identified by :meth:`type`.
-
-            Fixed: :const:`True`
 
             ''')
 

@@ -718,7 +718,7 @@ class RecordWriterV2(RecordWriter):
     def write_metadata(self, configuration):
         self._ensure_validity()
         metadata = OrderedDict(chain(
-            configuration.items(), (('inspector', self._inspector if self._inspector else None),)))
+            configuration.iteritems(), (('inspector', self._inspector if self._inspector else None),)))
         self._write_chunk(metadata, '')
         self._ofile.write('\n')
         self._clear()

@@ -62,9 +62,22 @@ class StreamingCommand(SearchCommand):
         """ Represents the configuration settings that apply to a :class:`StreamingCommand`.
 
         """
+        # region SCP v1/v2 properties
+
+        required_fields = ConfigurationSetting(doc='''
+            List of required fields for this search (back-propagates to the generating search).
+
+            Setting this value enables selected fields mode.
+
+            Default: :const:`['*']`
+
+            ''')
+
+        # endregion
+
         # region SCP v1 properties
 
-        clear_required_fields = ConfigurationSetting(value=False, doc='''
+        clear_required_fields = ConfigurationSetting(doc='''
             :const:`True`, if required_fields represent the *only* fields required.
 
             If :const:`False`, required_fields are additive to any fields that may be required by subsequent commands.
@@ -92,7 +105,7 @@ class StreamingCommand(SearchCommand):
 
         # region SCP v2 Properties
 
-        distributed = ConfigurationSetting('distributed', doc='''
+        distributed = ConfigurationSetting(doc='''
             True, if this command should be distributed to indexers.
 
             Default: :const:`True`
@@ -105,15 +118,6 @@ class StreamingCommand(SearchCommand):
             This limit cannot exceed the value of `maxresultrows` in `limits.conf`.
 
             Default: The value of maxresultrows.
-
-            ''')
-
-        required_fields = ConfigurationSetting(doc='''
-            List of required fields for this search (back-propagates to the generating search).
-
-            Setting this value enables selected fields mode.
-
-            Default: :const:`['*']`
 
             ''')
 

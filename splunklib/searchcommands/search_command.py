@@ -23,6 +23,7 @@ from splunklib.client import Service
 from collections import namedtuple, OrderedDict
 from cStringIO import StringIO
 from itertools import chain, ifilter, imap, islice, izip
+from json.encoder import encode_basestring as encode_string
 from logging import _levelNames, getLevelName, getLogger
 from shutil import make_archive
 from time import time
@@ -379,10 +380,16 @@ class SearchCommand(object):
 
             path = os.path.join(dispatch_dir, 'info.csv')
 
-        with open(path, 'rb') as f:
-            reader = csv.reader(f, dialect=CsvDialect)
-            fields = reader.next()
-            values = reader.next()
+        try:
+            with open(path, 'rb') as f:
+                reader = csv.reader(f, dialect=CsvDialect)
+                fields = reader.next()
+                values = reader.next()
+        except IOError as error:
+            if error.errno == 2:
+                self.logger.error('Search results info file {} does not exist.'.format(encode_string(path)))
+                return
+            raise
 
         def convert_field(field):
             return (field[1:] if field[0] == '_' else field).replace('.', '_')
@@ -535,16 +542,16 @@ class SearchCommand(object):
 
     def _map_input_header(self):
         metadata = self._metadata
-        info = metadata.searchinfo
+        searchinfo = metadata.searchinfo
         self._input_header.update(
             allowStream=None,
-            infoPath=os.path.join(info.dispatch_dir, 'info.csv'),
+            infoPath=os.path.join(searchinfo.dispatch_dir, 'info.csv'),
             keywords=None,
             preview=metadata.preview,
-            realtime=metadata.earliest_time != 0 and metadata.latest_time != 0,
-            search=info.search,
-            sid=info.sid,
-            splunkVersion=info.splunk_version,
+            realtime=searchinfo.earliest_time != 0 and searchinfo.latest_time != 0,
+            search=searchinfo.search,
+            sid=searchinfo.sid,
+            splunkVersion=searchinfo.splunk_version,
             truncated=None)
 
     def _map_metadata(self, argv):
@@ -611,7 +618,6 @@ class SearchCommand(object):
 
         # Provide as much context as possible in advance of parsing the command line and preparing for execution
 
-        self._record_writer = RecordWriterV1(ofile)
         self._input_header.read(ifile)
         self._protocol_version = 1
         self._map_metadata(argv)
@@ -641,10 +647,8 @@ class SearchCommand(object):
             self.record = True  # preserves the original record setting for the benefit of the command author
 
         if self.show_configuration:
-            message = self.name + ' command configuration settings: ' + str(self._configuration)
-            self.write_info(message)
+            self.write_info(self.name + ' command configuration: ' + str(self._configuration))
 
-        self._write_record = self._record_writer.write_record
         return ifile  # wrapped, if self.record is True
 
     def _prepare_recording(self, argv, ifile, ofile):
@@ -685,6 +689,9 @@ class SearchCommand(object):
         class_name = self.__class__.__name__
 
         debug('%s.process started under protocol_version=1', class_name)
+        self._record_writer = RecordWriterV1(ofile)
+        self._write_record = self._record_writer.write_record
+
         # noinspection PyBroadException
         try:
             if argv[1] == '__GETINFO__':
@@ -711,9 +718,12 @@ class SearchCommand(object):
                     'default/commands.conf contains this stanza:\n'
                     '[{0}]\n'
                     'filename = {1}\n'
+                    'enableheader = true\n'
+                    'outputheader = true\n'
+                    'requires_srinfo = true\n'
                     'supports_getinfo = true\n'
-                    'supports_rawargs = true\n'
-                    'outputheader = true'.format(self.name, os.path.basename(argv[0])))
+                    'supports_multivalues = true\n'
+                    'supports_rawargs = true'.format(self.name, os.path.basename(argv[0])))
                 raise RuntimeError(message)
 
         except SystemExit:
@@ -772,13 +782,14 @@ class SearchCommand(object):
         except:
             self._record_writer = RecordWriterV2(ofile)
             self._report_unexpected_error()
-            self._record_writer.flush(finished=True)
+            self.finish()
             exit(1)
 
         # Write search command configuration for consumption by splunkd
         # noinspection PyBroadException
         try:
             self._record_writer = RecordWriterV2(ofile, getattr(self._metadata, 'maxresultrows', None))
+            self._write_record = self._record_writer.write_record
             self.fieldnames = []
             self.options.reset()
 
@@ -823,7 +834,7 @@ class SearchCommand(object):
             if error_count > 0:
                 exit(1)
 
-            debug('  command=%s', unicode(self))
+            debug('  command: %s', unicode(self))
 
             debug('Preparing for execution')
             self.prepare()
@@ -844,10 +855,9 @@ class SearchCommand(object):
                 ifile.record('chunked 1.0,', unicode(len(metadata)), ',0\n', metadata)
 
             if self.show_configuration:
-                message = self.name + ' command configuration settings: ' + str(self._configuration)
-                self.write_info(message)
+                self.write_info(self.name + ' command configuration: ' + str(self._configuration))
 
-            debug('  configuration=%s', self._configuration)
+            debug('  command configuration: %s', self._configuration)
             self._record_writer.write_metadata(self._configuration)
 
         except SystemExit:
@@ -862,6 +872,7 @@ class SearchCommand(object):
         # noinspection PyBroadException
         try:
             debug('Executing under protocol_version=2')
+            self._records = self._records_protocol_v2
             self._execute(ifile, None)
         except SystemExit:
             self.flush()
@@ -983,6 +994,7 @@ class SearchCommand(object):
     def _records_protocol_v1(self, ifile):
 
         reader = csv.reader(ifile, dialect=CsvDialect)
+
         try:
             fieldnames = reader.next()
         except StopIteration:
@@ -1101,8 +1113,8 @@ class SearchCommand(object):
             :return: String representation of this instance
 
             """
-            items = imap(lambda (name, value): name + '=' + repr(value), self.iteritems())
-            return ', '.join(items)
+            text = ', '.join(imap(lambda (name, value): name + '=' + encode_string(unicode(value)), self.iteritems()))
+            return text
 
         # region Methods
 

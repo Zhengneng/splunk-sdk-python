@@ -119,6 +119,27 @@ class ReportingCommand(SearchCommand):
         """ Represents the configuration settings for a :code:`ReportingCommand`.
 
         """
+        # region SCP v1/v2 Properties
+
+        requires_preop = ConfigurationSetting(doc='''
+            Indicates whether :meth:`ReportingCommand.map` is required for proper command execution.
+
+            If :const:`True`, :meth:`ReportingCommand.map` is guaranteed to be called. If :const:`False`, Splunk
+            considers it to be an optimization that may be skipped.
+
+            Default: :const:`False`
+
+            ''')
+
+        streaming_preop = ConfigurationSetting(doc='''
+            Denotes the requested streaming preop search string.
+
+            Computed.
+
+            ''')
+
+        # endregion
+
         # region SCP v1 Properties
 
         clear_required_fields = ConfigurationSetting(doc='''
@@ -128,6 +149,20 @@ class ReportingCommand(SearchCommand):
             In most cases, :const:`True` is appropriate for reporting commands.
 
             Default: :const:`True`
+
+            ''')
+
+        retainsevents = ConfigurationSetting(readonly=True, value=False, doc='''
+            Signals that :meth:`ReportingCommand.reduce` transforms _raw events to produce a reporting data structure.
+
+            Fixed: :const:`False`
+
+            ''')
+
+        streaming = ConfigurationSetting(readonly=True, value=False, doc='''
+            Signals that :meth:`ReportingCommand.reduce` runs on the search head.
+
+            Fixed: :const:`False`
 
             ''')
 
@@ -144,43 +179,12 @@ class ReportingCommand(SearchCommand):
 
             ''')
 
-        requires_preop = ConfigurationSetting(doc='''
-            Indicates whether :meth:`ReportingCommand.map` is required for proper command execution.
-
-            If :const:`True`, :meth:`ReportingCommand.map` is guaranteed to be called. If :const:`False`, Splunk
-            considers it to be an optimization that may be skipped.
-
-            Default: :const:`False`
-
-            ''')
-
-        retainsevents = ConfigurationSetting(value=False, doc='''
-            Signals that :meth:`ReportingCommand.reduce` transforms _raw events to produce a reporting data structure.
-
-            Fixed: :const:`False`
-
-            ''')
-
         run_in_preview = ConfigurationSetting(doc='''
             :const:`True`, if this command should be run to generate results for preview; not wait for final output.
 
             This may be important for commands that have side effects (e.g. outputlookup)
 
             Default: :const:`True`
-
-            ''')
-
-        streaming = ConfigurationSetting(value=False, doc='''
-            Signals that :meth:`ReportingCommand.reduce` runs on the search head.
-
-            Fixed: :const:`False`
-
-            ''')
-
-        streaming_preop = ConfigurationSetting(doc='''
-            Denotes the requested streaming preop search string.
-
-            Computed.
 
             ''')
 

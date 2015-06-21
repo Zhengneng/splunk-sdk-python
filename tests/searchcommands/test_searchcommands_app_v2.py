@@ -16,16 +16,16 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
+from __init__ import project_root
 
+from cStringIO import StringIO
 from itertools import ifilter, imap, izip
 from subprocess import PIPE, Popen
-
-from __init__ import project_root
+from unittest import main, skipUnless, TestCase
 
 import csv
 import io
 import os
-import unittest
 
 class Recording(object):
 
@@ -34,16 +34,31 @@ class Recording(object):
         self._dispatch_dir = path + '.dispatch_dir'
         self._search = None
 
-        with io.open(os.path.join(self._dispatch_dir, 'request.csv')) as ifile:
-            reader = csv.reader(ifile)
-            for name, value in izip(reader.next(), reader.next()):
-                if name == 'search':
-                    self._search = value
-                    break
+        if os.path.exists(self._dispatch_dir):
+            with io.open(os.path.join(self._dispatch_dir, 'request.csv')) as ifile:
+                reader = csv.reader(ifile)
+                for name, value in izip(reader.next(), reader.next()):
+                    if name == 'search':
+                        self._search = value
+                        break
+            assert self._search is not None
 
-        assert self._search is not None
+        splunk_cmd = path + '.splunk_cmd'
+
+        try:
+            with io.open(splunk_cmd, 'rb') as f:
+                self._args = f.readline().encode().split(None, 5)  # ['splunk', 'cmd', <filename>, <action>, <args>]
+        except IOError as error:
+            if error.errno != 2:
+                raise
+            self._args = ['splunk', 'cmd', 'python', None]
+
         self._input_file = path + '.input'
         self._output_file = path + '.output'
+
+    def get_args(self, command_path):
+        self._args[3] = command_path
+        return self._args
 
     @property
     def dispatch_dir(self):
@@ -64,7 +79,7 @@ class Recording(object):
 
 class Recordings(object):
 
-    def __init__(self, name, phase, protocol_version):
+    def __init__(self, name, action, phase, protocol_version):
 
         basedir = Recordings._prefix + unicode(protocol_version)
 
@@ -73,7 +88,7 @@ class Recordings(object):
                 protocol_version, basedir))
 
         self._basedir = basedir
-        self._name = name if phase is None else name + '.' + phase
+        self._name = '.'.join(ifilter(lambda part: part is not None, (name, action, phase)))
 
     def __iter__(self):
 
@@ -86,34 +101,47 @@ class Recordings(object):
 
         return iterator
 
-    _prefix = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'recordings', 'v')
+    _prefix = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'recordings', 'scpv')
 
 
-class TestSearchCommandsApp(unittest.TestCase):
+class TestSearchCommandsApp(TestCase):
 
     def setUp(self):
-        unittest.TestCase.setUp(self)
+        TestCase.setUp(self)
 
     def test_countmatches_as_unit(self):
-        expected, output = self._run_command('countmatches')
+
+        expected, output, errors, exit_status = self._run_command('countmatches', action='getinfo', protocol_version=1)
+        self.assertEqual(0, exit_status)
+        # self.assertEqual('', errors)
+        self.assertEqual(expected, output)
+
+        expected, output, errors, exit_status = self._run_command('countmatches', action='execute', protocol_version=1)
+        self.assertEqual(0, exit_status)
+        # self.assertEqual('', errors)
+        self.assertEqual(expected, output)
+
+        expected, output, errors, exit_status = self._run_command('countmatches')
+        self.assertEqual(0, exit_status)
+        # self.assertEqual('', errors)
         self.assertEqual(expected, output)
 
     def test_generatehello_as_unit(self):
-        expected, output = self._run_command('generatehello')
+        expected, output, errors, exit_status = self._run_command('generatehello')
         # P2 [ ] TODO: Smart diff that's insensitive to _time
 
-    @unittest.skipUnless(
+    @skipUnless(
         True, 'Skipping TestSearchCommandsApp.test_pypygeneratehello_as_unit because the PyPy compiler is not on the '
         'PATH.')
     def test_pypygeneratehello_as_unit(self):
-        expected, output = self._run_command('pypygeneratehello')
+        expected, output, errors, exit_status = self._run_command('pypygeneratehello')
         # P2 [ ] TODO: Smart diff that's insensitive to _time
         # P2 [ ] TODO: Skip unless pypy is the path
 
     def test_sum_as_unit(self):
-        expected, output = self._run_command('sum', 'map')
+        expected, output, errors, exit_status = self._run_command('sum', phase='map')
         self.assertEqual(expected, output)
-        expected, output = self._run_command('sum', 'reduce')
+        expected, output = self._run_command('sum', phase='reduce')
         self.assertEqual(expected, output)
 
     def _get_search_command_path(self, name):
@@ -121,10 +149,9 @@ class TestSearchCommandsApp(unittest.TestCase):
         self.assertTrue(path)
         return path
 
-    def _run_command(self, name, phase=None):
+    def _run_command(self, name, action=None, phase=None, protocol_version=2):
 
         command = self._get_search_command_path(name)
-        args = ['splunk', 'cmd', 'python', command]
 
         # P2 [ ] TODO: Test against the version of Python that ships with the version of Splunk used to produce each
         # recording
@@ -132,14 +159,16 @@ class TestSearchCommandsApp(unittest.TestCase):
 
         # P2 [ ] TODO: Examine the contents of the app and splunklib log files (?)
 
-        for recording in Recordings(name, phase, protocol_version=2):
+        expected, output = None, None
+
+        for recording in Recordings(name, action, phase, protocol_version):
             with io.open(recording.input_file, 'rb') as ifile:
-                process = Popen(args, stdin=ifile, stdout=PIPE)
-                output = process.stdout.read()
+                process = Popen(recording.get_args(command), stdin=ifile, stderr=PIPE, stdout=PIPE)
+                output, errors = process.communicate()
             with io.open(recording.output_file, 'rb') as ifile:
                 expected = ifile.read()
 
-        return expected, output
+        return expected, output, errors, process.returncode
 
 if __name__ == "__main__":
-    unittest.main()
+    main()
