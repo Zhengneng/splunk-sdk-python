@@ -24,7 +24,7 @@ import os
 import sys
 
 @Configuration()
-class StubbedSearchCommand(SearchCommand):
+class TestSearchCommand(SearchCommand):
 
     boolean = Option(
         doc='''
@@ -292,17 +292,22 @@ class TestDecorators(TestCase):
 
     def test_option(self):
 
-        presets = ['logging_level="WARNING"', 'record="f"', 'show_configuration="f"']
+        app_root=os.path.join(self._package_directory, 'data', 'app_with_logging_configuration')
 
-        command = StubbedSearchCommand()
+        presets = [
+            'logging_level="WARNING"',
+            'record="f"',
+            'show_configuration="f"']
+
+        command = TestSearchCommand()
         options = command.options
         itervalues = options.itervalues
 
         options.reset()
         missing = options.get_missing()
         self.assertListEqual(missing, [option.name for option in itervalues() if option.is_required])
-        self.assertListEqual(presets, [str(option) for option in itervalues() if option.value is not None])
-        self.assertListEqual(presets, [str(option) for option in itervalues() if str(option) != option.name + '=None'])
+        self.assertListEqual(presets, [unicode(option) for option in itervalues() if option.value is not None])
+        self.assertListEqual(presets, [unicode(option) for option in itervalues() if unicode(option) != option.name + '=None'])
 
         test_option_values = {
             validators.Boolean: ('0', 'non-boolean value'),
