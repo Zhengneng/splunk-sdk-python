@@ -20,6 +20,7 @@ from collections import deque, namedtuple, OrderedDict
 from cStringIO import StringIO
 from itertools import chain, ifilter, imap
 from json import JSONDecoder, JSONEncoder
+from json.encoder import encode_basestring as encode_string
 from logging import getLogger, root, StreamHandler
 from logging.config import fileConfig
 from numbers import Number
@@ -225,15 +226,17 @@ class CommandLineParser(object):
         for option in cls._options_re.finditer(command_args.group('options')):
             name, value = option.group(1), option.group(2)
             if name not in command.options:
-                raise ValueError('Unrecognized option: {}={}'.format(name, repr(value)))
+                raise ValueError(
+                    'Unrecognized {} command option: {}={}'.format(command.name, name, encode_string(value)))
             command.options[name].value = cls.unquote(value)
 
         missing = command.options.get_missing()
 
         if missing is not None:
-            if len(missing) == 1:
-                raise ValueError('A value for "{}" is required'.format(missing[0]))
-            raise ValueError('Values for these options are required: {}'.format(', '.join(missing)))
+            if len(missing) > 1:
+                raise ValueError(
+                    'Values for these {} command options are required: {}'.format(command.name, ', '.join(missing)))
+            raise ValueError('A value for {} command option {} is required'.format(command.name, missing[0]))
 
         # Parse field names
 
@@ -374,7 +377,7 @@ class ConfigurationSettingsType(type):
         'generating': specification(
             type=bool,
             constraint=None,
-            supporting_protocols=[1]),
+            supporting_protocols=[1, 2]),
         'maxinputs': specification(
             type=int,
             constraint=lambda value: 0 <= value <= sys.maxsize,
@@ -398,7 +401,7 @@ class ConfigurationSettingsType(type):
         'run_in_preview': specification(
             type=bool,
             constraint=None,
-            supporting_protocols=[1, 2]),
+            supporting_protocols=[2]),
         'streaming': specification(
             type=bool,
             constraint=None,

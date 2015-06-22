@@ -433,24 +433,20 @@ class SearchCommand(object):
     def service(self):
         """ Returns a Splunk service object for this command invocation or None.
 
-        The service object is created from the Splunkd URI and authentication
-        token passed to the command invocation in the search results info file.
-        This data is not passed to a command invocation by default. You must
-        request it by specifying this pair of configuration settings in
-        commands.conf:
+        The service object is created from the Splunkd URI and authentication token passed to the command invocation in
+        the search results info file. This data is not passed to a command invocation by default. You must request it by
+        specifying this pair of configuration settings in commands.conf:
 
            .. code-block:: python
                enableheader=true
                requires_srinfo=true
 
-        The :code:`enableheader` setting is :code:`true` by default. Hence, you
-        need not set it. The :code:`requires_srinfo` setting is false by
-        default. Hence, you must set it.
+        The :code:`enableheader` setting is :code:`true` by default. Hence, you need not set it. The
+        :code:`requires_srinfo` setting is false by default. Hence, you must set it.
 
-        :return: :class:`splunklib.client.Service`, if :code:`enableheader` and
-            :code:`requires_srinfo` are both :code:`true`. Otherwise, if either
-            :code:`enableheader` or :code:`requires_srinfo` are :code:`false`,
-            a value of :code:`None` is returned.
+        :return: :class:`splunklib.client.Service`, if :code:`enableheader` and :code:`requires_srinfo` are both
+        :code:`true`. Otherwise, if either :code:`enableheader` or :code:`requires_srinfo` are :code:`false`, a value
+        of :code:`None` is returned.
 
         """
         if self._service is not None:
@@ -466,7 +462,12 @@ class SearchCommand(object):
         except AttributeError:
             return None
 
-        uri = urlsplit(searchinfo.splunkd_uri, allow_fragments=False)
+        splunkd_uri = searchinfo.splunkd_uri
+
+        if splunkd_uri is None:
+            return None
+
+        uri = urlsplit(splunkd_uri, allow_fragments=False)
 
         self._service = Service(
             scheme=uri.scheme, host=uri.hostname, port=uri.port, app=searchinfo.app, token=searchinfo.session_key)
@@ -630,8 +631,6 @@ class SearchCommand(object):
         debug('  tempfile.tempdir=%r', tempfile.tempdir)
 
         CommandLineParser.parse(self, argv[2:])
-
-        self._configuration = self._new_configuration_settings()
         self.prepare()
 
         if self.record:
@@ -721,6 +720,11 @@ class SearchCommand(object):
                     'supports_multivalues = true\n'
                     'supports_rawargs = true'.format(self.name, os.path.basename(argv[0])))
                 raise RuntimeError(message)
+
+        except ValueError as error:
+            self.write_error(unicode(error))
+            self.flush()
+            exit(0)
 
         except SystemExit:
             self.flush()
@@ -824,8 +828,6 @@ class SearchCommand(object):
                 else:
                     self.write_error('Values for these required options are missing: {}'.format(', '.join(missing)))
                 error_count += 1
-
-            self._configuration = self._new_configuration_settings()  # included in the output even when error_count > 0
 
             if error_count > 0:
                 exit(1)
@@ -941,9 +943,6 @@ class SearchCommand(object):
         for record in process(self._records(ifile)):
             write_record(record)
         self.finish()
-
-    def _new_configuration_settings(self):
-        return self.ConfigurationSettings(self)
 
     @staticmethod
     def _read_chunk(ifile):
@@ -1118,15 +1117,15 @@ class SearchCommand(object):
         def fix_up(cls, command_class):
             """ Adjusts and checks this class and its search command class.
 
-            Derived classes must override this method. It is used by the :decorator:`Configuration` decorator to fix up
-            the :class:`SearchCommand` class it adorns. This method is overridden by :class:`EventingCommand`,
+            Derived classes typically override this method. It is used by the :decorator:`Configuration` decorator to
+            fix up the :class:`SearchCommand` class it adorns. This method is overridden by :class:`EventingCommand`,
             :class:`GeneratingCommand`, :class:`ReportingCommand`, and :class:`StreamingCommand`, the base types for
             all other search commands.
 
             :param command_class: Command class targeted by this class
 
             """
-            raise NotImplementedError('SearchCommand.Configuration.fix_up method must be overridden')
+            return
 
         def items(self):
             """ Represents this instance as an :class:`OrderedDict`.

@@ -17,24 +17,61 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from splunklib.searchcommands import Configuration, StreamingCommand
+from splunklib.searchcommands.decorators import ConfigurationSetting, Option
+from splunklib.searchcommands.search_command import SearchCommand
 from splunklib.client import Service
 from cStringIO import StringIO
 from unittest import main, TestCase
 
 import os
 import re
-import sys
 
+
+@Configuration()
+class TestCommand(SearchCommand):
+
+    required_option_1 = Option(require=True)
+    required_option_2 = Option(require=True)
+
+    class ConfigurationSettings(SearchCommand.ConfigurationSettings):
+
+        # region SCP v1/v2 properties
+
+        generating = ConfigurationSetting()
+        required_fields = ConfigurationSetting()
+        streaming_preop = ConfigurationSetting()
+
+        # endregion
+
+        # region SCP v1 properties
+
+        clear_required_fields = ConfigurationSetting()
+        generates_timeorder = ConfigurationSetting()
+        overrides_timeorder = ConfigurationSetting()
+        requires_preop = ConfigurationSetting()
+        retainsevents = ConfigurationSetting()
+        streaming = ConfigurationSetting()
+
+        # endregion
+
+        # region SCP v2 properties
+
+        distributed = ConfigurationSetting()
+        maxinputs = ConfigurationSetting()
+        run_in_preview = ConfigurationSetting()
+        type = ConfigurationSetting()
+
+        # endregion
 
 @Configuration()
 class TestStreamingCommand(StreamingCommand):
     def stream(self, records):
         serial_number = 0L
         for record in records:
-            action = record['Action']
+            action = record['action']
             if action == 'raise_error':
                 raise RuntimeError('Testing')
-            value = self.search_results_info if action == 'access_search_results_info' else None
+            value = self.search_results_info if action == 'get_search_results_info' else None
             yield {'_serial': serial_number, 'data': value}
             serial_number += 1L
         return
@@ -49,16 +86,17 @@ class TestSearchCommandProcess(TestCase):
 
     def test_process_v1(self):
 
-        # Command.process should complain if supports_getinfo == False
+        # TestCommand.process should complain if supports_getinfo == False
         # We support dynamic configuration, not static
 
-        # The exception line number may change, so we're using a regex match instead
-        expected_pattern = re.compile(
-            r'error_message=RuntimeError at ".+search_command\.py", line \d\d\d : Command teststreaming appears to be '
+        # The exception line number may change, so we're using a regex match instead of a string match
+
+        expected = re.compile(
+            r'error_message=RuntimeError at ".+search_command\.py", line \d\d\d : Command test appears to be '
             r'statically configured for search command protocol version 1 and static configuration is unsupported by '
             r'splunklib.searchcommands. Please ensure that default/commands.conf contains this stanza:\n'
-            r'\[teststreaming\]\n'
-            r'filename = teststreaming.py\n'
+            r'\[test\]\n'
+            r'filename = test.py\n'
             r'enableheader = true\n'
             r'outputheader = true\n'
             r'requires_srinfo = true\n'
@@ -66,213 +104,217 @@ class TestSearchCommandProcess(TestCase):
             r'supports_multivalues = true\n'
             r'supports_rawargs = true')
 
-        command = TestStreamingCommand()
+        argv = ['test.py', 'not__GETINFO__or__EXECUTE__', 'option=value', 'fieldname']
+        command = TestCommand()
         result = StringIO()
 
-        self.assertRaises(
-            SystemExit, command.process, ['teststreaming.py', 'not__GETINFO__or__EXECUTE__', 'args'], ofile=result)
+        self.assertRaises(SystemExit, command.process, argv, ofile=result)
+        self.assertRegexpMatches(result.getvalue(), expected)
 
-        self.assertRegexpMatches(result.getvalue(), expected_pattern)
+        # TestCommand.process should return configuration settings on Getinfo probe
 
-        # Command.process should return configuration settings on Getinfo probe
-
-        expected = \
-            '\r\n' \
-            'changes_colorder,clear_required_fields,enableheader,generating,local,maxinputs,needs_empty_results,' \
-            'outputheader,overrides_timeorder,passauth,perf_warn_limit,required_fields,requires_srinfo,retainsevents,' \
-            'run_in_preview,stderr_dest,streaming,supports_multivalues,supports_rawargs,__mv_changes_colorder,' \
-            '__mv_clear_required_fields,__mv_enableheader,__mv_generating,__mv_local,__mv_maxinputs,' \
-            '__mv_needs_empty_results,__mv_outputheader,__mv_overrides_timeorder,__mv_passauth,__mv_perf_warn_limit,' \
-            '__mv_required_fields,__mv_requires_srinfo,__mv_retainsevents,__mv_run_in_preview,__mv_stderr_dest,' \
-            '__mv_streaming,__mv_supports_multivalues,__mv_supports_rawargs\r\n' \
-            '1,0,1,0,0,0,1,1,0,0,0,,0,1,1,log,1,1,1,,,,,,,,,,,,,,,,,,,\r\n'
-
-        command = TestStreamingCommand()
+        argv = ['test.py', '__GETINFO__', 'required_option_1=value', 'required_option_2=value']
+        command = TestCommand()
+        ifile = StringIO('\n')
         result = StringIO()
-        command.process(['teststreaming.py', '__GETINFO__'], ofile=result)
-        self.assertEqual(expected, result.getvalue())
 
-        # Command.process should produce an error record on parser errors, if
-        # invoked to get configuration settings
+        self.assertEqual(str(command.configuration), '')
 
-        expected_pattern = re.compile(
+        self.assertEqual(
+            repr(command.configuration),
+            "[(u'clear_required_fields', None, [1]), (u'distributed', None, [2]), (u'generates_timeorder', None, [1]), "
+            "(u'generating', None, [1, 2]), (u'maxinputs', None, [2]), (u'overrides_timeorder', None, [1]), "
+            "(u'required_fields', None, [1, 2]), (u'requires_preop', None, [1]), (u'retainsevents', None, [1]), "
+            "(u'run_in_preview', None, [2]), (u'streaming', None, [1]), (u'streaming_preop', None, [1, 2]), "
+            "(u'type', None, [2])]")
+
+        try:
+            # noinspection PyTypeChecker
+            command.process(argv, ifile, ofile=result)
+        except BaseException as error:
+            self.fail('{0}: {1}: {2}\n'.format(type(error).__name__, error, result.getvalue()))
+
+        self.assertEqual('\r\n\r\n\r\n', result.getvalue())  # No message header and no configuration settings
+
+        ifile = StringIO('\n')
+        result = StringIO()
+
+        # We might also put this sort of code into our SearchCommand.prepare override ...
+
+        configuration = command.configuration
+
+        # SCP v1/v2 configuration settings
+        configuration.generating = True
+        configuration.required_fields = ['*']
+        configuration.streaming_preop = 'some streaming command'
+
+        # SCP v1 configuration settings
+        configuration.clear_required_fields = True
+        configuration.generates_timeorder = True
+        configuration.overrides_timeorder = True
+        configuration.requires_preop = True
+        configuration.retainsevents = True
+        configuration.streaming = True
+
+        # SCP v2 configuration settings (SCP v1 requires that maxinputs and run_in_preview are set in commands.conf)
+        configuration.distributed = True
+        configuration.maxinputs = 50000
+        configuration.run_in_preview = True
+        configuration.type = 'streaming'
+
+        self.assertEqual(
+            str(command.configuration),
+            'clear_required_fields="True", generates_timeorder="True", generating="True", overrides_timeorder="True", '
+            'required_fields="[u\'*\']", requires_preop="True", retainsevents="True", streaming="True", '
+            'streaming_preop="some streaming command"')
+
+        self.assertEqual(
+            repr(command.configuration),
+            "[(u'clear_required_fields', True, [1]), (u'distributed', True, [2]), (u'generates_timeorder', True, [1]), "
+            "(u'generating', True, [1, 2]), (u'maxinputs', 50000, [2]), (u'overrides_timeorder', True, [1]), "
+            "(u'required_fields', [u'*'], [1, 2]), (u'requires_preop', True, [1]), (u'retainsevents', True, [1]), "
+            "(u'run_in_preview', True, [2]), (u'streaming', True, [1]), "
+            "(u'streaming_preop', u'some streaming command', [1, 2]), (u'type', u'streaming', [2])]")
+
+        try:
+            # noinspection PyTypeChecker
+            command.process(argv, ifile, ofile=result)
+        except BaseException as error:
+            self.fail('{0}: {1}: {2}\n'.format(type(error).__name__, error, result.getvalue()))
+
+        expected = (
             '\r\n'
-            'ERROR\r\n'
-            '"ValueError at ""' +
-            os.path.abspath(
-                os.path.join(os.path.dirname(__file__), "../../splunklib/searchcommands/internals.py")) +
-            '"", line \d\d\d : '
-            'Unrecognized option: undefined_option = value"\r\n')
+            'clear_required_fields,__mv_clear_required_fields,generates_timeorder,__mv_generates_timeorder,generating,'
+            '__mv_generating,overrides_timeorder,__mv_overrides_timeorder,required_fields,__mv_required_fields,'
+            'requires_preop,__mv_requires_preop,retainsevents,__mv_retainsevents,streaming,__mv_streaming,'
+            'streaming_preop,__mv_streaming_preop\r\n'
+            '1,,1,,1,,1,,*,,1,,1,,1,,some streaming command,\r\n')
 
-        command = TestStreamingCommand()
-        result = StringIO()
-        self.assertRaises(SystemExit, command.process, ['foo.py', '__GETINFO__', 'undefined_option=value'], ofile=result)
-        result.reset()
-        self.assertTrue(expected_pattern.match(result.getvalue()))
+        self.assertEqual(expected, result.getvalue())  # No message header and no configuration settings
 
-        # Command.process should produce an error message and exit on parser errors, if invoked to execute, with the
-        # same error message as expected_pattern defined above
+        for action in '__GETINFO__', '__EXECUTE__':
 
+            # TestCommand.process should produce an error record on parser errors
+
+            argv = [
+                'test.py', action, 'required_option_1=value', 'required_option_2=value', 'undefined_option=value',
+                'fieldname_1', 'fieldname_2']
+
+            command = TestCommand()
+            ifile = StringIO('\n')
+            result = StringIO()
+
+            self.assertRaises(SystemExit, command.process, argv, ifile, ofile=result)
+            self.assertTrue(
+                'error_message=Unrecognized test command option: undefined_option="value"\r\n\r\n',
+                result.getvalue())
+
+            # TestCommand.process should produce an error record when required options are missing
+
+            argv = ['test.py', action, 'required_option_2=value', 'fieldname_1']
+            command = TestCommand()
+            ifile = StringIO('\n')
+            result = StringIO()
+
+            self.assertRaises(SystemExit, command.process, argv, ifile, ofile=result)
+
+            self.assertTrue(
+                'error_message=A value for test command option required_option_1 is required\r\n\r\n',
+                result.getvalue())
+
+            argv = ['test.py', action, 'fieldname_1']
+            command = TestCommand()
+            ifile = StringIO('\n')
+            result = StringIO()
+
+            self.assertRaises(SystemExit, command.process, argv, ifile, ofile=result)
+
+            self.assertTrue(
+                'error_message=Values for these test command options are required: required_option_1, required_option_2'
+                '\r\n\r\n',
+                result.getvalue())
+
+        # TestStreamingCommand.process should exit on processing exceptions
+
+        ifile = StringIO('\naction\r\nraise_error\r\n')
+        argv = ['test.py', '__EXECUTE__']
         command = TestStreamingCommand()
         result = StringIO()
 
         try:
-            command.process(['foo.py', '__EXECUTE__', 'undefined_option=value'], ifile=StringIO('\r\n'), ofile=result)
-        except SystemExit as e:
-            self.assertNotEqual(e.code, 0)
-            self.assertTrue(expected_pattern.match(result.getvalue()))
-        except BaseException as e:
-            self.fail("Expected SystemExit, but caught %s" % type(e))
+            # noinspection PyTypeChecker
+            command.process(argv, ifile, ofile=result)
+        except SystemExit as error:
+            self.assertNotEqual(error.code, 0)
+            self.assertRegexpMatches(
+                result.getvalue(),
+                r'^error_message=RuntimeError at ".+", line \d+ : Testing\r\n\r\n$')
+        except BaseException as error:
+            self.fail('Expected SystemExit, but caught {}: {}'.format(type(error).__name__, error))
         else:
-            self.fail("Expected SystemExit, but no exception was raised")
-
-        # Command.process should exit on processing exceptions
-
-        expected_pattern = re.compile(
-            '\r\n'
-            'ERROR\r\n'
-            '"TypeError at ""' +
-            os.path.abspath(os.path.join(os.path.dirname(__file__), '../../splunklib/searchcommands/internals.py')) +
-            '"", line \d+ : \'NoneType\' object is not iterable"\r\n')
-
-        command = TestStreamingCommand()
-        result = StringIO()
-
-        try:
-            command.process(argv=['foo.py', '__EXECUTE__'], ifile=StringIO(''), ofile=result)
-        except SystemExit as e:
-            result.reset()
-            observed = result.read()
-            self.assertNotEqual(e.code, 0)
-            self.assertTrue(expected_pattern.match(observed))
-        except BaseException as e:
-            self.fail("Expected SystemExit, but caught %s" % type(e))
-        else:
-            self.fail("Expected SystemExit, but no exception was raised")
+            self.fail('Expected SystemExit, but no exception was raised')
 
         # Command.process should provide access to search results info
+        info_path = os.path.join(
+            self._package_directory, 'recordings', 'scpv1', 'Splunk-6.3', 'countmatches.execute.dispatch_dir',
+            'externSearchResultsInfo.csv')
 
-        python_version = 10 * sys.version_info[0] + sys.version_info[1]
+        ifile = StringIO('infoPath:' + info_path + '\n\naction\r\nget_search_results_info\r\n')
+        argv = ['test.py', '__EXECUTE__']
+        command = TestStreamingCommand()
+        result = StringIO()
 
-        expected = \
-            'SearchResultsInfo(sid=1391366014.3, timestamp=1391366014.757223, now=1391366014, setStart=1391366007, ' \
-            'index_et=1391366011, index_lt=1391366011, startTime=1386621222, rt_earliest=None, rt_latest=None, ' \
-            'rtspan=None, scan_count=0, drop_count=0, maxevents=0, countMap={u\'in_ct.command.fields\': 76, ' \
-            'u\'duration.command.search\': 13, u\'invocations.startup.handoff\': 1, ' \
-            'u\'duration.dispatch.results_combiner\': 1, u\'invocations.command.search.kv\': 1, ' \
-            'u\'duration.dispatch.stream.local\': 14, u\'out_ct.command.head\': 10, ' \
-            'u\'invocations.command.search.rawdata\': 1, u\'invocations.dispatch.results_combiner\': 1, ' \
-            'u\'invocations.command.fields\': 1, u\'out_ct.command.search.typer\': 76, ' \
-            'u\'invocations.dispatch.writeStatus\': 3, u\'invocations.command.search.index\': 1, ' \
-            'u\'duration.command.head\': 1, u\'duration.dispatch.evaluate\': 130, ' \
-            'u\'duration.dispatch.evaluate.search\': 41, u\'in_ct.command.search.calcfields\': 76, ' \
-            'u\'duration.dispatch.writeStatus\': 3, u\'invocations.command.search.tags\': 1, ' \
-            'u\'in_ct.command.search.lookups\': 76, u\'duration.command.search.tags\': 1, ' \
-            'u\'duration.command.search.lookups\': 1, u\'invocations.dispatch.evaluate\': 1, ' \
-            'u\'duration.command.fields\': 1, u\'invocations.command.search.summary\': 1, ' \
-            'u\'duration.dispatch.evaluate.countmatches\': 88, u\'out_ct.command.prehead\': 10, ' \
-            'u\'in_ct.command.search.typer\': 76, u\'out_ct.command.search.calcfields\': 76, ' \
-            'u\'invocations.command.head\': 1, u\'duration.startup.handoff\': 39, ' \
-            'u\'duration.command.search.rawdata\': 2, u\'duration.command.search.index.usec_1_8\': 0, ' \
-            'u\'invocations.command.search.fieldalias\': 1, u\'duration.dispatch.createProviderQueue\': 27, ' \
-            'u\'duration.dispatch.fetch\': 14, u\'out_ct.command.search.tags\': 76, ' \
-            'u\'duration.command.search.typer\': 4, u\'in_ct.command.head\': 10, ' \
-            'u\'invocations.dispatch.createProviderQueue\': 1, u\'out_ct.command.fields\': 76, ' \
-            'u\'invocations.dispatch.evaluate.head\': 1, u\'out_ct.command.search.fieldalias\': 76, ' \
-            'u\'invocations.command.search.typer\': 1, u\'duration.dispatch.check_disk_usage\': 1, ' \
-            'u\'out_ct.command.search\': 76, u\'in_ct.command.search\': 0, u\'invocations.dispatch.fetch\': 1, ' \
-            'u\'duration.command.search.index\': 1, u\'duration.command.search.summary\': 1, ' \
-            'u\'in_ct.command.search.tags\': 76, u\'duration.dispatch.evaluate.head\': 1, ' \
-            'u\'duration.command.search.kv\': 7, u\'invocations.command.search.calcfields\': 1, ' \
-            'u\'duration.command.search.fieldalias\': 1, u\'invocations.dispatch.evaluate.countmatches\': 1, ' \
-            'u\'in_ct.command.search.fieldalias\': 76, u\'invocations.command.search\': 1, ' \
-            'u\'invocations.dispatch.stream.local\': 1, u\'duration.command.search.calcfields\': 1, ' \
-            'u\'invocations.dispatch.check_disk_usage\': 1, u\'prereport_events\': 0, ' \
-            'u\'invocations.dispatch.evaluate.search\': 1, u\'invocations.command.search.index.usec_1_8\': 7, ' \
-            'u\'duration.command.prehead\': 1, u\'invocations.command.prehead\': 1, ' \
-            'u\'invocations.command.search.lookups\': 1, u\'out_ct.command.search.lookups\': 76, ' \
-            'u\'in_ct.command.prehead\': 76}, columnOrder=None, keySet=u\'index::_internal\', remoteServers=None, ' \
-            'is_remote_sorted=1, rt_backfill=0, read_raw=1, enable_event_stream=1, rtoptions=None, ' \
-            'field_rendering=None, query_finished=1, request_finalization=0, ' \
-            'auth_token=u\'9ce2897f792c52a6ecdcd2e03aa4677c\', splunkd_port=8089, splunkd_protocol=u\'https\', ' \
-            'splunkd_uri=u\'https://127.0.0.1:8089\', internal_only=0, summary_mode=u\'none\', ' \
-            'summary_maxtimespan=None, summary_stopped=0, is_batch_mode=0, root_sid=None, ' \
-            'shp_id=u\'A8797F6F-B6BF-43E9-9AFE-857D2FBC8534\', search=u\'search index=_internal | head 10 | ' \
-            'countmatches fieldname=word_count pattern=\\\\\\\w+ uri\', ' \
-            'remote_search=u\'litsearch index=_internal | fields  keepcolorder=t "*" "_bkt" "_cd" "_si" "host" ' \
-            '"index" "linecount" "source" "sourcetype" "splunk_server" "uri,word_count" | prehead  limit=10 ' \
-            'null=false keeplast=false\', reduce_search=None, datamodel_map=None, tstats_reduce=None, ' \
-            'normalized_search=u\'litsearch index=_internal | fields keepcolorder=t "*" "_bkt" "_cd" "_si" "host" ' \
-            '"index" "linecount" "source" "sourcetype" "splunk_server" "uri,word_count" | prehead limit=10 ' \
-            'null=false keeplast=false\', ' \
-            'summary_id=u\'A8797F6F-B6BF-43E9-9AFE-857D2FBC8534_searchcommands_app_admin_013dda14f276a384\', ' \
-            'normalized_summary_id=u\'A8797F6F-B6BF-43E9-9AFE-857D2FBC8534_searchcommands_app_admin_NS91c147524d89ae5a\', ' \
-            'generation_id=0, label=None, is_saved_search=0, realtime=0, indexed_realtime=0, ' \
-            'indexed_realtime_offset=0, ppc_app=u\'searchcommands_app\', ppc_user=u\'admin\', ' \
-            'ppc_bs=u\'$SPLUNK_HOME/etc\', bundle_version=0, vix_families=<Element \'root\' at 0x103a7e410>, ' \
-            'tz=u\'### SERIALIZED TIMEZONE FORMAT 1.0;Y-25200 YW 50 44 54;Y-28800 NW 50 53 54;Y-25200 YW 50 57 54;' \
-            'Y-25200 YG 50 50 54;@-1633269600 0;@-1615129200 1;@-1601820000 0;@-1583679600 1;@-880207200 2;' \
-            '@-769395600 3;@-765385200 1;@-687967200 0;@-662655600 1;@-620834400 0;@-608137200 1;@-589384800 0;' \
-            '@-576082800 1;@-557935200 0;@-544633200 1;@-526485600 0;@-513183600 1;@-495036000 0;@-481734000 1;' \
-            '@-463586400 0;@-450284400 1;@-431532000 0;@-418230000 1;@-400082400 0;@-386780400 1;@-368632800 0;' \
-            '@-355330800 1;@-337183200 0;@-323881200 1;@-305733600 0;@-292431600 1;@-273679200 0;@-260982000 1;' \
-            '@-242229600 0;@-226508400 1;@-210780000 0;@-195058800 1;@-179330400 0;@-163609200 1;@-147880800 0;' \
-            '@-131554800 1;@-116431200 0;@-100105200 1;@-84376800 0;@-68655600 1;@-52927200 0;@-37206000 1;' \
-            '@-21477600 0;@-5756400 1;@9972000 0;@25693200 1;@41421600 0;@57747600 1;@73476000 0;@89197200 1;' \
-            '@104925600 0;@120646800 1;@126698400 0;@152096400 1;@162381600 0;@183546000 1;@199274400 0;@215600400 1;' \
-            '@230724000 0;@247050000 1;@262778400 0;@278499600 1;@294228000 0;@309949200 1;@325677600 0;@341398800 1;' \
-            '@357127200 0;@372848400 1;@388576800 0;@404902800 1;@420026400 0;@436352400 1;@452080800 0;@467802000 1;' \
-            '@483530400 0;@499251600 1;@514980000 0;@530701200 1;@544615200 0;@562150800 1;@576064800 0;@594205200 1;' \
-            '@607514400 0;@625654800 1;@638964000 0;@657104400 1;@671018400 0;@688554000 1;@702468000 0;@720003600 1;' \
-            '@733917600 0;@752058000 1;@765367200 0;@783507600 1;@796816800 0;@814957200 1;@828871200 0;@846406800 1;' \
-            '@860320800 0;@877856400 1;@891770400 0;@909306000 1;@923220000 0;@941360400 1;@954669600 0;@972810000 1;' \
-            '@986119200 0;@1004259600 1;@1018173600 0;@1035709200 1;@1049623200 0;@1067158800 1;@1081072800 0;' \
-            '@1099213200 1;@1112522400 0;@1130662800 1;@1143972000 0;@1162112400 1;@1173607200 0;@1194166800 1;' \
-            '@1205056800 0;@1225616400 1;@1236506400 0;@1257066000 1;@1268560800 0;@1289120400 1;@1300010400 0;' \
-            '@1320570000 1;@1331460000 0;@1352019600 1;@1362909600 0;@1383469200 1;@1394359200 0;@1414918800 1;' \
-            '@1425808800 0;@1446368400 1;@1457863200 0;@1478422800 1;@1489312800 0;@1509872400 1;@1520762400 0;' \
-            '@1541322000 1;@1552212000 0;@1572771600 1;@1583661600 0;@1604221200 1;@1615716000 0;@1636275600 1;' \
-            '@1647165600 0;@1667725200 1;@1678615200 0;@1699174800 1;@1710064800 0;@1730624400 1;@1741514400 0;' \
-            '@1762074000 1;@1772964000 0;@1793523600 1;@1805018400 0;@1825578000 1;@1836468000 0;@1857027600 1;' \
-            '@1867917600 0;@1888477200 1;@1899367200 0;@1919926800 1;@1930816800 0;@1951376400 1;@1962871200 0;' \
-            '@1983430800 1;@1994320800 0;@2014880400 1;@2025770400 0;@2046330000 1;@2057220000 0;@2077779600 1;' \
-            '@2088669600 0;@2109229200 1;@2120119200 0;@2140678800 1;$\', msgType=None, msg=None)'
+        try:
+            # noinspection PyTypeChecker
+            command.process(argv, ifile, ofile=result)
+        except BaseException as error:
+            self.fail('Expected no exception, but caught {}: {}'.format(type(error).__name__, error))
+        else:
+            self.assertRegexpMatches(
+                result.getvalue(),
+                r'^\r\n'
+                r'data,__mv_data,_serial,__mv__serial\r\n'
+                r'"{u\'is_summary_index\': 0, u\'normalized_search\': \'\', u\'rt_backfill\': 0, u\'rtspan\': \'\', '
+                r'.+'
+                r'\r\n$')
 
-        info_path = os.path.join(TestSearchCommandProcess._package_directory, 'data', 'input', 'externSearchResultsInfo.csv')
-        input = StringIO('infoPath:%s\n\nAction\r\naccess_search_results_info' % info_path)
-        TestStreamingCommand().process(argv=['foo.py', '__EXECUTE__'], ifile=input, ofile=result)
-
-        observed = re.sub(
-            '''vix_families=<Element '?root'? at [^>]+>''', '''vix_families=<Element 'root' at 0x103a7e410>''',
-            repr(command.search_results_info))
-
-        self.assertEqual(expected, observed)
-
-        # Command.process should provide access to a service object when search
-        # results info is available
+        # TestStreamingCommand.process should provide access to a service object when search results info is available
 
         self.assertIsInstance(command.service, Service)
+
         self.assertEqual(command.service.authority,
                          command.search_results_info.splunkd_uri)
+
         self.assertEqual(command.service.scheme,
                          command.search_results_info.splunkd_protocol)
+
         self.assertEqual(command.service.port,
                          command.search_results_info.splunkd_port)
+
         self.assertEqual(command.service.token,
                          command.search_results_info.auth_token)
+
         self.assertEqual(command.service.namespace.app,
                          command.search_results_info.ppc_app)
-        self.assertEqual(command.service.namespace.owner, None)
-        self.assertEqual(command.service.namespace.sharing, None)
 
-        # Command.process should not provide access to search results info or
-        # a service object when the 'infoPath' input header is unavailable
+        self.assertEqual(command.service.namespace.owner,
+                         None)
+        self.assertEqual(command.service.namespace.sharing,
+                         None)
 
+        # Command.process should not provide access to search results info or a service object when the 'infoPath'
+        # input header is unavailable
+
+        ifile = StringIO('\naction\r\nget_search_results_info')
+        argv = ['teststreaming.py', '__EXECUTE__']
         command = TestStreamingCommand()
-        command.process(
-            ['foo.py', '__EXECUTE__'], ifile=StringIO('\nAction\r\naccess_search_results_info'), ofile=result)
-        self.assertEqual(command.search_results_info, None)
-        self.assertEqual(command.service, None)
+
+        # noinspection PyTypeChecker
+        command.process(argv, ifile, ofile=result)
+
+        self.assertIsNone(command.search_results_info)
+        self.assertIsNone(command.service)
+
         return
 
     def test_process_v2(self):

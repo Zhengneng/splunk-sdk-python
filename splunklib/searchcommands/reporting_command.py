@@ -90,6 +90,17 @@ class ReportingCommand(SearchCommand):
         """
         return NotImplemented
 
+    def prepare(self):
+        if self._phase == self.map:
+            # noinspection PyUnresolvedReferences
+            self._configuration = self.map.ConfigurationSettings(self)
+            return
+        if self._phase == self.reduce:
+            streaming_preop = chain((self.name, 'phase="map"', str(self._options)), self.fieldnames)
+            self._configuration.streaming_preop = ' '.join(streaming_preop)
+            return
+        raise RuntimeError('Unrecognized reporting command phase: {}'.format(repr(self._phase)))
+
     def reduce(self, records):
         """ Override this method to produce a reporting data structure.
 
@@ -100,16 +111,6 @@ class ReportingCommand(SearchCommand):
 
     def _execute(self, ifile, process):
         SearchCommand._execute(self, ifile, self._phase)
-
-    def _new_configuration_settings(self):
-        if self._phase == self.map:
-            # noinspection PyUnresolvedReferences
-            return self.map.ConfigurationSettings(self)
-        if self._phase == self.reduce:
-            settings = self.ConfigurationSettings(self)
-            settings.streaming_preop = ' '.join(chain((self.name, 'phase="map"', str(self._options)), self.fieldnames))
-            return settings
-        raise RuntimeError('Unrecognized reporting command phase: {}'.format(repr(self._phase)))
 
     # endregion
 
