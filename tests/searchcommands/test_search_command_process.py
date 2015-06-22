@@ -54,24 +54,25 @@ class TestSearchCommandProcess(TestCase):
 
         # The exception line number may change, so we're using a regex match instead
         expected_pattern = re.compile(
-            '\r\n'
-            'ERROR'
-            '\r\n'
-            '"NotImplementedError at '
-            '\"\"' + os.path.abspath(os.path.join(
-                os.path.dirname(__file__), "../../splunklib/searchcommands/search_command.py")) +
-            '\"\"'
-            ', line \d\d\d : '
-            'Command search appears to be statically configured and static configuration is unsupported by '
-            'splunklib.searchcommands. Please ensure that default/commands.conf contains this '
-            'stanza:\n\[search\]\nfilename = foo.py\nsupports_getinfo = true\nsupports_rawargs = true\n'
-            'outputheader = true"'
-            '\r\n')
+            r'error_message=RuntimeError at ".+search_command\.py", line \d\d\d : Command teststreaming appears to be '
+            r'statically configured for search command protocol version 1 and static configuration is unsupported by '
+            r'splunklib.searchcommands. Please ensure that default/commands.conf contains this stanza:\n'
+            r'\[teststreaming\]\n'
+            r'filename = teststreaming.py\n'
+            r'enableheader = true\n'
+            r'outputheader = true\n'
+            r'requires_srinfo = true\n'
+            r'supports_getinfo = true\n'
+            r'supports_multivalues = true\n'
+            r'supports_rawargs = true')
 
         command = TestStreamingCommand()
         result = StringIO()
-        self.assertRaises(SystemExit, command.process, ['foo.py', 'not__GETINFO__or__EXECUTE__', 'args'], ofile=result)
-        self.assertTrue(expected_pattern.match(result.getvalue()))
+
+        self.assertRaises(
+            SystemExit, command.process, ['teststreaming.py', 'not__GETINFO__or__EXECUTE__', 'args'], ofile=result)
+
+        self.assertRegexpMatches(result.getvalue(), expected_pattern)
 
         # Command.process should return configuration settings on Getinfo probe
 
@@ -88,7 +89,7 @@ class TestSearchCommandProcess(TestCase):
 
         command = TestStreamingCommand()
         result = StringIO()
-        command.process(['foo.py', '__GETINFO__'], ofile=result)
+        command.process(['teststreaming.py', '__GETINFO__'], ofile=result)
         self.assertEqual(expected, result.getvalue())
 
         # Command.process should produce an error record on parser errors, if
