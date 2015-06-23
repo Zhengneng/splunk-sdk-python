@@ -258,10 +258,7 @@ class CommandLineParser(object):
         decode single-quoted strings ("'") in addition to double-quoted ('"') strings.
 
         """
-        if len(string) == 0:
-            return ''
-
-        if len(string) == 1:
+        if len(string) < 2:
             return string
 
         if string[0] == '"':

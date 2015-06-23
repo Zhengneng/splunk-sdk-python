@@ -21,6 +21,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from splunklib.client import Service
 
 from collections import namedtuple, OrderedDict
+from copy import deepcopy
 from cStringIO import StringIO
 from itertools import chain, ifilter, imap, islice, izip
 from json.encoder import encode_basestring as encode_string
@@ -93,6 +94,12 @@ from .validators import Boolean
 # P1 [ ] TODO: Complete default/searchbnf.conf
 
 # P1 [ ] TODO: Ensure that SCPV1 respects finish and flush
+
+# P1 [ ] TODO: SearchCommand.metadata should not include action field because it is misleading.
+
+# P1 [ ] TODO: What's the difference between SearchCommand.search_results_info.auth_token and
+# SearchCommand.metadata.searchinfo.session_key? Which should we be using to create SearchCommand.Service?
+# They're different. Do both work for the purpose of authn/authz?
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -218,7 +225,7 @@ class SearchCommand(object):
 
         # Internal variables
 
-        self._default_logging_level = self.logger.level
+        self._default_logging_level = self._logger.level
         self._record_writer = None
         self._write_record = None
         self._records = None
@@ -318,7 +325,7 @@ class SearchCommand(object):
         """
         warn(
             'SearchCommand.input_header is deprecated and will be removed in a future release. '
-            'Please use SearchCommand.metadata instead.', DeprecationWarning, stack_level=2)
+            'Please use SearchCommand.metadata instead.', DeprecationWarning, 2)
         return self._input_header
 
     @property
@@ -768,7 +775,14 @@ class SearchCommand(object):
             if len(body) > 0:
                 raise RuntimeError('Did not expect data for getinfo action')
 
-            self._metadata = metadata
+            self._metadata = deepcopy(metadata)
+
+            searchinfo = self._metadata.searchinfo
+
+            searchinfo.earliest_time = float(searchinfo.earliest_time)
+            searchinfo.latest_time = float(searchinfo.latest_time)
+            searchinfo.search = unquote(searchinfo.search)
+
             self._map_input_header()
 
             debug('  metadata=%r, input_header=%r', self._metadata, self._input_header)
@@ -814,7 +828,7 @@ class SearchCommand(object):
                         try:
                             option.value = value
                         except ValueError:
-                            self.write_error('Illegal value: {}'.format(option))
+                            self.write_error('Illegal value: {}={}'.format(name, value))
                             error_count += 1
                             continue
                     pass
