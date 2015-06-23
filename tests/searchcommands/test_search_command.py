@@ -73,6 +73,7 @@ class TestCommand(SearchCommand):
 
         # endregion
 
+
 @Configuration()
 class TestStreamingCommand(StreamingCommand):
     def stream(self, records):
