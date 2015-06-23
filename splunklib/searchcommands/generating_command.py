@@ -1,4 +1,6 @@
-# Copyright 2011-2014 Splunk, Inc.
+# coding=utf-8
+#
+# Copyright © 2011-2015 Splunk, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"): you may
 # not use this file except in compliance with the License. You may obtain
@@ -12,60 +14,53 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from . search_command import SearchCommand
+from .search_command import SearchCommand
+from . import ConfigurationSetting
+
+from collections import OrderedDict
+from itertools import imap, ifilterfalse
 
 
 class GeneratingCommand(SearchCommand):
     """ Generates events based on command arguments.
 
-    Generating commands receive no input and must be the first command on a
-    pipeline. By default Splunk will run your command locally on a search head:
+    Generating commands receive no input and must be the first command on a pipeline. By default Splunk will run your
+    command locally on a search head. By default generating commands run in the streams pipeline.
 
     .. code-block:: python
 
         @Configuration()
-        class SomeGeneratingCommand(GeneratingCommand)
+        class StreamingGeneratingCommand(GeneratingCommand)
+            ...
 
-    You can change the default behavior by configuring your generating command
-    for event streaming:
+    You can change the pipeline that a generating command runs in using the :code:`type` configuration setting. For
+    example, to run your command in the eventing pipeline, configure your command like this:
 
     .. code-block:: python
 
-        @Configuration(streaming=True)
-        class SomeGeneratingCommand(GeneratingCommand)
+        @Configuration(type=`eventing`)
+        class EventingGeneratingCommand(GeneratingCommand)
             ...
 
-    Splunk will then run your command locally on a search head and/or remotely
-    on one or more indexers.
+        @Configuration(type=`reporting`)
+        class ReportingGeneratingCommand(GeneratingCommand)
+            ...
 
-    You can tell Splunk to run your streaming-enabled generating command locally
-    on a search head, never remotely on indexers:
+    You can tell Splunk to run your streaming generating command in a distributed manner on a search head, or remotely
+    on indexers:
 
     .. code-block:: python
 
-        @Configuration(local=True, streaming=True)
+        @Configuration(distributed=True)
         class SomeGeneratingCommand(GeneratingCommand)
             ...
 
-    If your generating command produces event records in time order, you must
-    tell Splunk to ensure correct behavior:
-
-    .. code-block:: python
-
-        @Configuration(generates_timeorder=True)
-        class SomeGeneratingCommand(GeneratingCommand)
-            ...
-
-    :ivar input_header: :class:`InputHeader`:  Collection representing the input
-        header associated with this command invocation.
-
-    :ivar messages: :class:`MessagesHeader`: Collection representing the output
-        messages header associated with this command invocation.
+    Only streaming generating commands may be distributed.
 
     """
-    #region Methods
+    # region Methods
 
     def generate(self):
         """ A generator that yields records to the Splunk processing pipeline
@@ -75,94 +70,90 @@ class GeneratingCommand(SearchCommand):
         """
         raise NotImplementedError('GeneratingCommand.generate(self)')
 
-    def _execute(self, operation, reader, writer):
-        for record in operation():
-            writer.writerow(record)
-        return
+    def _execute(self, ifile, process):
+        """ Execution loop
 
-    def _prepare(self, argv, input_file):
-        ConfigurationSettings = type(self).ConfigurationSettings
-        argv = argv[2:]
-        return ConfigurationSettings, self.generate, argv, 'ANY'
+        :param ifile: Input file object. Unused.
+        :type ifile: file
 
-    #endregion
-
-    #region Types
-
-    class ConfigurationSettings(SearchCommand.ConfigurationSettings):
-        """ Represents the configuration settings for a
-        :code:`GeneratingCommand` class
+        :return: `None`.
 
         """
-        #region Properties
+        writer = self._record_writer
+        write = writer.write_record
+        for record in self.generate():
+            write(record)
+        writer.flush(finished=True)
 
-        @property
-        def generating(self):
-            """ Signals that this command generates new events.
+    # endregion
 
-            Fixed: :const:`True`
+    # region Types
 
-            """
-            return True
+    class ConfigurationSettings(SearchCommand.ConfigurationSettings):
+        """ Represents the configuration settings for a :code:`GeneratingCommand` class.
 
-        @property
-        def generates_timeorder(self):
-            """ Specifies whether this command generates events in descending
-            time order.
+        """
+        # region SCP v1/v2 Properties
 
-            Default: :const:`False`
+        generating = ConfigurationSetting(readonly=True, value=True, doc='''
+            Tells Splunk that this command generates events, but does not process inputs.
 
-            """
-            return type(self)._generates_timeorder
-
-        _generates_timeorder = False
-
-        @property
-        def local(self):
-            """ Specifies whether this command should only be run on the search
-            head.
-
-            This setting is used to override Splunk's default policy for running
-            streamable search commands. See the `streaming` configuration
-            setting.
-
-            Default: :const:`False`
-
-            """
-            return type(self)._local
-
-        _local = False
-
-        @property
-        def retainsevents(self):
-            """ Specifies whether this command retains _raw events or transforms
-            them.
-
-            Default: :const:`False`
-
-            """
-            return type(self)._retainsevents
-
-        _retainsevents = True
-
-        @property
-        def streaming(self):
-            """ Specifies that this command is streamable.
-
-            By default streamable search commands may be run on the search head
-            or one or more indexers, depending on performance and scheduling
-            considerations. This behavior may be overridden by setting
-            :code:`local=True`. This forces a streamable command to be run on the
-            search head.
+            Generating commands must appear at the front of the search pipeline identified by :meth:`type`.
 
             Fixed: :const:`True`
 
-            """
-            return True
+            ''')
 
-        #endregion
+        # endregion
 
-        #region Methods
+        # region SCP v1 Properties
+
+        generates_timeorder = ConfigurationSetting(doc='''
+            :const:`True`, if the command generates new events.
+
+            Default: :const:`True`
+
+            ''')
+
+        streaming = ConfigurationSetting(value=False, doc='''
+            :const:`True`, if the command is streamable.
+
+            Default: :const:`False`
+
+            ''')
+
+        # endregion
+
+        # region SCP v2 Properties
+
+        distributed = ConfigurationSetting(value=False, doc='''
+            True, if this command should be distributed to indexers.
+
+            This value is ignored unless :meth:`type` is equal to :const:`streaming`. It is only this command type that
+            may be distributed.
+
+            Default: :const:`False`
+
+            ''')
+
+        type = ConfigurationSetting(value='streaming', doc='''
+            A command type name.
+
+            ====================  ======================================================================================
+            Value                 Description
+            --------------------  --------------------------------------------------------------------------------------
+            :const:`'eventing'`   Runs as the first command in the Splunk events pipeline. Cannot be distributed.
+            :const:`'reporting'`  Runs as the first command in the Splunk reports pipeline. Cannot be distributed.
+            :const:`'streaming'`  Runs as the first command in the Splunk streams pipeline. May be distributed.
+            ====================  ======================================================================================
+
+            Default: :const:`'streaming'`
+
+            ''')
+
+        # endregion
+
+        # region Methods
 
         @classmethod
         def fix_up(cls, command):
@@ -171,8 +162,17 @@ class GeneratingCommand(SearchCommand):
             """
             if command.generate == GeneratingCommand.generate:
                 raise AttributeError('No GeneratingCommand.generate override')
-            return
 
-        #endregion
+        def _items(self):
 
-    #endregion
+            sequence = ifilterfalse(lambda (name, value): name == 'distributed' or value is None, self._iter())
+
+            if not (self.distributed and self.type == 'streaming'):
+                return sequence
+
+            sequence = imap(lambda (name, value): (name, value) if name != 'type' else (name, 'stateful'), sequence)
+            return OrderedDict(sequence)
+
+        # endregion
+
+    # endregion

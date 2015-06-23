@@ -1,0 +1,5 @@
+| generatehello count=1000 record=t
+| pypygeneratehello count=1000 record=t
+| inputlookup tweets | echo record=t
+| inputlookup tweets | countmatches fieldname=word_count pattern="\\w+" text record=t
+| inputlookup random_data max=50000 | sum total=total value1 record=t

@@ -1,3 +1,4 @@
+*.log
 *.pyc
 *.swp
 *.idea
@@ -7,17 +8,15 @@
 .coverage.*
 .python-version
 __stdout__
-docs/_build
+_pydebug.egg
 build/
+coverage_report/
+dist/
+examples/*/local/
+examples/*/metadata/*.local
+docs/_build/
 proxypid
 proxy.log
 MANIFEST
-coverage_report
-test.log
-examples/*/local
-examples/*/metadata
-tests/searchcommands_data/log/
-tests/searchcommands_data/output/
-examples/searchcommands_app/searchcommand_app.log
+splunk_sdk.egg-info
 Test Results*.html
-tests/searchcommands/data/app/app.log
