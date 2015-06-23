@@ -20,3 +20,4 @@ proxy.log
 MANIFEST
 splunk_sdk.egg-info
 Test Results*.html
+examples/searchcommands_app/package/bin/packages/splunklib

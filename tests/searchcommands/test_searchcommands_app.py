@@ -16,7 +16,8 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-from __init__ import project_root
+
+from tests.searchcommands import project_root
 
 from itertools import ifilter, imap, izip
 from subprocess import PIPE, Popen
