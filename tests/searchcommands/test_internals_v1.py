@@ -194,11 +194,11 @@ class TestInternals(TestCase):
 
         input_header = InputHeader()
 
-        with closing(StringIO('infoPath:data/input/_empty.csv\n\n'.encode())) as input_file:
+        with closing(StringIO('infoPath:non-existent.csv\n\n'.encode())) as input_file:
             input_header.read(input_file)
 
         self.assertEquals(len(input_header), 1)
-        self.assertEqual(input_header['infoPath'], 'data/input/_empty.csv')
+        self.assertEqual(input_header['infoPath'], 'non-existent.csv')
 
         # Set of named items
 

@@ -35,7 +35,7 @@ import json
 import os
 import random
 
-# region Functions for producing random data
+# region Functions for producing random apps
 
 # Confirmed: [minint, maxint) covers the full range of values that xrange allows
 
@@ -150,7 +150,7 @@ class TestInternals(TestCase):
 
         # Confirmed: [minint, maxint) covers the full range of values that xrange allows
 
-        # RecordWriter writes data in units of maxresultrows records. Default: 50,0000.
+        # RecordWriter writes apps in units of maxresultrows records. Default: 50,0000.
         # Partial results are written when the record count reaches maxresultrows.
 
         writer = RecordWriterV2(StringIO(), maxresultrows=10)  # small for the purposes of this unit test

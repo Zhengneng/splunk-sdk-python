@@ -873,11 +873,11 @@ class SearchCommand(object):
             self._records = self._records_protocol_v2
             self._execute(ifile, None)
         except SystemExit:
-            self.flush()
+            self.finish()
             raise
         except:
             self._report_unexpected_error()
-            self.flush()
+            self.finish()
             exit(1)
 
         debug('%s.process completed', class_name)

@@ -48,7 +48,7 @@ class TestBuiltinOptions(TestCase):
         logging.Logger.manager.loggerDict.clear()
         del logging.root.handlers[:]
 
-        app_root = os.path.join(TestBuiltinOptions._package_directory, 'data', 'app_without_logging_configuration')
+        app_root = os.path.join(TestBuiltinOptions._package_directory, 'apps', 'app_without_logging_configuration')
         globals.splunklib_logger, globals.logging_configuration = configure_logging('splunklib', app_root)
 
         self.assertIsInstance(globals.splunklib_logger, logging.Logger)
@@ -82,7 +82,7 @@ class TestBuiltinOptions(TestCase):
 
         # A search command loads {local,default}/logging.conf when it is available
 
-        app_root = os.path.join(self._package_directory, 'data', 'app_with_logging_configuration')
+        app_root = os.path.join(self._package_directory, 'apps', 'app_with_logging_configuration')
 
         command = StubbedSearchCommand(app_root)
         self.assertEqual(command.logging_configuration, os.path.join(app_root, 'default', 'logging.conf'))
@@ -124,7 +124,7 @@ class TestBuiltinOptions(TestCase):
 
     def test_logging_level(self):
 
-        app_root = os.path.join(TestBuiltinOptions._package_directory, 'data', 'app_without_logging_configuration')
+        app_root = os.path.join(TestBuiltinOptions._package_directory, 'apps', 'app_without_logging_configuration')
         command = StubbedSearchCommand(app_root)
 
         warning = logging.getLevelName(logging.WARNING)
@@ -177,7 +177,7 @@ class TestBuiltinOptions(TestCase):
 
     def _test_boolean_option(self, option):
 
-        app_root = os.path.join(TestBuiltinOptions._package_directory, 'data', 'app_without_logging_configuration')
+        app_root = os.path.join(TestBuiltinOptions._package_directory, 'apps', 'app_without_logging_configuration')
         command = StubbedSearchCommand(app_root)
 
         # show_configuration accepts Splunk boolean values

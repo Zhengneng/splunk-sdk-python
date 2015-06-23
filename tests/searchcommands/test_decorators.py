@@ -292,7 +292,7 @@ class TestDecorators(TestCase):
 
     def test_option(self):
 
-        app_root=os.path.join(self._package_directory, 'data', 'app_with_logging_configuration')
+        app_root=os.path.join(self._package_directory, 'apps', 'app_with_logging_configuration')
 
         presets = [
             'logging_level="WARNING"',
