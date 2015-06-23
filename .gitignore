@@ -13,7 +13,7 @@ build/
 coverage_report/
 dist/
 examples/*/local/
-examples/*/metadata/
+examples/*/metadata/*.local
 docs/_build/
 proxypid
 MANIFEST
