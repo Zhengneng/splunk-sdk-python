@@ -7,17 +7,18 @@
 .coverage
 .coverage.*
 .python-version
+MANIFEST
 __stdout__
 _pydebug.egg
 build/
 coverage_report/
 dist/
+docs/_build/
 examples/*/local/
 examples/*/metadata/*.local
-docs/_build/
-proxypid
+examples/searchcommands_app/package/bin/packages/splunklib
+examples/searchcommands_app/package/default/commands.conf
 proxy.log
-MANIFEST
+proxypid
 splunk_sdk.egg-info
 Test Results*.html
-examples/searchcommands_app/package/bin/packages/splunklib
