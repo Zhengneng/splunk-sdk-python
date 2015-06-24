@@ -577,6 +577,7 @@ class RecordWriter(object):
     def flush(self, finished=None, partial=None):
         assert finished is None or isinstance(finished, bool)
         assert partial is None or isinstance(partial, bool)
+        assert not (finished is None and partial is None)
         assert finished is None or partial is None
         self._ensure_validity()
 
@@ -656,7 +657,7 @@ class RecordWriterV1(RecordWriter):
 
     def flush(self, finished=None, partial=None):
 
-        RecordWriter.flush(self, finished=None, partial=None)
+        RecordWriter.flush(self, finished, partial)
 
         if self._record_count > 0 or (self._chunk_count == 0 and 'messages' in self._inspector):
 
@@ -695,19 +696,17 @@ class RecordWriterV2(RecordWriter):
 
     def flush(self, finished=None, partial=None):
 
-        RecordWriter.flush(self, finished=None, partial=None)
+        RecordWriter.flush(self, finished, partial)  # validates arguments and the state of this instance
 
         if self._record_count > 0 or len(self._inspector) > 0:
-
-            # P2 [ ] TODO: Write SearchMetric (?) Include timing (?) Anything else (?)
 
             self._total_record_count += self._record_count
             self._chunk_count += 1
 
-            metadata = {
-                'inspector': self._inspector if len(self._inspector) else None,
-                'finished': finished,
-                'partial': partial}
+            metadata = [
+                ('inspector', self._inspector if len(self._inspector) else None),
+                ('finished', finished),
+                ('partial', partial)]
 
             self._write_chunk(metadata, self._buffer.getvalue())
             self._clear()
@@ -716,9 +715,8 @@ class RecordWriterV2(RecordWriter):
 
     def write_metadata(self, configuration):
         self._ensure_validity()
-        # P1 [ ] TODO: Performance: Consider that RecordWriterV2._write_chunk should require an iterable, not a dict
-        metadata = OrderedDict(chain(
-            configuration.iteritems(), (('inspector', self._inspector if self._inspector else None),)))
+
+        metadata = chain(configuration.iteritems(), (('inspector', self._inspector if self._inspector else None),))
         self._write_chunk(metadata, '')
         self._ofile.write('\n')
         self._clear()
@@ -734,7 +732,7 @@ class RecordWriterV2(RecordWriter):
     def _write_chunk(self, metadata, body):
 
         if metadata:
-            metadata = OrderedDict(ifilter(lambda x: x[1] is not None, metadata.iteritems()))
+            metadata = OrderedDict(ifilter(lambda x: x[1] is not None, metadata))
             metadata = self._encode_metadata(metadata)
             metadata_length = len(metadata)
         else:

@@ -215,8 +215,13 @@ class TestInternals(TestCase):
         self.assertEqual(writer._buffer.getvalue(), '')
         self.assertEqual(writer._total_record_count, 31)
 
+        self.assertRaises(AssertionError, writer.flush, finished=True, partial=True)
+        self.assertRaises(AssertionError, writer.flush, finished='non-boolean')
+        self.assertRaises(AssertionError, writer.flush, partial='non-boolean')
+        self.assertRaises(AssertionError, writer.flush)
+
         self.assertRaises(RuntimeError, writer.write_record, {})
-        self.assertRaises(RuntimeError, writer.flush)
+
         self.assertFalse(writer._ofile.closed)
         self.assertIsNone(writer._fieldnames)
         self.assertDictEqual(writer._inspector, OrderedDict())
