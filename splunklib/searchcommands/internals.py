@@ -704,11 +704,20 @@ class RecordWriterV2(RecordWriter):
             self._total_record_count += self._record_count
             self._chunk_count += 1
 
+            # TODO: DVPL-6448: splunklib.searchcommands | Add support for partial: true when it is implemented in
+            # ChunkedExternProcessor (See SPL-103525)
+            #
+            # We will need to replace the following block of code with this block:
+            #
+            # metadata = [
+            #     ('inspector', self._inspector if len(self._inspector) else None),
+            #     ('finished', finished),
+            #     ('partial', partial)]
+
             metadata = [
                 ('inspector', self._inspector if len(self._inspector) else None),
-                ('finished', finished),
-                ('partial', partial)]
-
+                ('finished', True if finished is True else False if partial is True else None)
+            ]
             self._write_chunk(metadata, self._buffer.getvalue())
             self._clear()
 

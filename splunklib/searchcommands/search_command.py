@@ -85,17 +85,15 @@ from .validators import Boolean
 
 # P1 [ ] TODO:Ensure that when type == 'streaming' and distributed is True we serialize type='stateful'
 
-# P1 [ ]  TODO: Ensure that when type == 'eventing' we serialize type='events'
+# P1 [ ] TODO: Ensure that when type == 'eventing' we serialize type='events'
 
 # P1 [O] TODO: Phase option should print in a more user-friendly way
 
-# P1 [ ] TODO: Configure external_search_command for protocol version 1 (see default/commands.conf.scpv1)
-
 # P1 [ ] TODO: Complete default/searchbnf.conf
 
-# P1 [ ] TODO: Ensure that SCPV1 respects finish and flush
-
-# P1 [ ] TODO: SearchCommand.metadata should not include action field because it is misleading.
+# P1 [ ] TODO: SearchCommand.metadata should not include action field because it is misleading (it's not updated to
+# reflect the current state of the command; it's always getinfo; never updated to execute; the only state a command
+# will ever see.
 
 # P1 [ ] TODO: What's the difference between SearchCommand.search_results_info.auth_token and
 # SearchCommand.metadata.searchinfo.session_key? Which should we be using to create SearchCommand.Service?
@@ -113,69 +111,6 @@ from .validators import Boolean
 # self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived dispatch directories.
 
 # P2 [ ] TODO: Review and update code docs to reflect usage under protocol_version == 1 as well as protocol_version == 2
-
-# ----------------------------------------------------------------------------------------------------------------------
-# Done
-
-# P1 [X] TODO: Validate class-level settings provided by the @Configuration decorator
-# At present we have property setters that validate instance-level configuration, but we do not do any validation on
-# the class-level configuration settings that are provided by way of the @Configuration decorator
-
-# P1 [X] TODO: Save contents of dispatch dir for use in tests that may require it
-# ISSUE: Some bits of data expire or change. Examples:
-#   self.metadata.searchinfo.session_key
-#   self.metadata.searchinfo.sid
-#   self.metadata.searchinfo.splunk_uri
-#   self.metadata.searchinfo.splunk_version
-
-# P1 [X] TODO: Is this an Ember bug? specifying filename in commands.conf disables requires_srinfo. If you specify
-# enableheader=true, requires_srinfo=true and also specify filename=generatehello.py, you do not get infoPath in the
-# input_header.
-# Resolved: You do not get search results info until the __EXECUTE__ action is invoked.
-
-# P1 [X] TODO: Construct SearchCommand.metadata from SearchCommand.input_header when SearchCommand.protocol_version == 1
-#
-# Goals
-# -----
-# * SearchCommand.metadata becomes an alternative to SearchCommand.input_header that's usable under SCP v1 or SCP v2
-# * A single implementation of SearchCommand.search_results_info and SearchCommand.service
-#
-# Requirements
-# ------------
-# In short, start by mapping these nine input_header values:
-#
-#   'allowStream' = <boolean>
-#   'infoPath' = <string>
-#   'keywords' = <string>
-#   'preview' = <boolean>
-#   'realtime' = <boolean>
-#   'search' = <string>
-#   'sid' = <string>
-#   'splunkVersion' = <string>
-#   'truncated' = <boolean>
-#
-# to these metadata elements:
-#
-# metadata = <ObjectView>
-#
-#   action = {'getinfo'|'execute'}  # validate=Set('getinfo', 'execute'), get=None
-#   preview = <boolean>             # validate=Boolean(), get=lambda: self.input_header.get('preview')
-#   searchinfo = {ObjectView}
-#       app = <string>              # convert=None, get=lambda: None
-#       args = <list>               # validate=List(unicode), get=TODO: get from CommandParser
-#       dispatch_dir = <string>     # validate=None, get=lambda: dirname(self.input_header.get('infoPath'))
-#       earliest_time = <time>      # validate=Time(), get=TODO: get from srinfo file (?)
-#       latest_time = <time>        # validate=Time(), get=TODO: get from srinfo file (?)
-#       owner = <string>            # validate=None, get=TODO: get from srinfo file (?)
-#       raw_args = <list>           # validate=None, get=TODO: get from command line
-#       search = <string>           # validate=TODO: url decode '%7C%20generatehello%20count%3D10', get=lambda: self.input_header.get('search')
-#       session_key = <string>      # validate=None, get=TODO: get from srinfo file (?)
-#       sid = <string>              # validate=None, get=lambda: self.input_header.get('sid')
-#       splunk_version = <string>   # validate=None, get=lambda: self.input_header.get('splunkVersion')
-#       splunkd_uri = <string>      # validate=None, get=lambda: TODO: get from srinfo file (?)
-#       username = <string>         # validate=None, get=lambda: TODO: get from srinfo file (?)
-
-# P1 [X] TODO: Add protocol_v1 support for recording
 
 
 class SearchCommand(object):
