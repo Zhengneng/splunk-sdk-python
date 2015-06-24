@@ -108,7 +108,7 @@ class TestInternals(TestCase):
         return
 
     def test_command_line_parser_unquote(self):
-        parser = CommandLineParser()
+        parser = CommandLineParser
 
         options = [
             r'foo',                 # unquoted string with no escaped characters
@@ -121,7 +121,9 @@ class TestInternals(TestCase):
             r'"\\foobar"',          # quoted string with an escaped backslash
             r'"foo \\ bar"',        # quoted string with an escaped backslash
             r'"foobar\\"',          # quoted string with an escaped backslash
-            r'foo\\\bar']           # quoted string with an escaped backslash and an escaped 'b'
+            r'foo\\\bar',           # quoted string with an escaped backslash and an escaped 'b'
+            r'""',                  # pair of quotes
+            r'']                    # empty string
 
         expected = [
             r'foo',
@@ -134,7 +136,9 @@ class TestInternals(TestCase):
             '\\foobar',
             r'foo \ bar',
             'foobar\\',
-            r'foo\bar']
+            r'foo\bar',
+            r'',
+            r'']
 
         print('Observed:', options[-4], '=>', parser.unquote(options[-4]))
         print('Expected:', expected[-4])
@@ -144,6 +148,10 @@ class TestInternals(TestCase):
             print(i, 'Observed:', options[i], '=>', parser.unquote(options[i]))
             print(i, 'Expected:', expected[i])
             self.assertEqual(expected[i], parser.unquote(options[i]))
+
+        self.assertRaises(ValueError, parser.unquote, '"')
+        self.assertRaises(ValueError, parser.unquote, '"foo')
+        self.assertRaises(ValueError, parser.unquote, 'foo"')
 
     def test_input_header(self):
 

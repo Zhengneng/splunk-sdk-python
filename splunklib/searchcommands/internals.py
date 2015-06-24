@@ -206,12 +206,11 @@ class CommandLineParser(object):
         ``ValueError``: Unrecognized option/field name, or an illegal field value.
 
         """
+        debug = _global.splunklib_logger.debug
+
         # Prepare
 
-        # P1 [ ] TODO: Switch to globals.splunklib_logger
-
-        command.logger.debug('Parsing %s command line: %s', type(command).__name__, repr(argv))
-
+        debug('Parsing %s command line: %s', type(command).__name__, repr(argv))
         command_args = ' '.join(argv)
         command.fieldnames = None
         command.options.reset()
@@ -241,8 +240,7 @@ class CommandLineParser(object):
         # Parse field names
 
         command.fieldnames = command_args.group('fieldnames').split()
-
-        command.logger.debug('  %s: %s', type(command).__name__, command)
+        debug('  %s: %s', type(command).__name__, command)
 
     @classmethod
     def unquote(cls, string):
@@ -258,13 +256,16 @@ class CommandLineParser(object):
         decode single-quoted strings ("'") in addition to double-quoted ('"') strings.
 
         """
-        if len(string) < 2:
-            return string
+        if len(string) == 0:
+            return ''
 
         if string[0] == '"':
-            if string[-1] != '"':
+            if len(string) == 1 or string[-1] != '"':
                 raise ValueError("Poorly formed string literal: " + string)
             string = string[1:-1]
+
+        if len(string) == 0:
+            return ''
 
         def replace(match):
             value = match.group(0)
