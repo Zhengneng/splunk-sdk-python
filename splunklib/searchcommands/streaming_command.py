@@ -18,7 +18,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from .search_command import SearchCommand
 from . import ConfigurationSetting
-from itertools import ifilter
+from itertools import ifilter, imap
 
 # P1 [ ] TODO: Edit StreamingCommand class documentation
 
@@ -67,9 +67,10 @@ class StreamingCommand(SearchCommand):
         required_fields = ConfigurationSetting(doc='''
             List of required fields for this search (back-propagates to the generating search).
 
-            Setting this value enables selected fields mode.
+            Setting this value enables selected fields mode. To explicitly select all fields, specify a value of
+            :const:`['*']`
 
-            Default: :const:`['*']`
+            Default: :const:`None`
 
             ''')
 
@@ -77,7 +78,7 @@ class StreamingCommand(SearchCommand):
 
         # region SCP v1 properties
 
-        clear_required_fields = ConfigurationSetting(doc='''
+        clear_required_fields = ConfigurationSetting(value=False, doc='''
             :const:`True`, if required_fields represent the *only* fields required.
 
             If :const:`False`, required_fields are additive to any fields that may be required by subsequent commands.
@@ -105,7 +106,7 @@ class StreamingCommand(SearchCommand):
 
         # region SCP v2 Properties
 
-        distributed = ConfigurationSetting(doc='''
+        distributed = ConfigurationSetting(value=True, doc='''
             True, if this command should be distributed to indexers.
 
             Default: :const:`True`
@@ -143,7 +144,17 @@ class StreamingCommand(SearchCommand):
                 raise AttributeError('No StreamingCommand.stream override')
             return
 
-        def render(self):
-            return ifilter(lambda item: item[1] is not None and item[0] != 'distributed', self.iteritems())
+        def iteritems(self):
+            iteritems = SearchCommand.ConfigurationSettings.iteritems(self)
+            version = self.command.protocol_version
+            if version == 1:
+                if self.required_fields is None:
+                    iteritems = ifilter(lambda (name, value): name != 'clear_required_fields', iteritems)
+            else:
+                iteritems = ifilter(lambda (name, value): name != 'distributed', iteritems)
+                if self.distributed:
+                    iteritems = imap(
+                        lambda (name, value): (name, 'stateful') if name == 'type' else (name, value), iteritems)
+            return iteritems
 
         # endregion

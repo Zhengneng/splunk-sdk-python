@@ -86,8 +86,6 @@ from .validators import Boolean
 # name of a python builtin function. Note that global.py is not permitted as a module name because it conflicts with the
 # global keyword.
 
-# P1 [ ] TODO:Ensure that when type == 'streaming' and distributed is True we serialize type='stateful'
-
 # P1 [ ] TODO: Ensure that when type == 'eventing' we serialize type='events'
 
 # P1 [O] TODO: Phase option should print in a more user-friendly way

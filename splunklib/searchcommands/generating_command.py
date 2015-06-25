@@ -19,8 +19,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from .search_command import SearchCommand
 from . import ConfigurationSetting
 
-from collections import OrderedDict
-from itertools import imap, ifilterfalse
+from itertools import imap, ifilter
 
 
 class GeneratingCommand(SearchCommand):
@@ -108,17 +107,23 @@ class GeneratingCommand(SearchCommand):
 
         # region SCP v1 Properties
 
-        generates_timeorder = ConfigurationSetting(doc='''
+        generates_timeorder = ConfigurationSetting(value=False, doc='''
             :const:`True`, if the command generates new events.
 
-            Default: :const:`True`
+            Default: :const:`False`
 
             ''')
 
-        streaming = ConfigurationSetting(value=False, doc='''
+        retainsevents = ConfigurationSetting(value=False, doc='''
+            :const:`True`, if the command retains events the way the sort, dedup, and cluster commands do, or whether it
+            transforms them the way the stats command does.
+
+            ''')
+
+        streaming = ConfigurationSetting(value=True, doc='''
             :const:`True`, if the command is streamable.
 
-            Default: :const:`False`
+            Default: :const:`True`
 
             ''')
 
@@ -163,15 +168,15 @@ class GeneratingCommand(SearchCommand):
             if command.generate == GeneratingCommand.generate:
                 raise AttributeError('No GeneratingCommand.generate override')
 
-        def _items(self):
-
-            sequence = ifilterfalse(lambda (name, value): name == 'distributed' or value is None, self._iter())
-
-            if not (self.distributed and self.type == 'streaming'):
-                return sequence
-
-            sequence = imap(lambda (name, value): (name, value) if name != 'type' else (name, 'stateful'), sequence)
-            return OrderedDict(sequence)
+        def iteritems(self):
+            iteritems = SearchCommand.ConfigurationSettings.iteritems(self)
+            version = self.command.protocol_version
+            if version == 2:
+                iteritems = ifilter(lambda (name, value): name != 'distributed', iteritems)
+                if self.distributed and self.type == 'streaming':
+                    iteritems = imap(
+                        lambda (name, value): (name, 'stateful') if name == 'type' else (name, value), iteritems)
+            return iteritems
 
         # endregion
 

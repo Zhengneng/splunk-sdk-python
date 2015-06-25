@@ -282,8 +282,7 @@ class TestSearchCommand(TestCase):
                 result.getvalue(),
                 r'^\r\n'
                 r'data,__mv_data,_serial,__mv__serial\r\n'
-                r'"{u\'is_summary_index\': 0, u\'normalized_search\': \'\', u\'rt_backfill\': 0, u\'rtspan\': \'\', '
-                r'.+'
+                r'"\{u\'is_summary_index\': 0, u\'normalized_search\': \'\', u\'rt_backfill\': 0, .+'
                 r'\r\n$')
 
         # TestStreamingCommand.process should provide access to a service object when search results info is available
