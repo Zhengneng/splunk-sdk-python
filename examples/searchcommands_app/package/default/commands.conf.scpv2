@@ -1,13 +1,5 @@
 # [commands.conf]($SPLUNK_HOME/etc/system/README/commands.conf.spec)
 
-[generatehello]
-filename = generatehello.py
-chunked = true
-
-[sum]
-filename = sum.py
-chunked = true
-
 [countmatches]
 filename = countmatches.py
 chunked = true
@@ -16,6 +8,18 @@ chunked = true
 filename = echo.py
 chunked = true
 
+[generatehello]
+filename = generatehello.py
+chunked = true
+
+[generatetext]
+filename = generatetext.py
+chunked = true
+
 [pypygeneratehello]
 filename = pypygeneratehello.py
+chunked = true
+
+[sum]
+filename = sum.py
 chunked = true

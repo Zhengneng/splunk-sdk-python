@@ -1,7 +1,6 @@
 # [commands.conf]($SPLUNK_HOME/etc/system/README/commands.conf.spec)
 
 [countmatches]
-filename = countmatches.py
 enableheader = true
 outputheader = true
 requires_srinfo = true
@@ -10,7 +9,6 @@ supports_rawargs = true
 supports_multivalues = true
 
 [simulate]
-filename = simulate.py
 enableheader = true
 outputheader = true
 requires_srinfo = true
@@ -19,7 +17,6 @@ supports_rawargs = true
 supports_multivalues = true
 
 [sum]
-filename = sum.py
 enableheader = true
 outputheader = true
 requires_srinfo = true
@@ -28,6 +25,14 @@ supports_rawargs = true
 supports_multivalues = true
 
 [generatehello]
+enableheader = true
+outputheader = true
+requires_srinfo = true
+supports_getinfo = true
+supports_rawargs = true
+supports_multivalues = true
+
+[generatetext]
 enableheader = true
 outputheader = true
 requires_srinfo = true

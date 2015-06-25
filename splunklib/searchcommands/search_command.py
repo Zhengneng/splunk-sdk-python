@@ -70,6 +70,9 @@ from .validators import Boolean
 # 2. Rename type=events as type=eventing for symmetry with type=reporting and type=streaming.
 #    Eventing commands process records on the events pipeline.
 #    This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
+#
+# 3. For consistency with SCPV1, commands.conf should not require filename setting when chunked = true
+#    The SCPV1 processor uses <stanza-name>.py as the default filename. The ChunkedExternProcessor should do the same.
 
 # P1 [ ] TODO: Verify that ChunkedExternProcessor complains if a streaming_preop has a type other than 'streaming'
 # It once looked like sending type='reporting' for the streaming_preop was accepted.
