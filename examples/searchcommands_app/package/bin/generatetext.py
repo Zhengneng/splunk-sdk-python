@@ -23,7 +23,7 @@ import sys
 import time
 
 @Configuration()
-class GenerateHelloCommand(GeneratingCommand):
+class GenerateTextCommand(GeneratingCommand):
 
     count = Option(require=True, validate=validators.Integer(0))
     text = Option(require=True)
@@ -33,4 +33,4 @@ class GenerateHelloCommand(GeneratingCommand):
         for i in range(1, self.count + 1):
             yield {'_serial': i, '_time': time.time(), '_raw': unicode(i) + '. ' + text}
  
-dispatch(GenerateHelloCommand, sys.argv, sys.stdin, sys.stdout, __name__)
+dispatch(GenerateTextCommand, sys.argv, sys.stdin, sys.stdout, __name__)
