@@ -596,8 +596,13 @@ class RecordWriter(object):
             self._writer.writerow(fieldnames)
             self._fieldnames = record.keys()
 
-        values = imap(lambda fieldname: self._encode_value(record.get(fieldname, None)), self._fieldnames)
-        values = list(chain.from_iterable(values))
+        encode_value = self._encode_value
+        get_value = record.get
+        values = []
+
+        for fieldname in self._fieldnames:
+            values += encode_value(get_value(fieldname, None))
+
         self._writerow(values)
         self._record_count += 1
 
@@ -612,6 +617,10 @@ class RecordWriter(object):
 
     def _encode_value(self, value):
 
+        # P1 [ ] TODO: If a list item contains newlines, its single value cannot be interpreted correctly
+        # Question: Must we return a value? Is it good enough to return (None, <encoded-list>)?
+        # See what other splunk commands do.
+
         def to_string(item):
 
             if item is None:
@@ -622,10 +631,10 @@ class RecordWriter(object):
                 return item
             if isinstance(item, Number):
                 return str(item)
+            if isinstance(item, unicode):
+                return item.encode('utf-8', errors='backslashreplace')
 
-            if not isinstance(item, unicode):
-                item = self._encode_dict(item) if isinstance(item, dict) else repr(item)
-
+            item = self._encode_dict(item) if isinstance(item, dict) else repr(item)
             return item.encode('utf-8', errors='backslashreplace')
 
         if not isinstance(value, (list, tuple)):
@@ -637,12 +646,8 @@ class RecordWriter(object):
         if len(value) == 1:
             return to_string(value[0]), None
 
-        # P1 [ ] TODO: If a list item contains newlines, its single value cannot be interpreted correctly
-        # Question: Must we return a value? Is it good enough to return (None, <encoded-list>)?
-        # See what other splunk commands do.
-
-        value = imap(lambda item: to_string(item), value)
-        sv, mv = reduce(lambda (s, m), v: (s + v + b'\n', m + v.replace(b'$', b'$$') + b'$;$'), value, (b'', b'$'))
+        items = imap(lambda item: to_string(item), value)
+        sv, mv = reduce(lambda (s, m), v: (s + v + b'\n', m + v.replace(b'$', b'$$') + b'$;$'), items, (b'', b'$'))
 
         return sv[:-1], mv[:-2]
 
@@ -698,8 +703,9 @@ class RecordWriterV2(RecordWriter):
     def flush(self, finished=None, partial=None):
 
         RecordWriter.flush(self, finished, partial)  # validates arguments and the state of this instance
+        inspector = self._inspector
 
-        if self._record_count > 0 or len(self._inspector) > 0:
+        if self._record_count > 0 or len(inspector) > 0:
 
             self._total_record_count += self._record_count
             self._chunk_count += 1
@@ -714,10 +720,13 @@ class RecordWriterV2(RecordWriter):
             #     ('finished', finished),
             #     ('partial', partial)]
 
-            metadata = [
-                ('inspector', self._inspector if len(self._inspector) else None),
-                ('finished', True if finished is True else False if partial is True else None)
-            ]
+            if len(inspector) == 0:
+                inspector = None
+
+            if partial is True:
+                finished = False
+
+            metadata = [item for item in ('inspector', inspector), ('finished', finished)]
             self._write_chunk(metadata, self._buffer.getvalue())
             self._clear()
 
@@ -742,7 +751,7 @@ class RecordWriterV2(RecordWriter):
     def _write_chunk(self, metadata, body):
 
         if metadata:
-            metadata = OrderedDict(ifilter(lambda x: x[1] is not None, metadata))
+            metadata = {name: value for name, value in metadata if value is not None}
             metadata = self._encode_metadata(metadata)
             metadata_length = len(metadata)
         else:

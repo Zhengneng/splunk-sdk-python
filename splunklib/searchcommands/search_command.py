@@ -79,8 +79,9 @@ from .validators import Boolean
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-# P1 [ ] TODO: RecordWriter.mv_delimiter to support protocol_v1
+# P1 [ ] TODO: RecordWriter.mv_delimiter to support protocol_v1 (?)
 # writer = splunk_csv.DictWriter(output_file, self, self.configuration.keys(), mv_delimiter=',')
+# We need this to support serializing the required_fields ConfigurationSetting. Is there another way?
 
 # P1 [ ] TODO: Rename globals.py because while it's allowed as a module name, it's unsatisfying that globals is also the
 # name of a python builtin function. Note that global.py is not permitted as a module name because it conflicts with the
@@ -91,10 +92,6 @@ from .validators import Boolean
 # P1 [O] TODO: Phase option should print in a more user-friendly way
 
 # P1 [ ] TODO: Complete default/searchbnf.conf
-
-# P1 [ ] TODO: SearchCommand.metadata should not include action field because it is misleading (it's not updated to
-# reflect the current state of the command; it's always getinfo; never updated to execute; the only state a command
-# will ever see.
 
 # P1 [ ] TODO: What's the difference between SearchCommand.search_results_info.auth_token and
 # SearchCommand.metadata.searchinfo.session_key? Which should we be using to create SearchCommand.Service?
@@ -890,8 +887,11 @@ class SearchCommand(object):
 
         """
         write_record = self._write_record
+        self._metadata.action = 'execute'
+
         for record in process(self._records(ifile)):
             write_record(record)
+
         self.finish()
 
     @staticmethod

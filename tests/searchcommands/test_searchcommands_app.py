@@ -17,8 +17,6 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from tests.searchcommands import project_root
-
 from itertools import ifilter, imap, izip
 from subprocess import PIPE, Popen
 from unittest import main, skipUnless, TestCase
@@ -26,6 +24,9 @@ from unittest import main, skipUnless, TestCase
 import csv
 import io
 import os
+
+from tests.searchcommands import project_root
+
 
 def pypy():
     process = Popen(['pypy', '--version'], stderr=PIPE, stdout=PIPE)
@@ -132,6 +133,8 @@ class TestSearchCommandsApp(TestCase):
         # self.assertEqual('', errors)
         self.assertEqual(expected, output)
 
+        return
+
     def test_generatehello_as_unit(self):
 
         expected, output, errors, exit_status = self._run_command('generatehello', action='getinfo', protocol=1)
@@ -152,6 +155,8 @@ class TestSearchCommandsApp(TestCase):
         # P2 [ ] TODO: Smart diff that's insensitive to _time
         # P2 [ ] TODO: Smart diff that's insensitive to column order
 
+        return
+
     @skipUnless(pypy(), 'Skipping TestSearchCommandsApp.test_pypygeneratehello_as_unit because pypy is not on PATH.')
     def test_pypygeneratehello_as_unit(self):
 
@@ -169,6 +174,8 @@ class TestSearchCommandsApp(TestCase):
         self.assertEqual(0, exit_status)
         # self.assertEqual('', errors)
         # self.assertEqual(expected, output)
+
+        return
 
     def test_sum_as_unit(self):
 
@@ -201,6 +208,8 @@ class TestSearchCommandsApp(TestCase):
         self.assertEqual(0, exit_status)
         # self.assertEqual('', errors)
         self.assertEqual(expected, output)
+
+        return
 
     def _get_search_command_path(self, name):
         path = os.path.join(project_root, 'examples', 'searchcommands_app', 'package', 'bin', name + '.py')

@@ -440,7 +440,7 @@ class Test(object):
 
     def _run(self):
 
-        writer = RecordWriter(self.recorder.output, maxresultrows=10)
+        writer = RecordWriterV2(self.recorder.output, maxresultrows=10)
         write_record = writer.write_record
         names = self.fieldnames
 
