@@ -596,12 +596,56 @@ class RecordWriter(object):
             self._writer.writerow(fieldnames)
             self._fieldnames = record.keys()
 
-        encode_value = self._encode_value
         get_value = record.get
         values = []
+        add_value = values.extend
+
+        def to_string():
+
+            cls = type(value)
+
+            if issubclass(cls, unicode):
+                return value.encode('utf-8', errors='backslashreplace')
+            if issubclass(cls, bool):
+                return b'1' if value else b'0'
+            if issubclass(cls, bytes):
+                return value
+            if issubclass(cls, Number):
+                return str(value)
+            if issubclass(cls, (dict, list)):
+                return self._encode_json(value)
+
+            return repr(value).encode('utf-8', errors='backslashreplace')
 
         for fieldname in self._fieldnames:
-            values += encode_value(get_value(fieldname, None))
+            value = get_value(fieldname, None)
+
+            if value is None:
+                add_value((None, None))
+
+            if not isinstance(value, (list, set, tuple)):
+                add_value((to_string(), None))
+                continue
+
+            if len(value) == 0:
+                add_value((None, None))
+                continue
+
+            if len(value) == 1:
+                value = value[0]
+                add_value((to_string(), None))
+                continue
+
+            items = value
+            sv = b''
+            mv = b'$'
+
+            for value in items:
+                value = b'' if value is None else to_string()
+                sv += value + b'\n'
+                mv += value.replace(b'$', b'$$') + b'$;$'
+
+            add_value((sv[:-1], mv[:-2]))
 
         self._writerow(values)
         self._record_count += 1
@@ -615,48 +659,12 @@ class RecordWriter(object):
         self._inspector.clear()
         self._record_count = 0
 
-    def _encode_value(self, value):
-
-        # P1 [ ] TODO: If a list item contains newlines, its single value cannot be interpreted correctly
-        # Question: Must we return a value? Is it good enough to return (None, <encoded-list>)?
-        # See what other splunk commands do.
-
-        def to_string(item):
-
-            if item is None:
-                return b''
-            if isinstance(item, bool):
-                return b'1' if item else b'0'
-            if isinstance(item, bytes):
-                return item
-            if isinstance(item, Number):
-                return str(item)
-            if isinstance(item, unicode):
-                return item.encode('utf-8', errors='backslashreplace')
-
-            item = self._encode_dict(item) if isinstance(item, dict) else repr(item)
-            return item.encode('utf-8', errors='backslashreplace')
-
-        if not isinstance(value, (list, tuple)):
-            return to_string(value), None
-
-        if len(value) == 0:
-            return None, None
-
-        if len(value) == 1:
-            return to_string(value[0]), None
-
-        items = imap(lambda item: to_string(item), value)
-        sv, mv = reduce(lambda (s, m), v: (s + v + b'\n', m + v.replace(b'$', b'$$') + b'$;$'), items, (b'', b'$'))
-
-        return sv[:-1], mv[:-2]
-
     def _ensure_validity(self):
         if self._finished is True:
             assert self._record_count == 0 and len(self._inspector) == 0
             raise RuntimeError('I/O operation on closed record writer')
 
-    _encode_dict = JSONEncoder(separators=(',', ':')).encode
+    _encode_json = JSONEncoder(separators=(',', ':')).encode
 
 
 class RecordWriterV1(RecordWriter):
@@ -697,6 +705,7 @@ class RecordWriterV1(RecordWriter):
         'INFO': 'info_message',
         'WARN': 'warn_message'
     }
+
 
 class RecordWriterV2(RecordWriter):
 

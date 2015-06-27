@@ -67,9 +67,9 @@ from .validators import Boolean
 # 1. Implement requires_preop configuration setting.
 #    This configuration setting is currently rejected by ChunkedExternProcessor.
 #
-# 2. Rename type=events as type=eventing for symmetry with type=reporting and type=streaming.
-#    Eventing commands process records on the events pipeline.
-#    This change effects ChunkedExternProcessor.cpp, eventing_command.py, and generating_command.py.
+# 2. Rename type=events as type=eventing for symmetry with type=reporting and type=streaming
+#    Eventing commands process records on the events pipeline. This change effects ChunkedExternProcessor.cpp,
+#    eventing_command.py, and generating_command.py.
 #
 # 3. For consistency with SCPV1, commands.conf should not require filename setting when chunked = true
 #    The SCPV1 processor uses <stanza-name>.py as the default filename. The ChunkedExternProcessor should do the same.
@@ -81,7 +81,8 @@ from .validators import Boolean
 
 # P1 [ ] TODO: RecordWriter.mv_delimiter to support protocol_v1 (?)
 # writer = splunk_csv.DictWriter(output_file, self, self.configuration.keys(), mv_delimiter=',')
-# We need this to support serializing the required_fields ConfigurationSetting. Is there another way?
+# We need this to support serializing the required_fields ConfigurationSetting. Is there another
+# way?
 
 # P1 [ ] TODO: Rename globals.py because while it's allowed as a module name, it's unsatisfying that globals is also the
 # name of a python builtin function. Note that global.py is not permitted as a module name because it conflicts with the
@@ -92,10 +93,6 @@ from .validators import Boolean
 # P1 [O] TODO: Phase option should print in a more user-friendly way
 
 # P1 [ ] TODO: Complete default/searchbnf.conf
-
-# P1 [ ] TODO: What's the difference between SearchCommand.search_results_info.auth_token and
-# SearchCommand.metadata.searchinfo.session_key? Which should we be using to create SearchCommand.Service?
-# They're different. Do both work for the purpose of authn/authz?
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -109,6 +106,10 @@ from .validators import Boolean
 # self.metadata, self.search_results_info, and self.service. Such mocks might be based on archived dispatch directories.
 
 # P2 [ ] TODO: Review and update code docs to reflect usage under protocol_version == 1 as well as protocol_version == 2
+
+# P2 [ ] TODO: What's the difference between SearchCommand.search_results_info.auth_token and
+# SearchCommand.metadata.searchinfo.session_key? Which should we be using to create
+# SearchCommand.Service? They're different. Do both work for the purpose of authn/authz?
 
 
 class SearchCommand(object):
