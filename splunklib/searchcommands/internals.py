@@ -515,8 +515,6 @@ class Recorder(object):
         self._recording = io.open(path, 'wb')
         self._file = f
 
-    # P2 [ ] TODO: Implement __dir__ because we delegate to self._file (?)
-
     def __getattr__(self, name):
         return getattr(self._file, name)
 
@@ -650,6 +648,11 @@ class RecordWriter(object):
 
         if self._record_count >= self._maxresultrows:
             self.flush(partial=True)
+
+    def write_records(self, records):
+        write_record = self.write_record
+        for record in records:
+            write_record(record)
 
     def _clear(self):
         self._buffer.reset()

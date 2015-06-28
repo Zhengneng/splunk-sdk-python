@@ -161,7 +161,6 @@ class SearchCommand(object):
 
         self._default_logging_level = self._logger.level
         self._record_writer = None
-        self._write_record = None
         self._records = None
 
     def __str__(self):
@@ -626,7 +625,6 @@ class SearchCommand(object):
 
         debug('%s.process started under protocol_version=1', class_name)
         self._record_writer = RecordWriterV1(ofile)
-        self._write_record = self._record_writer.write_record
 
         # noinspection PyBroadException
         try:
@@ -636,7 +634,7 @@ class SearchCommand(object):
 
                 ifile = self._prepare_protocol_v1(argv, ifile, ofile)
                 record = self._configuration.items()
-                self._write_record(record)
+                self._record_writer.write_record(record)
                 self.finish()
 
             elif argv[1] == '__EXECUTE__':
@@ -645,6 +643,7 @@ class SearchCommand(object):
 
                 ifile = self._prepare_protocol_v1(argv, ifile, ofile)
                 self._records = self._records_protocol_v1
+                self._metadata.action = 'execute'
                 self._execute(ifile, None)
 
             else:
@@ -737,7 +736,6 @@ class SearchCommand(object):
         # noinspection PyBroadException
         try:
             self._record_writer = RecordWriterV2(ofile, getattr(self._metadata, 'maxresultrows', None))
-            self._write_record = self._record_writer.write_record
             self.fieldnames = []
             self.options.reset()
 
@@ -819,6 +817,7 @@ class SearchCommand(object):
         try:
             debug('Executing under protocol_version=2')
             self._records = self._records_protocol_v2
+            self._metadata.action = 'execute'
             self._execute(ifile, None)
         except SystemExit:
             self.finish()
@@ -887,12 +886,7 @@ class SearchCommand(object):
         :rtype: NoneType
 
         """
-        write_record = self._write_record
-        self._metadata.action = 'execute'
-
-        for record in process(self._records(ifile)):
-            write_record(record)
-
+        self._record_writer.write_records(process(self._records(ifile)))
         self.finish()
 
     @staticmethod

@@ -78,11 +78,8 @@ class GeneratingCommand(SearchCommand):
         :return: `None`.
 
         """
-        writer = self._record_writer
-        write = writer.write_record
-        for record in self.generate():
-            write(record)
-        writer.flush(finished=True)
+        self._record_writer.write_records(self.generate())
+        self.finish()
 
     # endregion
 
