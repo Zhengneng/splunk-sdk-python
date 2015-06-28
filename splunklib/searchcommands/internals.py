@@ -23,7 +23,6 @@ from json import JSONDecoder, JSONEncoder
 from json.encoder import encode_basestring as encode_string
 from logging import getLogger, root, StreamHandler
 from logging.config import fileConfig
-from numbers import Number
 from urllib import unquote
 
 import csv
@@ -651,7 +650,7 @@ class RecordWriter(object):
 
                             if value_type is unicode:
                                 value = value.encode('utf-8', errors='backslashreplace')
-                            elif issubclass(value_type, Number):
+                            elif issubclass(value_type, (bool, int, long, float, complex)):
                                 value = str(value.real)
                             elif issubclass(value_type, (dict, list, tuple)):
                                 value = self._encode_json(value)
@@ -667,15 +666,15 @@ class RecordWriter(object):
                 value = value[0]
                 value_type = type(value)
 
-            if value_type is unicode:
-                values += (value.encode('utf-8', errors='backslashreplace'), None)
-                continue
-
             if value_type is bytes:
                 values += (value, None)
                 continue
 
-            if issubclass(value_type, Number):
+            if value_type is unicode:
+                values += (value.encode('utf-8', errors='backslashreplace'), None)
+                continue
+
+            if issubclass(value_type, (bool, int, long, float, complex)):
                 values += (str(value.real), None)
                 continue
 
