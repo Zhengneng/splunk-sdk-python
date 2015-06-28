@@ -606,12 +606,10 @@ class RecordWriter(object):
 
             if issubclass(cls, unicode):
                 return value.encode('utf-8', errors='backslashreplace')
-            if issubclass(cls, bool):
-                return b'1' if value else b'0'
+            if issubclass(cls, Number):
+                return str(value.real)
             if issubclass(cls, bytes):
                 return value
-            if issubclass(cls, Number):
-                return str(value)
             if issubclass(cls, (dict, list)):
                 return self._encode_json(value)
 
