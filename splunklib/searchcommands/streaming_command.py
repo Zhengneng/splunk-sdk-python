@@ -122,8 +122,6 @@ class StreamingCommand(SearchCommand):
 
             ''')
 
-        # P1 [ ] TODO: Ensure that when type == 'streaming' and distributed is True, we serialize type='stateful':
-
         type = ConfigurationSetting(readonly=True, value='streaming', doc='''
             Command type name.
 
