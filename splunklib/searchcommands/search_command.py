@@ -84,6 +84,8 @@ from .validators import Boolean
 # We need this to support serializing the required_fields ConfigurationSetting. Is there another
 # way?
 
+# P1 [ ] TODO: Write boundary tests on RecordWriter.flush
+
 # P1 [ ] TODO: Rename globals.py because while it's allowed as a module name, it's unsatisfying that globals is also the
 # name of a python builtin function. Note that global.py is not permitted as a module name because it conflicts with the
 # global keyword.
@@ -98,8 +100,6 @@ from .validators import Boolean
 
 # P2 [ ] TODO: In SearchCommand.__init__ change app_root parameter to app_file because app_file is required and
 # app_root can be computed from it. See globals.py and SearchCommand.__init__.
-
-# P2 [ ] TODO: Write boundary tests on RecordWriter.flush
 
 # P2 [ ] TODO: Use saved dispatch dir to mock tests that depend on its contents (?)
 # To make records more generally useful to application developers we should provide/demonstrate how to mock

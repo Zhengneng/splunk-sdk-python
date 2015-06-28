@@ -647,9 +647,9 @@ class RecordWriter(object):
 
                         value_type = type(value)
 
-                        if not issubclass(value_type, bytes):
+                        if value_type is not bytes:
 
-                            if issubclass(value_type, unicode):
+                            if value_type is unicode:
                                 value = value.encode('utf-8', errors='backslashreplace')
                             elif issubclass(value_type, Number):
                                 value = str(value.real)
@@ -667,16 +667,16 @@ class RecordWriter(object):
                 value = value[0]
                 value_type = type(value)
 
-            if issubclass(value_type, unicode):
+            if value_type is unicode:
                 values += (value.encode('utf-8', errors='backslashreplace'), None)
+                continue
+
+            if value_type is bytes:
+                values += (value, None)
                 continue
 
             if issubclass(value_type, Number):
                 values += (str(value.real), None)
-                continue
-
-            if issubclass(value_type, bytes):
-                values += (value, None)
                 continue
 
             if issubclass(value_type, dict):
