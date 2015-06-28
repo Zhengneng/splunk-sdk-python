@@ -666,6 +666,10 @@ class RecordWriter(object):
                 value = value[0]
                 value_type = type(value)
 
+            if value_type is bool:
+                values += (str(value.real), None)
+                continue
+
             if value_type is bytes:
                 values += (value, None)
                 continue
@@ -674,8 +678,8 @@ class RecordWriter(object):
                 values += (value.encode('utf-8', errors='backslashreplace'), None)
                 continue
 
-            if issubclass(value_type, (bool, int, long, float, complex)):
-                values += (str(value.real), None)
+            if value_type is int or value_type is long or value_type is float or value_type is complex:
+                values += (str(value), None)
                 continue
 
             if issubclass(value_type, dict):
