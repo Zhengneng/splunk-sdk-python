@@ -18,7 +18,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from collections import deque, namedtuple, OrderedDict
 from cStringIO import StringIO
-from itertools import chain, ifilter, imap
+from itertools import chain, imap
 from json import JSONDecoder, JSONEncoder
 from json.encoder import encode_basestring as encode_string
 from logging import getLogger, root, StreamHandler
@@ -611,19 +611,18 @@ class RecordWriter(object):
 
         if fieldnames is None:
             self._fieldnames = fieldnames = record.keys()
-            items = imap(lambda fn: unicode(fn).encode('utf-8'), fieldnames)
-            items = imap(lambda fn: (fn, b'__mv_' + fn), items)
-            self._writerow(list(chain.from_iterable(items)))
+            value_list = imap(lambda fn: unicode(fn).encode('utf-8'), fieldnames)
+            value_list = imap(lambda fn: (fn, b'__mv_' + fn), value_list)
+            self._writerow(list(chain.from_iterable(value_list)))
 
         get_value = record.get
         values = []
-        add_value = values.extend
 
         for fieldname in fieldnames:
             value = get_value(fieldname, None)
 
             if value is None:
-                add_value((None, None))
+                values += (None, None)
                 continue
 
             value_type = type(value)
@@ -631,15 +630,15 @@ class RecordWriter(object):
             if issubclass(value_type, (list, tuple)):
 
                 if len(value) == 0:
-                    add_value((None, None))
+                    values += (None, None)
                     continue
 
                 if len(value) > 1:
-                    items = value
+                    value_list = value
                     sv = b''
                     mv = b'$'
 
-                    for value in items:
+                    for value in value_list:
 
                         if value is None:
                             sv += b'\n'
@@ -662,29 +661,29 @@ class RecordWriter(object):
                         sv += value + b'\n'
                         mv += value.replace(b'$', b'$$') + b'$;$'
 
-                    add_value((sv[:-1], mv[:-2]))
+                    values += (sv[:-1], mv[:-2])
                     continue
 
                 value = value[0]
                 value_type = type(value)
 
             if issubclass(value_type, unicode):
-                add_value((value.encode('utf-8', errors='backslashreplace'), None))
+                values += (value.encode('utf-8', errors='backslashreplace'), None)
                 continue
 
             if issubclass(value_type, Number):
-                add_value((str(value.real), None))
+                values += (str(value.real), None)
                 continue
 
             if issubclass(value_type, bytes):
-                add_value((value, None))
+                values += (value, None)
                 continue
 
             if issubclass(value_type, dict):
-                add_value((self._encode_json(value), None))
+                values += (self._encode_json(value), None)
                 continue
 
-            add_value((repr(value).encode('utf-8', errors='backslashreplace'), None))
+            values += (repr(value).encode('utf-8', errors='backslashreplace'), None)
 
         self._writerow(values)
         self._record_count += 1
@@ -788,8 +787,7 @@ class RecordWriterV2(RecordWriter):
     def _write_chunk(self, metadata, body):
 
         if metadata:
-            metadata = {name: value for name, value in metadata if value is not None}
-            metadata = self._encode_metadata(metadata)
+            metadata = self._encode_metadata({name: value for name, value in metadata if value is not None})
             metadata_length = len(metadata)
         else:
             metadata_length = 0
@@ -799,7 +797,7 @@ class RecordWriterV2(RecordWriter):
         if not (metadata_length > 0 or body_length > 0):
             return
 
-        start_line = 'chunked 1.0,' + unicode(metadata_length) + ',' + unicode(body_length) + '\n'
+        start_line = b'chunked 1.0,' + bytes(metadata_length) + b',' + bytes(body_length) + b'\n'
         write = self._ofile.write
         write(start_line)
         write(metadata)
