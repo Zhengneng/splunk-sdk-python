@@ -615,19 +615,6 @@ class RecordWriter(object):
             items = imap(lambda fn: (fn, b'__mv_' + fn), items)
             self._writerow(list(chain.from_iterable(items)))
 
-        def to_string():
-
-            if issubclass(value_type, unicode):
-                return value.encode('utf-8', errors='backslashreplace')
-            if issubclass(value_type, Number):
-                return str(value.real)
-            if issubclass(value_type, bytes):
-                return value
-            if issubclass(value_type, (dict, list)):
-                return self._encode_json(value)
-
-            return repr(value).encode('utf-8', errors='backslashreplace')
-
         get_value = record.get
         values = []
         add_value = values.extend
@@ -641,36 +628,63 @@ class RecordWriter(object):
 
             value_type = type(value)
 
-            if not issubclass(value_type, (list, set, tuple)):
-                add_value((to_string(), None))
-                continue
+            if issubclass(value_type, (list, tuple)):
 
-            if len(value) == 0:
-                add_value((None, None))
-                continue
+                if len(value) == 0:
+                    add_value((None, None))
+                    continue
 
-            if len(value) == 1:
+                if len(value) > 1:
+                    items = value
+                    sv = b''
+                    mv = b'$'
+
+                    for value in items:
+
+                        if value is None:
+                            sv += b'\n'
+                            mv += b'$;$'
+                            continue
+
+                        value_type = type(value)
+
+                        if not issubclass(value_type, bytes):
+
+                            if issubclass(value_type, unicode):
+                                value = value.encode('utf-8', errors='backslashreplace')
+                            elif issubclass(value_type, Number):
+                                value = str(value.real)
+                            elif issubclass(value_type, (dict, list, tuple)):
+                                value = self._encode_json(value)
+                            else:
+                                value = repr(value).encode('utf-8', errors='backslashreplace')
+
+                        sv += value + b'\n'
+                        mv += value.replace(b'$', b'$$') + b'$;$'
+
+                    add_value((sv[:-1], mv[:-2]))
+                    continue
+
                 value = value[0]
                 value_type = type(value)
-                add_value((to_string(), None))
+
+            if issubclass(value_type, unicode):
+                add_value((value.encode('utf-8', errors='backslashreplace'), None))
                 continue
 
-            items = value
-            sv = b''
-            mv = b'$'
+            if issubclass(value_type, Number):
+                add_value((str(value.real), None))
+                continue
 
-            for value in items:
+            if issubclass(value_type, bytes):
+                add_value((value, None))
+                continue
 
-                if value is None:
-                    sv += b'\n'
-                    mv += b'$;$'
-                else:
-                    value_type = type(value)
-                    value = to_string()
-                    sv += value + b'\n'
-                    mv += value.replace(b'$', b'$$') + b'$;$'
+            if issubclass(value_type, dict):
+                add_value((self._encode_json(value), None))
+                continue
 
-            add_value((sv[:-1], mv[:-2]))
+            add_value((repr(value).encode('utf-8', errors='backslashreplace'), None))
 
         self._writerow(values)
         self._record_count += 1
