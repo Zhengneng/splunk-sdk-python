@@ -586,71 +586,11 @@ class RecordWriter(object):
 
     def write_record(self, record):
         self._ensure_validity()
-
-        if self._fieldnames is None:
-            fieldnames = imap(lambda key: unicode(key).encode('utf-8'), record.iterkeys())
-            fieldnames = imap(lambda fieldname: (fieldname, b'__mv_' + fieldname), fieldnames)
-            fieldnames = list(chain.from_iterable(fieldnames))
-            self._writer.writerow(fieldnames)
-            self._fieldnames = record.keys()
-
-        get_value = record.get
-        values = []
-        add_value = values.extend
-
-        def to_string():
-
-            cls = type(value)
-
-            if issubclass(cls, unicode):
-                return value.encode('utf-8', errors='backslashreplace')
-            if issubclass(cls, Number):
-                return str(value.real)
-            if issubclass(cls, bytes):
-                return value
-            if issubclass(cls, (dict, list)):
-                return self._encode_json(value)
-
-            return repr(value).encode('utf-8', errors='backslashreplace')
-
-        for fieldname in self._fieldnames:
-            value = get_value(fieldname, None)
-
-            if value is None:
-                add_value((None, None))
-
-            if not isinstance(value, (list, set, tuple)):
-                add_value((to_string(), None))
-                continue
-
-            if len(value) == 0:
-                add_value((None, None))
-                continue
-
-            if len(value) == 1:
-                value = value[0]
-                add_value((to_string(), None))
-                continue
-
-            items = value
-            sv = b''
-            mv = b'$'
-
-            for value in items:
-                value = b'' if value is None else to_string()
-                sv += value + b'\n'
-                mv += value.replace(b'$', b'$$') + b'$;$'
-
-            add_value((sv[:-1], mv[:-2]))
-
-        self._writerow(values)
-        self._record_count += 1
-
-        if self._record_count >= self._maxresultrows:
-            self.flush(partial=True)
+        self._write_record(record)
 
     def write_records(self, records):
-        write_record = self.write_record
+        self._ensure_validity()
+        write_record = self._write_record
         for record in records:
             write_record(record)
 
@@ -664,6 +604,79 @@ class RecordWriter(object):
         if self._finished is True:
             assert self._record_count == 0 and len(self._inspector) == 0
             raise RuntimeError('I/O operation on closed record writer')
+
+    def _write_record(self, record):
+
+        fieldnames = self._fieldnames
+
+        if fieldnames is None:
+            self._fieldnames = fieldnames = record.keys()
+            items = imap(lambda fn: unicode(fn).encode('utf-8'), fieldnames)
+            items = imap(lambda fn: (fn, b'__mv_' + fn), items)
+            self._writerow(list(chain.from_iterable(items)))
+
+        def to_string():
+
+            if issubclass(value_type, unicode):
+                return value.encode('utf-8', errors='backslashreplace')
+            if issubclass(value_type, Number):
+                return str(value.real)
+            if issubclass(value_type, bytes):
+                return value
+            if issubclass(value_type, (dict, list)):
+                return self._encode_json(value)
+
+            return repr(value).encode('utf-8', errors='backslashreplace')
+
+        get_value = record.get
+        values = []
+        add_value = values.extend
+
+        for fieldname in fieldnames:
+            value = get_value(fieldname, None)
+
+            if value is None:
+                add_value((None, None))
+                continue
+
+            value_type = type(value)
+
+            if not issubclass(value_type, (list, set, tuple)):
+                add_value((to_string(), None))
+                continue
+
+            if len(value) == 0:
+                add_value((None, None))
+                continue
+
+            if len(value) == 1:
+                value = value[0]
+                value_type = type(value)
+                add_value((to_string(), None))
+                continue
+
+            items = value
+            sv = b''
+            mv = b'$'
+
+            for value in items:
+
+                if value is None:
+                    sv += b'\n'
+                    mv += b'$;$'
+                else:
+                    value_type = type(value)
+                    value = to_string()
+                    sv += value + b'\n'
+                    mv += value.replace(b'$', b'$$') + b'$;$'
+
+            add_value((sv[:-1], mv[:-2]))
+
+        self._writerow(values)
+        self._record_count += 1
+
+        if self._record_count >= self._maxresultrows:
+            self.flush(partial=True)
 
     _encode_json = JSONEncoder(separators=(',', ':')).encode
 
