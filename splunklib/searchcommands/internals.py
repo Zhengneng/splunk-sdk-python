@@ -624,9 +624,9 @@ class RecordWriter(object):
                 values += (None, None)
                 continue
 
-            value_type = type(value)
+            value_t = type(value)
 
-            if issubclass(value_type, (list, tuple)):
+            if issubclass(value_t, (list, tuple)):
 
                 if len(value) == 0:
                     values += (None, None)
@@ -644,15 +644,17 @@ class RecordWriter(object):
                             mv += b'$;$'
                             continue
 
-                        value_type = type(value)
+                        value_t = type(value)
 
-                        if value_type is not bytes:
+                        if value_t is not bytes:
 
-                            if value_type is unicode:
-                                value = value.encode('utf-8', errors='backslashreplace')
-                            elif issubclass(value_type, (bool, int, long, float, complex)):
+                            if value_t is bool:
                                 value = str(value.real)
-                            elif issubclass(value_type, (dict, list, tuple)):
+                            elif value_t is unicode:
+                                value = value.encode('utf-8', errors='backslashreplace')
+                            elif value_t is int or value_t is long or value_t is float or value_t is complex:
+                                value = str(value)
+                            elif issubclass(value_t, (dict, list, tuple)):
                                 value = self._encode_json(value)
                             else:
                                 value = repr(value).encode('utf-8', errors='backslashreplace')
@@ -664,25 +666,25 @@ class RecordWriter(object):
                     continue
 
                 value = value[0]
-                value_type = type(value)
+                value_t = type(value)
 
-            if value_type is bool:
+            if value_t is bool:
                 values += (str(value.real), None)
                 continue
 
-            if value_type is bytes:
+            if value_t is bytes:
                 values += (value, None)
                 continue
 
-            if value_type is unicode:
+            if value_t is unicode:
                 values += (value.encode('utf-8', errors='backslashreplace'), None)
                 continue
 
-            if value_type is int or value_type is long or value_type is float or value_type is complex:
+            if value_t is int or value_t is long or value_t is float or value_t is complex:
                 values += (str(value), None)
                 continue
 
-            if issubclass(value_type, dict):
+            if issubclass(value_t, dict):
                 values += (self._encode_json(value), None)
                 continue
 
