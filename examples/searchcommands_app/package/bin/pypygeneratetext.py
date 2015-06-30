@@ -69,7 +69,7 @@ from os import environ, path
 
 import sys
 
-pypy_argv = ['pypy', path.join(app_root, 'bin', 'generatehello.py')] + sys.argv[1:]
+pypy_argv = ['pypy', path.join(app_root, 'bin', 'generatetext.py')] + sys.argv[1:]
 pypy_environ = dict(environ)
 pypy_environ.pop('PYTHONPATH', None)  # On Windows Splunk is a 64-bit service, but pypy is a 32-bit program
 pypy_environ.pop('DYLD_LIBRARY_PATH', None)  # On *nix Splunk includes shared objects that are incompatible with pypy

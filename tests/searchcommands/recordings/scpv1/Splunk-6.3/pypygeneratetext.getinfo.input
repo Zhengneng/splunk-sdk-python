@@ -1,7 +1,7 @@
 splunkVersion:20150522
 allowStream:1
 keywords:""
-search:| pypygeneratehello count="10" record="t"
+search:| pypygeneratetext count="10" text="Hello World!"
 sid:1434910861.5
 realtime:0
 preview:0

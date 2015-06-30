@@ -22,6 +22,7 @@ from splunklib.searchcommands import dispatch, GeneratingCommand, Configuration,
 import sys
 import time
 
+
 @Configuration()
 class GenerateHelloCommand(GeneratingCommand):
 

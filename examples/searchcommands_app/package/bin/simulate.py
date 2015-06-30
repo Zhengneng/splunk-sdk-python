@@ -32,8 +32,8 @@ class SimulateCommand(GeneratingCommand):
     ##Syntax
 
     .. code-block::
-        simulate csv=<path> rate=<expected_event_count>
-        interval=<sampling_period> duration=<execution_period> [seed=<string>]
+        simulate csv=<path> rate=<expected_event_count> interval=<sampling_period> duration=<execution_period>
+        [seed=<string>]
 
     ##Description
 

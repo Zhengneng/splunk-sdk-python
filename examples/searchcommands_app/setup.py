@@ -421,7 +421,7 @@ setup(
             'package/bin/countmatches.py',
             'package/bin/echo.py',
             'package/bin/generatehello.py',
-            'package/bin/pypygeneratehello.py',
+            'package/bin/pypygeneratetext.py',
             'package/bin/simulate.py',
             'package/bin/sum.py'
         ]

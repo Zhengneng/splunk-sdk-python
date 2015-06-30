@@ -733,20 +733,40 @@ class RecordWriterV1(RecordWriter):
         if self._record_count > 0 or (self._chunk_count == 0 and 'messages' in self._inspector):
 
             write = self._ofile.write
+            messages = self._inspector.get('messages')
 
             if self._chunk_count == 0:
 
-                messages = self._inspector.get('messages')
+                # Messages are written to the messages header when we write the first chunk of data
+                # Guarantee: These messages are displayed by splunkweb and the job inspector
 
-                if messages:
+                if messages is not None:
+
+                    message_level = RecordWriterV1._message_level.get
 
                     for level, text in messages:
-                        write(RecordWriterV1._message_level[level])
+                        write(message_level(level, level))
                         write('=')
                         write(text)
                         write('\r\n')
 
                 write('\r\n')
+
+            elif messages is not None:
+
+                # Messages are written to the messages header when we write subsequent chunks of data
+                # Guarantee: These messages are displayed by splunkweb and the job inspector, if and only if the
+                # command is configured with
+                #
+                #       stderr_dest = message
+                #
+                # stderr_dest is a static configuration setting. This means that it can only be set in commands.conf.
+                # It cannot be set in code.
+
+                stderr = sys.stderr
+
+                for level, text in messages:
+                    print(level, text, file=stderr)
 
             write(self._buffer.getvalue())
             self._clear()

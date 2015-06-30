@@ -157,20 +157,20 @@ class TestSearchCommandsApp(TestCase):
 
         return
 
-    @skipUnless(pypy(), 'Skipping TestSearchCommandsApp.test_pypygeneratehello_as_unit because pypy is not on PATH.')
-    def test_pypygeneratehello_as_unit(self):
+    @skipUnless(pypy(), 'Skipping TestSearchCommandsApp.test_pypygeneratetext_as_unit because pypy is not on PATH.')
+    def test_pypygeneratetext_as_unit(self):
 
-        expected, output, errors, exit_status = self._run_command('pypygeneratehello', action='getinfo', protocol=1)
+        expected, output, errors, exit_status = self._run_command('pypygeneratetext', action='getinfo', protocol=1)
         self.assertEqual(0, exit_status)
         # self.assertEqual('', errors)
         self.assertEqual(expected, output)
 
-        expected, output, errors, exit_status = self._run_command('pypygeneratehello', action='execute', protocol=1)
+        expected, output, errors, exit_status = self._run_command('pypygeneratetext', action='execute', protocol=1)
         self.assertEqual(0, exit_status)
         # self.assertEqual('', errors)
         # self.assertEqual(expected, output)
 
-        expected, output, errors, exit_status = self._run_command('pypygeneratehello')
+        expected, output, errors, exit_status = self._run_command('pypygeneratetext')
         self.assertEqual(0, exit_status)
         # self.assertEqual('', errors)
         # self.assertEqual(expected, output)

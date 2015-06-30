@@ -24,6 +24,7 @@ import sys
 # TODO: Consider an eventing command that removes columns
 # TODO: Convert generatehello to generatetext which takes a count and a text argument
 
+
 @Configuration()
 class EchoCommand(EventingCommand):
     """
