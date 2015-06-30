@@ -281,9 +281,15 @@ class TestSearchCommand(TestCase):
             self.assertRegexpMatches(
                 result.getvalue(),
                 r'^\r\n'
+                r'('
                 r'data,__mv_data,_serial,__mv__serial\r\n'
-                r'"\{u\'is_summary_index\': 0, u\'normalized_search\': \'\', u\'rt_backfill\': 0, .+'
-                r'\r\n$')
+                r'"\{.+u\'is_summary_index\': 0, .+\}",,0,'
+                r'|'
+                r'_serial,__mv__serial,data,__mv_data\r\n'
+                r'0,,"\{.+u\'is_summary_index\': 0, .+\}",'
+                r')'
+                r'\r\n$'
+            )
 
         # TestStreamingCommand.process should provide access to a service object when search results info is available
 
@@ -636,15 +642,19 @@ class TestSearchCommand(TestCase):
         self.assertEqual(command.required_option_1, 'value_1')
         self.assertEqual(command.required_option_2, 'value_2')
 
+        finished = r'"finished":true'
+
+        inspector = \
+            r'"inspector":\{"messages":\[\["ERROR","StandardError at \\".+\\", line \d+ : test ' \
+            r'logging_configuration=\\".+\\" logging_level=\\"WARNING\\" record=\\"f\\" ' \
+            r'required_option_1=\\"value_1\\" required_option_2=\\"value_2\\" show_configuration=\\"f\\""\]\]\}'
+
         self.assertRegexpMatches(
             result.getvalue(),
-            r'chunked 1.0,2,0\n'
+            r'^chunked 1.0,2,0\n'
             r'\{\}\n'
             r'chunked 1.0,\d+,0\n'
-            r'\{"inspector":\{"messages":\[\["ERROR","StandardError at \\".+\\", line \d+ : test '
-            r'logging_configuration=\\".+\\" logging_level=\\"WARNING\\" record=\\"f\\" '
-            r'required_option_1=\\"value_1\\" required_option_2=\\"value_2\\" show_configuration=\\"f\\""\]\]\},'
-            r'"finished":true\}')
+            r'\{(' + inspector + r',' + finished + r'|' + finished + r',' + inspector + r')\}')
 
         self.assertEqual(command.protocol_version, 2)
 

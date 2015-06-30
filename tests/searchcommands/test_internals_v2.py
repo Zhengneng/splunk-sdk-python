@@ -44,6 +44,7 @@ maxint = maxsize // 2
 
 max_length = 1 * 1024
 
+
 def random_bytes():
     return os.urandom(random.randint(0, max_length))
 
@@ -279,7 +280,9 @@ class TestInternals(TestCase):
             with open(os.path.splitext(input_file)[0] + '.output', 'rb') as f:
                 expected = f.read()
 
-            self.assertEqual(writer._ofile.getvalue(), expected)
+            self.assertMultiLineEqual(writer._ofile.getvalue(), expected)
+            os.remove(input_file)
+            os.remove(f.name)
 
         return
 

@@ -488,7 +488,7 @@ class MetadataDecoder(JSONDecoder):
 class MetadataEncoder(JSONEncoder):
 
     def __init__(self):
-        JSONEncoder.__init__(self, separators=self._separators)
+        JSONEncoder.__init__(self, separators=MetadataEncoder._separators)
 
     def default(self, o):
         return o.__dict__ if isinstance(o, ObjectView) else JSONEncoder.default(self, o)
@@ -655,7 +655,7 @@ class RecordWriter(object):
                             elif value_t is int or value_t is long or value_t is float or value_t is complex:
                                 value = str(value)
                             elif issubclass(value_t, (dict, list, tuple)):
-                                value = self._encode_json(value)
+                                value = str(''.join(RecordWriter._iterencode_json(value, 0)))
                             else:
                                 value = repr(value).encode('utf-8', errors='backslashreplace')
 
@@ -685,7 +685,7 @@ class RecordWriter(object):
                 continue
 
             if issubclass(value_t, dict):
-                values += (self._encode_json(value), None)
+                values += (str(''.join(RecordWriter._iterencode_json(value, 0))), None)
                 continue
 
             values += (repr(value).encode('utf-8', errors='backslashreplace'), None)
@@ -696,7 +696,30 @@ class RecordWriter(object):
         if self._record_count >= self._maxresultrows:
             self.flush(partial=True)
 
-    _encode_json = JSONEncoder(separators=(',', ':')).encode
+    try:
+        # noinspection PyUnresolvedReferences
+        from _json import make_encoder
+    except ImportError:
+        # We may be running under PyPy 2.5 which does not include the _json module
+        _iterencode_json = JSONEncoder(separators=(',', ':')).iterencode
+    else:
+        # Creating _iterencode_json this way yields a two-fold performance improvement on Python 2.7.9 and 2.7.10
+        from json.encoder import encode_basestring_ascii
+
+        @staticmethod
+        def _default(o):
+            raise TypeError(repr(o) + ' is not JSON serializable')
+
+        _iterencode_json = make_encoder(
+            {},                       # markers (for detecting circular references)
+            _default,                 # object_encoder
+            encode_basestring_ascii,  # string_encoder
+            None,                     # indent
+            ':', ',',                 # separators
+            False,                    # sort_keys
+            False,                    # skip_keys
+            True                      # allow_nan
+        )
 
 
 class RecordWriterV1(RecordWriter):
