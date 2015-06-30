@@ -982,9 +982,6 @@ class SearchCommand(object):
             except StopIteration:
                 return
 
-            # P2 [ ] TODO: Consider string interning (see intern built-in) for some performance improvement in this
-            # loop should performance data back this approach
-
             mv_fieldnames = {name: name[len('__mv_'):] for name in fieldnames if name.startswith('__mv_')}
 
             if len(mv_fieldnames) == 0:
@@ -1001,8 +998,6 @@ class SearchCommand(object):
                     elif fieldname not in record:
                         record[fieldname] = value
                 yield record
-
-                # raise RuntimeError('Expected splunkd to terminate command on receipt of finished signal')
 
     def _report_unexpected_error(self):
 

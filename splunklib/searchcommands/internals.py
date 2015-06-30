@@ -721,6 +721,8 @@ class RecordWriter(object):
             True                      # allow_nan
         )
 
+        del make_encoder
+
 
 class RecordWriterV1(RecordWriter):
 
@@ -815,7 +817,7 @@ class RecordWriterV2(RecordWriter):
     def _write_chunk(self, metadata, body):
 
         if metadata:
-            metadata = self._encode_metadata({name: value for name, value in metadata if value is not None})
+            metadata = str(''.join(self._iterencode_json({n: v for n, v in metadata if v is not None}, 0)))
             metadata_length = len(metadata)
         else:
             metadata_length = 0
@@ -831,5 +833,3 @@ class RecordWriterV2(RecordWriter):
         write(metadata)
         write(body)
         self._ofile.flush()
-
-    _encode_metadata = MetadataEncoder().encode
